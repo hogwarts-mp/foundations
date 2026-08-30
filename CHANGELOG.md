@@ -3,10 +3,21 @@
 All notable HMP Foundations changes are recorded here. The project uses a lockstep pack version and the
 pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-policy).
 
-## [Unreleased]
+## [0.1.0] - 2026-08-29
 
 ### Added
 
+- `hmp-mysql`, `hmp-lib`, `hmp-ui`, and `hmp-core` as the shared data, utility, UI, account, character,
+  group, metadata, input-ownership, and shortcut foundations.
+- `hmp-characters` and `hmp-spawn` for multicharacter creation, selection, appearance, configured
+  spawning, and character-scoped last locations.
+- `hmp-inventory` for custom items, icons, containers, atomic custom-item transfers, and a unified view
+  of Framework-owned native game inventory.
+- `hmp-interact` and `hmp-shops` for authoritative zones, prompts, requirements, catalog/stock control,
+  and audited buy/sell flows.
+- `hmp-banking` and `hmp-jobs` for accounts, organizations, transfers, native-cash exchange, employment,
+  grades, duty, permissions, management, payroll, and ledgers.
+- `hmp-admin` for capability-gated moderation, player correction, recovery, and persistent audit data.
 - `hmp-world` for configurable server-wide weather, clock, date, season, native mount-boundary,
   ambient-population and enemy-encounter baselines with synchronized runtime overrides.
 - `hmp-progression` for character-scoped XP and native-confirmed levels, replay-safe reward references,
@@ -29,9 +40,18 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   errors, and deny-by-default arbitration across duels, arenas, zones, and gamemodes.
 - `hmp-duels` for activity-backed challenge invitations, authoritative countdown/damage gating,
   native opponent targeting and meter presentation, non-lethal health floors, kneel, and forfeits.
+- Example configuration, installation/start-order guidance, compatibility policy, release packaging,
+  and a structured closed-test checklist.
 
 ### Changed
 
+- Adopted the upstream `Player.location()` and `playerLocationChanged` contract for area-aware saved
+  locations, interaction snapshots, admin inspection, and same-area teleport enforcement.
+- Standardized player-facing currency on Galleons. `native:galleons` is canonical and
+  `native:knuts` remains a compatibility alias for the same native balance.
+- Converted first-party implementation sources to strict TypeScript while keeping bundled JavaScript
+  runtime entrypoints.
+- Set the pack and every first-party resource to lockstep version `0.1.0`.
 - Restyled the shared `hmp-ui` renderer around the Arcanum visual system and replaced invisible native
   CEF select popups with keyboard-accessible, fully composited DOM dropdowns. Chained server menus now
   retain their backdrop and focus lease across short request handoffs instead of flashing the world.
@@ -59,34 +79,6 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - `hmp-activities` now supports expiring, targeted, role-aware session invitations whose acceptance
   revalidates current character, exclusivity, capacity, eligibility, area, and virtual world.
 
-## [0.1.0] - 2026-08-27
-
-### Added
-
-- `hmp-mysql`, `hmp-lib`, `hmp-ui`, and `hmp-core` as the shared data, utility, UI, account, character,
-  group, metadata, input-ownership, and shortcut foundations.
-- `hmp-characters` and `hmp-spawn` for multicharacter creation, selection, appearance, configured
-  spawning, and character-scoped last locations.
-- `hmp-inventory` for custom items, icons, containers, atomic custom-item transfers, and a unified view
-  of Framework-owned native game inventory.
-- `hmp-interact` and `hmp-shops` for authoritative zones, prompts, requirements, catalog/stock control,
-  and audited buy/sell flows.
-- `hmp-banking` and `hmp-jobs` for accounts, organizations, transfers, native-cash exchange, employment,
-  grades, duty, permissions, management, payroll, and ledgers.
-- `hmp-admin` for capability-gated moderation, player correction, recovery, and persistent audit data.
-- Example configuration, installation/start-order guidance, compatibility policy, release packaging,
-  and a structured closed-test checklist.
-
-### Changed
-
-- Adopted the upstream `Player.location()` and `playerLocationChanged` contract for area-aware saved
-  locations, interaction snapshots, admin inspection, and same-area teleport enforcement.
-- Standardized player-facing currency on Galleons. `native:galleons` is canonical and
-  `native:knuts` remains a compatibility alias for the same native balance.
-- Converted first-party implementation sources to strict TypeScript while keeping bundled JavaScript
-  runtime entrypoints.
-- Set the pack and every first-party resource to lockstep version `0.1.0`.
-
 ### Known limitations
 
 - Server-validatable MafiaHub identities are pending; asserted identities are suitable only for closed
@@ -97,5 +89,4 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - The initial admin resource focuses on moderation and corrective operations; spectate, noclip, and
   god mode are not included.
 
-[Unreleased]: https://github.com/hogwarts-mp/foundations/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.1.0
