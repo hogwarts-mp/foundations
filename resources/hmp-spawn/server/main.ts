@@ -37,7 +37,7 @@ Events.on("resourceStop", (name: unknown) => {
     return flow.saveAll(PlayerManager.getAll());
 });
 
-Events.onClient("hmp-spawn:ready", (player) => flow.onClientReady(player).catch((error: unknown) => logger.error(`Client readiness failed: ${messageOf(error)}`)));
+Events.on("loadingFinished", (player: unknown) => flow.onLoadingFinished(player as Player).catch((error: unknown) => logger.error(`Client readiness failed: ${messageOf(error)}`)));
 Events.onClient("hmp-spawn:select", (player, payload) => {
     if (!actions.allow(player.id)) return player.emit("hmp-spawn:failed", JSON.stringify({ status: -1, message: "Please slow down." }));
     const key = payload && typeof payload === "object" && "key" in payload ? payload.key : undefined;

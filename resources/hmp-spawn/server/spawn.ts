@@ -90,7 +90,7 @@ function createSpawnFlow(options: SpawnFlowOptions) {
     const pendingByRequest = new Map<number, SpawnContext>();
     const pendingByPlayer = new Map<number, SpawnContext>();
     const spawnedCharacter = new Map<number, number>();
-    const clientReady = new Set<number>();
+    const loadingDone = new Set<number>(); 
     const queuedSelection = new Map<number, CharacterSelectionPayload>();
 
     for (const location of config.locations || []) register({ ...location, resource: "hmp-spawn" });
@@ -350,6 +350,10 @@ function createSpawnFlow(options: SpawnFlowOptions) {
         if (!player) return false;
         const id = idOf(player);
         spawnedCharacter.delete(id);
+        if (!loadingDone.has(id)) { 
+            queuedSelection.set(id, payload); 
+            return false; 
+        }
         if (config.showSelector === false) {
             const last = await lastLocation(payload.character.id);
             return spawn(player, last ? "last" : config.defaultLocation);
@@ -358,13 +362,12 @@ function createSpawnFlow(options: SpawnFlowOptions) {
         return true;
     }
 
-    async function onClientReady(player: Player): Promise<boolean | number> {
-        const id = idOf(player);
-        clientReady.add(id);
-        const queued = queuedSelection.get(id);
-        if (!queued) return false;
-        queuedSelection.delete(id);
-        return onCharacterSelected(queued);
+    async function onLoadingFinished(player: Player): Promise<boolean | number> { 
+        const id = idOf(player); loadingDone.add(id); 
+        const queued = queuedSelection.get(id); 
+        if (!queued) return false; 
+        queuedSelection.delete(id); 
+        return onCharacterSelected(queued); 
     }
 
     async function saveAll(players: Player[]): Promise<number> {
@@ -382,7 +385,7 @@ function createSpawnFlow(options: SpawnFlowOptions) {
         const id = idOf(player);
         const pending = pendingByPlayer.get(id);
         if (pending) clearPending(pending);
-        clientReady.delete(id);
+        loadingDone.delete(id)
         queuedSelection.delete(id);
         spawnedCharacter.delete(id);
     }
@@ -403,7 +406,7 @@ function createSpawnFlow(options: SpawnFlowOptions) {
         save,
         saveAll,
         onCharacterSelected,
-        onClientReady,
+        onLoadingFinished,
         locationChanged,
         removeForResource,
         disconnect,

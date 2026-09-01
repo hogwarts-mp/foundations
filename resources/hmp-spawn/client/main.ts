@@ -82,7 +82,3 @@ Events.on("hmp-spawn:complete", () => finishTransition());
 Events.on("hmp-spawn:failed", (payload) => failTransition(payload));
 
 ensureView();
-try { Events.emitServer("hmp-spawn:ready", "{}"); }
-catch (_) { setTimeout(() => { try { Events.emitServer("hmp-spawn:ready", "{}"); } catch (_) {} }, 1000); }
-console.info("[hmp-spawn] client ready");
-// TypeScript source.

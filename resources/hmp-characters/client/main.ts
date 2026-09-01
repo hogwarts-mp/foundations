@@ -308,7 +308,3 @@ Events.on("creatorCancelled", () => {
 });
 
 ensureView();
-try { Events.emitServer("hmp-characters:ready", "{}"); }
-catch (_) { setTimeout(() => { try { Events.emitServer("hmp-characters:ready", "{}"); } catch (_) {} }, 1000); }
-console.info("[hmp-characters] client ready");
-// TypeScript source.

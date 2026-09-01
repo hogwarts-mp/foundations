@@ -50,7 +50,7 @@ function createCharacterFlow(options: CharacterFlowOptions) {
     if (!core?.sessions || !core?.characters || !core?.metadata) throw new TypeError("hmp-core API is required");
 
     const worldReady = new Set<number>();
-    const clientReady = new Set<number>();
+    const loadingDone = new Set<number>()
     const initialOpened = new Set<number>();
     const pendingCreation = new Map<number, PendingCreation>();
 
@@ -158,7 +158,7 @@ function createCharacterFlow(options: CharacterFlowOptions) {
 
     async function tryInitialOpen(player: Player): Promise<boolean> {
         const id = playerId(player);
-        if (!config.autoOpenOnJoin || initialOpened.has(id) || !worldReady.has(id) || !connected(player)) return false;
+        if (!config.autoOpenOnJoin || initialOpened.has(id) || !worldReady.has(id) || !loadingDone.has(id) || !connected(player)) return false;
         if (core.characters.active(player)) {
             initialOpened.add(id);
             return false;
@@ -173,9 +173,10 @@ function createCharacterFlow(options: CharacterFlowOptions) {
         return tryInitialOpen(player);
     }
 
-    async function onClientReady(player: Player): Promise<boolean> {
-        clientReady.add(playerId(player));
-        return tryInitialOpen(player);
+    async function onLoadingFinished(player: Player): Promise<boolean> { 
+        const id = playerId(player); 
+        loadingDone.add(id); 
+        return tryInitialOpen(player); 
     }
 
     async function onSessionReady(session: HmpCoreSession<Player>): Promise<boolean> {
@@ -292,7 +293,7 @@ function createCharacterFlow(options: CharacterFlowOptions) {
     function disconnect(player: Player): void {
         const id = playerId(player);
         worldReady.delete(id);
-        clientReady.delete(id);
+        loadingDone.delete(id)
         initialOpened.delete(id);
         clearPending(player);
     }
@@ -308,7 +309,7 @@ function createCharacterFlow(options: CharacterFlowOptions) {
         remove,
         applyAppearance,
         onWorldReady,
-        onClientReady,
+        onLoadingFinished,
         onSessionReady,
         disconnect,
         notifyError,

@@ -35,7 +35,7 @@ Events.on("playerAppearanceChanged", (player: unknown, blob: unknown, revision: 
 Events.on("worldReady", (player: unknown) => flow.onWorldReady(player as Player).catch((error: unknown) => flow.notifyError(player as Player, error)));
 Events.on("playerDisconnect", (player: unknown) => flow.disconnect(player as Player));
 
-Events.onClient("hmp-characters:ready", action((player) => flow.onClientReady(player)));
+Events.on("loadingFinished", (player: unknown) => flow.onLoadingFinished(player as Player));
 Events.onClient("hmp-characters:select", action((player, payload) => flow.select(player, payload?.characterId)));
 Events.onClient("hmp-characters:create", action((player) => flow.beginCreate(player)));
 Events.onClient("hmp-characters:confirmed", action((player, payload) => flow.confirmCreate(player, payload as CharacterNameInput)));
