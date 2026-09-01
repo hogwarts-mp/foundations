@@ -158,9 +158,13 @@ function createCharacterFlow(options: CharacterFlowOptions) {
 
     async function tryInitialOpen(player: Player): Promise<boolean> {
         const id = playerId(player);
-        if (!config.autoOpenOnJoin || initialOpened.has(id) || !worldReady.has(id) || !clientReady.has(id) || !connected(player)) return false;
-        initialOpened.add(id);
+        if (!config.autoOpenOnJoin || initialOpened.has(id) || !worldReady.has(id) || !connected(player)) return false;
+        if (core.characters.active(player)) {
+            initialOpened.add(id);
+            return false;
+        }
         await open(player, { mode: "join" });
+        initialOpened.add(id);
         return true;
     }
 
@@ -187,7 +191,6 @@ function createCharacterFlow(options: CharacterFlowOptions) {
         const session = core.sessions.get(player);
         await core.metadata.setAccount((session as HmpCoreSession<Player>).account.id, "hmp-characters:last", selected.id);
         close(player);
-        if (events && typeof events.emit === "function") await events.emit("hmp:character:selected", { session, character: selected });
         return selected;
     }
 

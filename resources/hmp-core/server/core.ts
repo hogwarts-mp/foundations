@@ -248,6 +248,7 @@ function createCore(options: CoreOptions) {
         await emit("hmp:character:loading", { session, character });
         session.character = character;
         await emit("hmp:character:loaded", { session, character });
+        await emit("hmp:character:selected", { session, character });
         return character;
     }
 

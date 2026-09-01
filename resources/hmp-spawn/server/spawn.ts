@@ -350,10 +350,6 @@ function createSpawnFlow(options: SpawnFlowOptions) {
         if (!player) return false;
         const id = idOf(player);
         spawnedCharacter.delete(id);
-        if (!clientReady.has(id)) {
-            queuedSelection.set(id, payload);
-            return false;
-        }
         if (config.showSelector === false) {
             const last = await lastLocation(payload.character.id);
             return spawn(player, last ? "last" : config.defaultLocation);
