@@ -20,7 +20,12 @@ export interface HmpDoorMatch {
 
 export interface HmpDoorRule {
     priority: number;
-    action: "allow" | "deny";
+    /** `deny` withholds an unlock, leaving the game's own state; `lock` actively locks and beats both. */
+    action: "allow" | "deny" | "lock";
+    /**
+     * Actor names, or full asset paths when an entry holds `/` or `:`. A name is an `FName`, unique only
+     * within its Outer, so a repeated one matches every placement carrying it — prefer a path to target one.
+     */
     doors?: "*" | ReadonlyArray<string>;
     locks?: ReadonlyArray<string>;
     alohomora?: true;
@@ -31,6 +36,7 @@ export interface HmpResolvedDoorPolicy {
     unlockAll: boolean;
     unlockDoors: string[];
     unlockAllExcept: string[];
+    lockDoors: string[];
     unlockLocks: string[];
     superAlohomora: boolean;
 }

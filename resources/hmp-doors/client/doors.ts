@@ -14,7 +14,8 @@ interface NativeDoors {
     openNearby(radius?: number): number;
     unlockNearby(radius?: number): number;
     setOpen(name: string, open?: boolean): boolean;
-    setPolicy(policy: { unlockAll?: boolean; unlockDoors?: string[]; unlockAllExcept?: string[] }): void;
+    setLocked(selector: string, locked?: boolean): number;
+    setPolicy(policy: { unlockAll?: boolean; unlockDoors?: string[]; unlockAllExcept?: string[]; lockDoors?: string[] }): void;
 }
 
 interface Vec3Like { x: number; y: number; z: number }
@@ -71,6 +72,7 @@ function normalizePolicy(raw: unknown): HmpResolvedDoorPolicy {
         unlockAll: value.unlockAll === true,
         unlockDoors: stringList(value.unlockDoors),
         unlockAllExcept: stringList(value.unlockAllExcept),
+        lockDoors: stringList(value.lockDoors),
         unlockLocks: stringList(value.unlockLocks),
         superAlohomora: value.superAlohomora === true,
     };
@@ -141,7 +143,7 @@ function createDoorClient(dependencies: ClientDependencies) {
         for (const lockId of current.unlockLocks) if (!nextLocks.has(lockId)) doors.setLock(lockId, false);
         for (const lockId of next.unlockLocks) doors.setLock(lockId, true);
         doors.superAlohomora(next.superAlohomora);
-        doors.setPolicy({ unlockAll: next.unlockAll, unlockDoors: next.unlockDoors, unlockAllExcept: next.unlockAllExcept });
+        doors.setPolicy({ unlockAll: next.unlockAll, unlockDoors: next.unlockDoors, unlockAllExcept: next.unlockAllExcept, lockDoors: next.lockDoors });
         current = next;
         ready = true;
         return current;
@@ -226,6 +228,7 @@ function createDoorClient(dependencies: ClientDependencies) {
         if (action === "open-nearby") return doors.openNearby(radius);
         if (action === "unlock-nearby") return doors.unlockNearby(radius);
         if (action === "set-open") return doors.setOpen(String(value.name || ""), value.open !== false);
+        if (action === "set-locked") return doors.setLocked(String(value.selector || ""), value.locked !== false);
         return false;
     }
 
@@ -235,7 +238,7 @@ function createDoorClient(dependencies: ClientDependencies) {
         stopped = true;
         for (const lockId of current.unlockLocks) doors.setLock(lockId, false);
         doors.superAlohomora(false);
-        doors.setPolicy({ unlockAll: false, unlockDoors: [], unlockAllExcept: [] });
+        doors.setPolicy({ unlockAll: false, unlockDoors: [], unlockAllExcept: [], lockDoors: [] });
         current = normalizePolicy({});
         ready = false;
     }

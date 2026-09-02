@@ -3,11 +3,12 @@ import clientModule = require("./doors");
 declare const Doors: {
     setLock(lockId: string, unlocked?: boolean): boolean;
     superAlohomora(enable?: boolean): boolean;
-    list(radius?: number): Array<{ name: string; cls: string; dist: number; bearing: number }>;
+    list(radius?: number): Array<{ name: string; cls: string; dist: number; bearing: number; path?: string; x?: number; y?: number; z?: number }>;
     openNearby(radius?: number): number;
     unlockNearby(radius?: number): number;
     setOpen(name: string, open?: boolean): boolean;
-    setPolicy(policy: { unlockAll?: boolean; unlockDoors?: string[]; unlockAllExcept?: string[] }): void;
+    setLocked(selector: string, locked?: boolean): number;
+    setPolicy(policy: { unlockAll?: boolean; unlockDoors?: string[]; unlockAllExcept?: string[]; lockDoors?: string[] }): void;
 };
 
 declare const Hud: {

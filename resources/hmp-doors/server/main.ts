@@ -53,7 +53,14 @@ if (config.enableCommands) Events.on("chatCommand", (player: HmpDoorPlayer, _mes
         const action = (args.shift() || "status").toLowerCase();
         if (action === "status") {
             const resolved = await doors.policy.resolve(player);
-            reply(`${resolved.policy.unlockAll ? "all physical doors unlocked" : `${resolved.policy.unlockDoors.length} named physical door(s) unlocked`}; ${resolved.policy.unlockLocks.length} logical lock(s); ${resolved.grants.length} personal grant(s)`);
+            reply(`${resolved.policy.unlockAll ? "all physical doors unlocked" : `${resolved.policy.unlockDoors.length} named physical door(s) unlocked`}; ${resolved.policy.lockDoors.length} locked; ${resolved.policy.unlockLocks.length} logical lock(s); ${resolved.grants.length} personal grant(s)`);
+            return;
+        }
+        if (action === "lock" || action === "unlock") {
+            const selector = args.join(" ").trim();
+            if (!selector) { reply(`Usage: /${config.command} ${action} <DoorActorName|/Game/...asset path>`); return; }
+            player.emit("hmp-doors:diagnostic", JSON.stringify({ action: "set-locked", selector, locked: action === "lock" }));
+            reply(`${action} requested for '${selector}'; this is a live diagnostic, not durable policy — use an action '${action === "lock" ? "lock" : "allow"}' rule to persist it.`);
             return;
         }
         if (action === "label") {
@@ -79,7 +86,7 @@ if (config.enableCommands) Events.on("chatCommand", (player: HmpDoorPlayer, _mes
             reply(`${changed ? action === "grant" ? "granted" : "revoked" : "no change for"} '${name}' ${action === "grant" ? "to" : "from"} ${target.nickname || `#${target.id}`}`);
             return;
         }
-        reply(`Usage: /${config.command} <status|list|label|open-nearby|unlock-nearby|reload|grant|revoke|grants|clear>`);
+        reply(`Usage: /${config.command} <status|list|label|lock|unlock|open-nearby|unlock-nearby|reload|grant|revoke|grants|clear>`);
     })().catch((error) => { logger.warn(`Door command failed: ${messageOf(error)}`); reply(messageOf(error)); });
 });
 

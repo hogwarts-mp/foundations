@@ -30,6 +30,34 @@ async function run(): Promise<void> {
     const auror = evaluateRules(rules, [{ key: "job:auror", grade: 0 }]);
     assert.strictEqual(auror.superAlohomora, true);
     assert.throws(() => normalizeRule({ priority: 1, action: "allow", doors: "*", locks: ["x"] }, 0), /exactly one/);
+    assert.deepStrictEqual(guest.lockDoors, []);
+
+    // A path selector targets one placement where a bare name would hit every door sharing it.
+    const SHOP = "/Game/Maps/Hogsmeade/Sub_A.Sub_A:PersistentLevel.BP_Door_Template2";
+    const locking: HmpDoorRule[] = [
+        normalizeRule({ priority: 1000, action: "allow", doors: "*" }, 0),
+        normalizeRule({ priority: 500, action: "lock", doors: [SHOP] }, 1),
+    ];
+    const visitor = evaluateRules(locking, []);
+    assert.deepStrictEqual(visitor.lockDoors, [SHOP]);
+    // Also an unlock exception, so a client too old to honour lockDoors leaves it alone under unlockAll.
+    assert.deepStrictEqual(visitor.unlockAllExcept, [SHOP]);
+    assert.strictEqual(visitor.unlockAll, true);
+
+    // Lock beats deny and allow at equal priority; a personal grant still beats lock.
+    const tie = [
+        normalizeRule({ priority: 100, action: "allow", doors: ["Tie"] }, 0),
+        normalizeRule({ priority: 100, action: "deny", doors: ["Tie"] }, 1),
+        normalizeRule({ priority: 100, action: "lock", doors: ["Tie"] }, 2),
+    ];
+    assert.deepStrictEqual(evaluateRules(tie, []).lockDoors, ["Tie"]);
+    const granted = evaluateRules(tie, [], ["Tie"]);
+    assert.deepStrictEqual(granted.lockDoors, []);
+    assert.deepStrictEqual(granted.unlockDoors, ["Tie"]);
+
+    assert.throws(() => normalizeRule({ priority: 1, action: "lock", locks: ["GateLock"] }, 0), /only to a doors target/);
+    assert.throws(() => normalizeRule({ priority: 1, action: "lock", doors: "*" }, 0), /not '\*'/);
+    assert.throws(() => normalizeRule({ priority: 1, action: "seal", doors: ["x"] }, 0), /allow, deny or lock/);
 
     const player = { id: 7, nickname: "Test", emitted: [] as Array<{ name: string; payload: unknown }>, emit(name: string, payload?: unknown) { this.emitted.push({ name, payload }); } };
     const metadata = new Map<string, unknown>();
@@ -50,6 +78,7 @@ async function run(): Promise<void> {
     assert.ok(player.emitted.some((event) => event.name === "hmp-doors:policy"));
 
     const lockCalls: Array<[string, boolean | undefined]> = [];
+    const lockedCalls: Array<[string, boolean | undefined]> = [];
     const superCalls: boolean[] = [];
     const physical: unknown[] = [];
     const events: Array<{ name: string; payload: unknown }> = [];
@@ -60,6 +89,7 @@ async function run(): Promise<void> {
             superAlohomora: (enabled = true) => { superCalls.push(enabled); return true; },
             setPolicy: (value) => { physical.push(value); },
             list: () => [], openNearby: () => 0, unlockNearby: () => 0, setOpen: () => true,
+            setLocked: (selector, locked) => { lockedCalls.push([selector, locked]); return 1; },
         },
     });
     assert.deepStrictEqual(events.map((event) => event.name), ["hmp-doors:ready"]);
@@ -68,6 +98,12 @@ async function run(): Promise<void> {
     assert.deepStrictEqual(lockCalls, [["GateLock", true], ["GateLock", false]]);
     assert.deepStrictEqual(superCalls, [true, false]);
     assert.strictEqual(physical.length, 2);
+    // The physical policy carries lockDoors through to the native untouched.
+    client.apply({ unlockAll: true, lockDoors: ["/Game/M.M:PersistentLevel.D"] });
+    assert.deepStrictEqual((physical[physical.length - 1] as { lockDoors: string[] }).lockDoors, ["/Game/M.M:PersistentLevel.D"]);
+    assert.strictEqual(client.diagnostic({ action: "set-locked", selector: "/Game/M.M:PersistentLevel.D" }), 1);
+    assert.deepStrictEqual(lockedCalls, [["/Game/M.M:PersistentLevel.D", true]]);
+
     // Label mode is inert without the Hud and LocalPlayer natives rather than throwing.
     assert.strictEqual(client.diagnostic({ action: "label" }), false);
     client.stop();
@@ -108,7 +144,7 @@ async function run(): Promise<void> {
         events: { emitServer: () => { /* ready ping */ } },
         doors: {
             setLock: () => true, superAlohomora: () => true, setPolicy: () => { /* unused */ },
-            list: () => nearby, openNearby: () => 0, unlockNearby: () => 0, setOpen: () => true,
+            list: () => nearby, openNearby: () => 0, unlockNearby: () => 0, setOpen: () => true, setLocked: () => 0,
         },
         hud: {
             showPrompt: (key, label, x, y, z) => { prompts.push({ key, label, x, y, z }); },

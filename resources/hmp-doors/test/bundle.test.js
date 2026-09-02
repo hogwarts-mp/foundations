@@ -41,7 +41,7 @@ global.Events = {
 global.Doors = {
     setLock: () => true, superAlohomora: () => true, openNearby: () => 0,
     list: () => [{ name: "BP_Smoke_Door", cls: "Door", dist: 250, bearing: 0 }],
-    unlockNearby: () => 0, setOpen: () => true, setPolicy() {},
+    unlockNearby: () => 0, setOpen: () => true, setPolicy() {}, setLocked: () => 1,
 };
 global.Game = { notify() {} };
 const prompts = [];

@@ -13,9 +13,13 @@ function normalizeRule(raw: unknown, index: number): HmpDoorRule {
     const value = raw as Record<string, unknown>;
     const priority = Number(value.priority);
     if (!Number.isFinite(priority)) throw new TypeError(`hmp-doors rule ${index} priority must be finite`);
-    if (value.action !== "allow" && value.action !== "deny") throw new TypeError(`hmp-doors rule ${index} action must be allow or deny`);
+    if (value.action !== "allow" && value.action !== "deny" && value.action !== "lock") throw new TypeError(`hmp-doors rule ${index} action must be allow, deny or lock`);
     const targets = [value.doors !== undefined, value.locks !== undefined, value.alohomora === true].filter(Boolean).length;
     if (targets !== 1) throw new TypeError(`hmp-doors rule ${index} must target exactly one of doors, locks, or alohomora`);
+    // A logical lock is already locked by not being unlocked, and locking every door needs a native that
+    // does not exist, so 'lock' is rejected rather than silently doing nothing for those two shapes.
+    if (value.action === "lock" && value.doors === undefined) throw new TypeError(`hmp-doors rule ${index} action lock applies only to a doors target`);
+    if (value.action === "lock" && value.doors === "*") throw new TypeError(`hmp-doors rule ${index} action lock needs explicit doors, not '*'`);
     const rule: HmpDoorRule = { priority, action: value.action };
     if (value.doors !== undefined) {
         if (value.doors === "*") rule.doors = "*";

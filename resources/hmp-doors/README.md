@@ -30,7 +30,8 @@ Create `data/hmp-doors.json` or copy the supplied example:
 }
 ```
 
-Lower priority numbers are stronger. At an equal priority, deny wins. A rule targets exactly one of:
+Lower priority numbers are stronger. At an equal priority, `lock` beats `deny`, which beats `allow`. A
+personal grant beats all three. A rule targets exactly one of:
 
 - `"doors": "*"` or an array of physical actor names;
 - `"locks": ["LockID"]` for logical/scripted locks;
@@ -43,6 +44,30 @@ membership is required. Rules without `match` apply to everyone.
 The client passes physical policy to the Framework's streaming-aware `Doors.setPolicy()`, so it applies
 again as world cells load; Foundations does not poll nearby actors. An allow unlocks a door but never forces
 it open.
+
+## Locking a door
+
+`deny` only withholds an unlock, leaving whatever state the game shipped — for a door vanilla leaves open,
+that is not a lock. `lock` actively locks, calling the game's own `ALockable::Lock`:
+
+```json
+{
+  "priority": 100,
+  "action": "lock",
+  "doors": ["/Game/Maps/Hogsmeade/Sub_A.Sub_A:PersistentLevel.BP_Door_Template2"]
+}
+```
+
+A `doors` entry holding `/` or `:` matches the actor's full asset path; anything else matches its name.
+Prefer a path whenever `list` shows the name more than once — a bare name locks *every* placement carrying
+it. Get the path from `/doors list`, which prints it beneath each row.
+
+`lock` needs explicit doors: it is rejected on a `locks` or `alohomora` target, and on `"*"`. A locked door
+is also emitted as an `unlockAllExcept` entry, so a client too old to honour `lockDoors` leaves it alone
+rather than unlocking it under a wildcard allow.
+
+`/doors lock <selector>` and `/doors unlock <selector>` apply the same thing live for testing. They are
+diagnostics — nothing re-applies them as cells stream, so persist a rule once you know the selector works.
 
 ## API
 
@@ -65,6 +90,8 @@ Members of one configured `adminGroups` entry may use:
 /doors list [radius]
 /doors label [radius]
 /doors label off
+/doors lock <DoorActorName|/Game/...asset path>
+/doors unlock <DoorActorName|/Game/...asset path>
 /doors unlock-nearby [radius]
 /doors open-nearby [radius]
 /doors reload
