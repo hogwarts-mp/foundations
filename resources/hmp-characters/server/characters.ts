@@ -50,7 +50,7 @@ function createCharacterFlow(options: CharacterFlowOptions) {
     if (!core?.sessions || !core?.characters || !core?.metadata) throw new TypeError("hmp-core API is required");
 
     const worldReady = new Set<number>();
-    const loadingDone = new Set<number>()
+    const loadingDone = new Set<number>();
     const initialOpened = new Set<number>();
     const pendingCreation = new Map<number, PendingCreation>();
 
@@ -163,9 +163,14 @@ function createCharacterFlow(options: CharacterFlowOptions) {
             initialOpened.add(id);
             return false;
         }
-        await open(player, { mode: "join" });
         initialOpened.add(id);
-        return true;
+        try {
+            await open(player, { mode: "join" });
+            return true;
+        } catch (error) {
+            initialOpened.delete(id);
+            throw error;
+        }
     }
 
     async function onWorldReady(player: Player): Promise<boolean> {
@@ -173,10 +178,10 @@ function createCharacterFlow(options: CharacterFlowOptions) {
         return tryInitialOpen(player);
     }
 
-    async function onLoadingFinished(player: Player): Promise<boolean> { 
-        const id = playerId(player); 
-        loadingDone.add(id); 
-        return tryInitialOpen(player); 
+    async function onLoadingFinished(player: Player): Promise<boolean> {
+        const id = playerId(player);
+        loadingDone.add(id);
+        return tryInitialOpen(player);
     }
 
     async function onSessionReady(session: HmpCoreSession<Player>): Promise<boolean> {
@@ -293,7 +298,7 @@ function createCharacterFlow(options: CharacterFlowOptions) {
     function disconnect(player: Player): void {
         const id = playerId(player);
         worldReady.delete(id);
-        loadingDone.delete(id)
+        loadingDone.delete(id);
         initialOpened.delete(id);
         clearPending(player);
     }

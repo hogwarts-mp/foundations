@@ -80,6 +80,7 @@ function setup(config: TestConfig = {}) {
                 if (!character) throw new Error("test character not found");
                 active.set(player.id, character);
                 session.character = character;
+                await events.emit("hmp:character:selected", { session, character });
                 return character;
             },
             active: () => active.get(player.id) || null,
@@ -127,7 +128,7 @@ function setup(config: TestConfig = {}) {
 test("opens only after account, client and world readiness", async () => {
     const { flow, session, player, clientEvents } = setup();
     assert.strictEqual(await flow.onSessionReady(session), false);
-    assert.strictEqual(await flow.onClientReady(player), false);
+    assert.strictEqual(await flow.onLoadingFinished(player), false);
     assert.strictEqual(await flow.onWorldReady(player), true);
     const opened = clientEvents.find((event) => event.name === "hmp-characters:open");
     assert.strictEqual(opened?.payload.mode, "create");

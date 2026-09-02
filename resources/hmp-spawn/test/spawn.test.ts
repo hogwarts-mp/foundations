@@ -87,7 +87,7 @@ test("waits for client readiness before opening character spawn selection", asyn
     const { flow, session, character, player, clientEvents } = setup();
     assert.strictEqual(await flow.onCharacterSelected({ session, character }), false);
     assert.strictEqual(clientEvents.length, 0);
-    assert.strictEqual(await flow.onClientReady(player), true);
+    assert.strictEqual(await flow.onLoadingFinished(player), true);
     const opened = clientEvents.find((event) => event.name === "hmp-spawn:open");
     const openedCharacter = opened?.payload.character as { name?: string } | undefined;
     const openedLocations = opened?.payload.locations as Array<{ key: string }> | undefined;
