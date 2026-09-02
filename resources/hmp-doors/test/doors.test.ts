@@ -8,7 +8,7 @@ import type { HmpDoorRule } from "../types";
 const { evaluateRules } = policyModule;
 const { normalizeRule } = configModule;
 const { createDoorService, METADATA_KEY } = serviceModule;
-const { createDoorClient, doorAnchor, normalizeLabelOptions } = clientModule;
+const { createDoorClient, doorAnchor, normalizeLabelOptions, levelSegment } = clientModule;
 
 async function run(): Promise<void> {
     const rules: HmpDoorRule[] = [
@@ -138,12 +138,32 @@ async function run(): Promise<void> {
     intervals.get(handle)?.();
     assert.strictEqual(prompts.length, 1);
 
+    assert.strictEqual(levelSegment("/Game/Maps/Hogsmeade/Sub_A.Sub_A:PersistentLevel.BP_Door_Template2"), "Sub_A");
+    assert.strictEqual(levelSegment(undefined), "");
+    assert.strictEqual(levelSegment("BP_Door_Template2"), "BP_Door_Template2");
+
+    // Two doors sharing a name: the label must carry the level, and take it from the nearer one.
+    nearby.push(
+        { name: "BP_Door_Template2", cls: "Door", dist: 700, bearing: 5, path: "/Game/Maps/HM/Far.Far:PersistentLevel.BP_Door_Template2" } as (typeof nearby)[number],
+        { name: "BP_Door_Template2", cls: "Door", dist: 120, bearing: 5, path: "/Game/Maps/HM/Near.Near:PersistentLevel.BP_Door_Template2" } as (typeof nearby)[number],
+    );
+    intervals.get(handle)?.();
+    assert.strictEqual(prompts.length, 2);
+    assert.strictEqual(prompts[1].label, "BP_Door_Template2 (Near)");
+
+    // A door whose name is unique in the scan stays unadorned.
+    nearby.length = 0;
+    nearby.push({ name: "BP_Solo_Door", cls: "Door", dist: 90, bearing: 0, path: "/Game/Maps/HM/Only.Only:PersistentLevel.BP_Solo_Door" } as (typeof nearby)[number]);
+    intervals.get(handle)?.();
+    assert.strictEqual(prompts.length, 3);
+    assert.strictEqual(prompts[2].label, "BP_Solo_Door");
+
     // A located door is anchored exactly and no longer needs a usable bearing to be labelled.
     nearby.push({ name: "BP_Located_Door", cls: "Door", dist: 10, bearing: 999, x: 7, y: 8, z: 9 } as (typeof nearby)[number]);
     intervals.get(handle)?.();
-    assert.strictEqual(prompts.length, 2);
-    assert.strictEqual(prompts[1].label, "BP_Located_Door");
-    assert.deepStrictEqual([prompts[1].x, prompts[1].y, prompts[1].z], [7, 8, 129]);
+    assert.strictEqual(prompts.length, 4);
+    assert.strictEqual(prompts[3].label, "BP_Located_Door");
+    assert.deepStrictEqual([prompts[3].x, prompts[3].y, prompts[3].z], [7, 8, 129]);
 
     assert.strictEqual(labelClient.diagnostic({ action: "label-off" }), true);
     assert.strictEqual(intervals.size, 0);

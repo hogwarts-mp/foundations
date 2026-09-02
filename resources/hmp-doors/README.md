@@ -82,6 +82,12 @@ management surface.
 be read while walking rather than matched up against a console dump. It labels one door at a time because
 `Hud.showPrompt` holds a single prompt; `off` ends it, as does stopping the resource.
 
+An actor name is an `FName`, unique only within its Outer, so streamed sublevels can repeat one — and both
+`setPolicy` and `setUnlocked` match on that name and act on *every* door carrying it. When a scan sees the
+same name more than once the label appends the level, `[2.4m] BP_Door_Template2 (Sublevel_A)`, and `list`
+prints each door's full asset path beneath its row. Use those to tell placements apart before writing a
+rule; a rule naming a repeated door affects all of them.
+
 Placement prefers each door's own `x`/`y`/`z`, which `Doors.list` reports on client builds carrying the
 door-position change. Against an older client those fields are absent and the anchor is rebuilt from the
 player instead: the mod computes the bearing as `atan2(dy, dx) - yaw`, which adding the yaw back inverts

@@ -1,7 +1,11 @@
 import type { HmpResolvedDoorPolicy } from "../types";
 
-/** `x`/`y`/`z` arrive only from client builds carrying the door-position change; older ones omit them. */
-interface NativeDoor { name: string; cls: string; dist: number; bearing: number; x?: number; y?: number; z?: number }
+/**
+ * `path` and `x`/`y`/`z` arrive only from client builds carrying the door-position change; older ones
+ * omit them. `name` is an actor `FName`, unique only within its Outer, so streamed sublevels can repeat
+ * it — `path` carries the outer chain and is what separates two placements sharing a name.
+ */
+interface NativeDoor { name: string; cls: string; dist: number; bearing: number; path?: string; x?: number; y?: number; z?: number }
 
 interface NativeDoors {
     setLock(lockId: string, unlocked?: boolean): boolean;
@@ -82,6 +86,17 @@ function normalizeLabelOptions(raw: unknown): DoorLabelOptions {
     };
 }
 
+/**
+ * The shortest piece of a door's path that still tells two same-named placements apart: the package,
+ * which is everything before the first ".", reduced to its last "/" segment. Returns "" for a path
+ * that is absent or not shaped that way, and callers fall back to the bare name.
+ */
+function levelSegment(path: string | undefined): string {
+    if (typeof path !== "string" || !path) return "";
+    const pkg = path.split(".")[0] || "";
+    return pkg.slice(pkg.lastIndexOf("/") + 1);
+}
+
 /** A door the native located, so its own world position can be used instead of a reconstruction. */
 function isLocated(door: NativeDoor): door is NativeDoor & { x: number; y: number; z: number } {
     return Number.isFinite(door.x) && Number.isFinite(door.y) && Number.isFinite(door.z);
@@ -136,7 +151,7 @@ function createDoorClient(dependencies: ClientDependencies) {
         const bounded = Math.max(100, Math.min(20000, Number(radius) || 3000));
         const found = doors.list(bounded);
         dependencies.log?.(`[hmp-doors] ${found.length} door(s) within ${bounded}cm (distance | bearing | name):`);
-        for (const door of found) dependencies.log?.(`  ${door.dist.toFixed(0)}cm | ${door.bearing.toFixed(0)}deg | ${door.name} [${door.cls}]`);
+        for (const door of found) dependencies.log?.(`  ${door.dist.toFixed(0)}cm | ${door.bearing.toFixed(0)}deg | ${door.name} [${door.cls}]${door.path ? `\n      ${door.path}` : ""}`);
         dependencies.notify?.(`[doors] ${found.length} nearby door(s); details are in the client console`);
         return found;
     }
@@ -154,19 +169,25 @@ function createDoorClient(dependencies: ClientDependencies) {
         const origin = localPlayer.getPosition();
         if (!origin) { hideLabel(); return null; }
         const yaw = Number(localPlayer.getRotation()?.yaw);
+        const seen = new Map<string, number>();
         let nearest: NativeDoor | null = null;
         for (const door of doors.list(labelOptions.radius)) {
             if (!door || !isAnchorable(door, Number.isFinite(yaw))) continue;
+            seen.set(door.name, (seen.get(door.name) || 0) + 1);
             if (!nearest || door.dist < nearest.dist || (door.dist === nearest.dist && door.name < nearest.name)) nearest = door;
         }
         if (!nearest) { hideLabel(); return null; }
+        // A bare FName is ambiguous exactly when this scan saw it more than once, and only then is the
+        // level worth the extra width in a floating label.
+        const segment = (seen.get(nearest.name) || 0) > 1 ? levelSegment(nearest.path) : "";
+        const text = segment ? `${nearest.name} (${segment})` : nearest.name;
         const anchor = doorAnchor(origin, Number.isFinite(yaw) ? yaw : 0, nearest, labelOptions);
         // The anchor is derived from the player, so it drifts as they walk. Re-issue per 10cm of drift
         // rather than every tick; the client re-projects a held prompt each frame by itself.
-        const signature = `${nearest.name}\0${Math.round(anchor.x / 10)}\0${Math.round(anchor.y / 10)}\0${Math.round(anchor.z / 10)}`;
+        const signature = `${text}\0${Math.round(anchor.x / 10)}\0${Math.round(anchor.y / 10)}\0${Math.round(anchor.z / 10)}`;
         if (signature !== labelSignature) {
             labelSignature = signature;
-            hud.showPrompt(`${(nearest.dist / 100).toFixed(1)}m`, nearest.name, anchor.x, anchor.y, anchor.z);
+            hud.showPrompt(`${(nearest.dist / 100).toFixed(1)}m`, text, anchor.x, anchor.y, anchor.z);
         }
         return { name: nearest.name, dist: nearest.dist };
     }
@@ -227,4 +248,4 @@ function createDoorClient(dependencies: ClientDependencies) {
     });
 }
 
-export = { createDoorClient, normalizePolicy, normalizeLabelOptions, doorAnchor, parsePayload, LABEL_DEFAULTS };
+export = { createDoorClient, normalizePolicy, normalizeLabelOptions, doorAnchor, levelSegment, parsePayload, LABEL_DEFAULTS };
