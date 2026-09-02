@@ -60,7 +60,9 @@ that is not a lock. `lock` actively locks, calling the game's own `ALockable::Lo
 
 A `doors` entry holding `/` or `:` matches the actor's full asset path; anything else matches its name.
 Prefer a path whenever `list` shows the name more than once — a bare name locks *every* placement carrying
-it. Get the path from `/doors list`, which prints it beneath each row.
+it. Get the path from `/doors list`, which echoes the nearest five doors into chat with each path on its
+own line, because the F8 console cannot be copied from. Every match still goes to the console and to
+`logs/HogwartsMP.log`, so widen the radius and read there when five is not enough.
 
 `lock` needs explicit doors: it is rejected on a `locks` or `alohomora` target, and on `"*"`. A locked door
 is also emitted as an `unlockAllExcept` entry, so a client too old to honour `lockDoors` leaves it alone

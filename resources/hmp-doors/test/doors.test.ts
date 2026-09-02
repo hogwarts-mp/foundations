@@ -104,6 +104,27 @@ async function run(): Promise<void> {
     assert.strictEqual(client.diagnostic({ action: "set-locked", selector: "/Game/M.M:PersistentLevel.D" }), 1);
     assert.deepStrictEqual(lockedCalls, [["/Game/M.M:PersistentLevel.D", true]]);
 
+    // list echoes the nearest few into chat, each path on its own line so a selection copies cleanly.
+    const chat: string[] = [];
+    const listed = createDoorClient({
+        events: { emitServer: () => { /* ready ping */ } },
+        notify: (message) => { chat.push(message); },
+        doors: {
+            setLock: () => true, superAlohomora: () => true, setPolicy: () => { /* unused */ },
+            openNearby: () => 0, unlockNearby: () => 0, setOpen: () => true, setLocked: () => 0,
+            list: () => Array.from({ length: 7 }, (_, i) => ({
+                name: `BP_Door_${i}`, cls: "Door", dist: i * 100, bearing: 0,
+                path: `/Game/Maps/HM/Sub.Sub:PersistentLevel.BP_Door_${i}`,
+            })),
+        },
+    });
+    listed.list(800);
+    assert.strictEqual(chat[0], "[doors] 7 door(s) within 800cm; nearest 5 below, 2 more in the console");
+    assert.strictEqual(chat[1], "0cm BP_Door_0 [Door]");
+    assert.strictEqual(chat[2], "/Game/Maps/HM/Sub.Sub:PersistentLevel.BP_Door_0");
+    assert.strictEqual(chat.length, 11);
+    listed.stop();
+
     // Label mode is inert without the Hud and LocalPlayer natives rather than throwing.
     assert.strictEqual(client.diagnostic({ action: "label" }), false);
     client.stop();

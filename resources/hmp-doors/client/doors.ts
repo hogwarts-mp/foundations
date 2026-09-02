@@ -54,6 +54,9 @@ interface ClientDependencies {
 
 const LABEL_DEFAULTS: DoorLabelOptions = { radius: 1500, intervalMs: 250, offsetZ: 120 };
 
+/** How many of the nearest doors `list` echoes into chat; the console still gets every one. */
+const CHAT_ROWS = 5;
+
 function parsePayload(raw: unknown): Record<string, unknown> {
     if (typeof raw === "string") {
         try { return JSON.parse(raw) as Record<string, unknown>; }
@@ -154,7 +157,16 @@ function createDoorClient(dependencies: ClientDependencies) {
         const found = doors.list(bounded);
         dependencies.log?.(`[hmp-doors] ${found.length} door(s) within ${bounded}cm (distance | bearing | name):`);
         for (const door of found) dependencies.log?.(`  ${door.dist.toFixed(0)}cm | ${door.bearing.toFixed(0)}deg | ${door.name} [${door.cls}]${door.path ? `\n      ${door.path}` : ""}`);
-        dependencies.notify?.(`[doors] ${found.length} nearby door(s); details are in the client console`);
+        // The console cannot be copied from, and a path is the one thing worth copying, so the nearest
+        // few also go to chat with each path on its own line to keep a selection clean. The native
+        // returns up to 60 sorted by distance; sending them all would bury the chat.
+        const shown = found.slice(0, CHAT_ROWS);
+        const overflow = found.length - shown.length;
+        dependencies.notify?.(`[doors] ${found.length} door(s) within ${bounded}cm${overflow > 0 ? `; nearest ${shown.length} below, ${overflow} more in the console` : ""}`);
+        for (const door of shown) {
+            dependencies.notify?.(`${door.dist.toFixed(0)}cm ${door.name} [${door.cls}]`);
+            if (door.path) dependencies.notify?.(door.path);
+        }
         return found;
     }
 
