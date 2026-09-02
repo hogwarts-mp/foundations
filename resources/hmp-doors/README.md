@@ -63,6 +63,8 @@ Members of one configured `adminGroups` entry may use:
 ```text
 /doors status
 /doors list [radius]
+/doors label [radius]
+/doors label off
 /doors unlock-nearby [radius]
 /doors open-nearby [radius]
 /doors reload
@@ -75,6 +77,17 @@ Members of one configured `adminGroups` entry may use:
 `list` prints loaded physical actor names to the client console. The nearby/open actions are diagnostics,
 not durable policy. Set `enableCommands` to false outside testing if script APIs are the only desired
 management surface.
+
+`label` floats the nearest door's actor name in the world, rendered as `[2.4m] BP_Door_Name`, so names can
+be read while walking rather than matched up against a console dump. It labels one door at a time because
+`Hud.showPrompt` holds a single prompt; `off` ends it, as does stopping the resource.
+
+Placement prefers each door's own `x`/`y`/`z`, which `Doors.list` reports on client builds carrying the
+door-position change. Against an older client those fields are absent and the anchor is rebuilt from the
+player instead: the mod computes the bearing as `atan2(dy, dx) - yaw`, which adding the yaw back inverts
+exactly, but the distance is then a straight-line measure standing in for a ground-plane radius and the
+height is the player's own Z plus 120cm rather than the door's. The fallback holds up while standing next
+to a door and drifts for one well above or below the player.
 
 Chests are not managed by this resource. Chest opening and loot authority require a separate design that
 coordinates native save state and Foundations inventory semantics.

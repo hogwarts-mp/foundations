@@ -1,21 +1,53 @@
 import type { HmpResolvedDoorPolicy } from "../types";
 
+/** `x`/`y`/`z` arrive only from client builds carrying the door-position change; older ones omit them. */
+interface NativeDoor { name: string; cls: string; dist: number; bearing: number; x?: number; y?: number; z?: number }
+
 interface NativeDoors {
     setLock(lockId: string, unlocked?: boolean): boolean;
     superAlohomora(enable?: boolean): boolean;
-    list(radius?: number): Array<{ name: string; cls: string; dist: number; bearing: number }>;
+    list(radius?: number): NativeDoor[];
     openNearby(radius?: number): number;
     unlockNearby(radius?: number): number;
     setOpen(name: string, open?: boolean): boolean;
     setPolicy(policy: { unlockAll?: boolean; unlockDoors?: string[]; unlockAllExcept?: string[] }): void;
 }
 
+interface Vec3Like { x: number; y: number; z: number }
+interface RotatorLike { pitch: number; yaw: number; roll: number }
+
+interface NativeHud {
+    showPrompt(key: string, label: string, x: number, y: number, z: number): void;
+    hidePrompt(): void;
+}
+
+interface NativeLocalPlayer {
+    getPosition(): Vec3Like | null;
+    getRotation(): RotatorLike | null;
+}
+
+interface NativeTimers {
+    setInterval(handler: () => void, ms: number): unknown;
+    clearInterval(handle: unknown): void;
+}
+
+interface DoorLabelOptions {
+    radius: number;
+    intervalMs: number;
+    offsetZ: number;
+}
+
 interface ClientDependencies {
     doors: NativeDoors;
     events: { emitServer(eventName: string, payload?: unknown): void };
+    hud?: NativeHud;
+    localPlayer?: NativeLocalPlayer;
+    timers?: NativeTimers;
     notify?(message: string): void;
     log?(message: string): void;
 }
+
+const LABEL_DEFAULTS: DoorLabelOptions = { radius: 1500, intervalMs: 250, offsetZ: 120 };
 
 function parsePayload(raw: unknown): Record<string, unknown> {
     if (typeof raw === "string") {
@@ -40,11 +72,52 @@ function normalizePolicy(raw: unknown): HmpResolvedDoorPolicy {
     };
 }
 
+function normalizeLabelOptions(raw: unknown): DoorLabelOptions {
+    const value = parsePayload(raw);
+    const offsetZ = Number(value.offsetZ);
+    return {
+        radius: Math.max(100, Math.min(20000, Number(value.radius) || LABEL_DEFAULTS.radius)),
+        intervalMs: Math.max(50, Math.min(2000, Number(value.intervalMs) || LABEL_DEFAULTS.intervalMs)),
+        offsetZ: Number.isFinite(offsetZ) ? offsetZ : LABEL_DEFAULTS.offsetZ,
+    };
+}
+
+/** A door the native located, so its own world position can be used instead of a reconstruction. */
+function isLocated(door: NativeDoor): door is NativeDoor & { x: number; y: number; z: number } {
+    return Number.isFinite(door.x) && Number.isFinite(door.y) && Number.isFinite(door.z);
+}
+
+/**
+ * Prefers the door's own position. Falling back, the mod computes `bearing` as `atan2(dy, dx) - yaw`
+ * (`BearingDeg` in its `builtins/doors.cpp`), which adding the yaw back inverts exactly, but a
+ * straight-line `dist` then stands in for a ground-plane radius and the player Z for the door's own.
+ */
+function doorAnchor(origin: Vec3Like, yaw: number, door: NativeDoor, options: DoorLabelOptions): Vec3Like {
+    if (isLocated(door)) return { x: door.x, y: door.y, z: door.z + options.offsetZ };
+    const radians = ((door.bearing + yaw) * Math.PI) / 180;
+    return { x: origin.x + door.dist * Math.cos(radians), y: origin.y + door.dist * Math.sin(radians), z: origin.z + options.offsetZ };
+}
+
+/**
+ * `Doors.list` reports dist -1 for an actor it could not locate and bearing 999 when the player
+ * rotation was unavailable. A located door survives an unusable bearing, since reconstruction is
+ * then the only thing that needed the yaw.
+ */
+function isAnchorable(door: NativeDoor, hasYaw: boolean): boolean {
+    if (typeof door.name !== "string" || !door.name) return false;
+    if (typeof door.dist !== "number" || !Number.isFinite(door.dist) || door.dist < 0) return false;
+    if (isLocated(door)) return true;
+    return hasYaw && Number.isFinite(door.bearing) && Math.abs(door.bearing) <= 180;
+}
+
 function createDoorClient(dependencies: ClientDependencies) {
     const { doors } = dependencies;
     let current = normalizePolicy({});
     let ready = false;
     let stopped = false;
+    let labelOptions: DoorLabelOptions | null = null;
+    let labelHandle: unknown = null;
+    let labelSignature = "";
 
     function apply(raw: unknown): HmpResolvedDoorPolicy {
         if (stopped) return current;
@@ -68,11 +141,67 @@ function createDoorClient(dependencies: ClientDependencies) {
         return found;
     }
 
-    function diagnostic(raw: unknown): number | boolean | unknown[] {
+    function hideLabel(): void {
+        if (labelSignature === "") return;
+        labelSignature = "";
+        dependencies.hud?.hidePrompt();
+    }
+
+    /** Labels the nearest door only; `Hud.showPrompt` holds one prompt at a time. */
+    function scanLabel(): { name: string; dist: number } | null {
+        const { hud, localPlayer } = dependencies;
+        if (stopped || !labelOptions || !hud || !localPlayer) { hideLabel(); return null; }
+        const origin = localPlayer.getPosition();
+        if (!origin) { hideLabel(); return null; }
+        const yaw = Number(localPlayer.getRotation()?.yaw);
+        let nearest: NativeDoor | null = null;
+        for (const door of doors.list(labelOptions.radius)) {
+            if (!door || !isAnchorable(door, Number.isFinite(yaw))) continue;
+            if (!nearest || door.dist < nearest.dist || (door.dist === nearest.dist && door.name < nearest.name)) nearest = door;
+        }
+        if (!nearest) { hideLabel(); return null; }
+        const anchor = doorAnchor(origin, Number.isFinite(yaw) ? yaw : 0, nearest, labelOptions);
+        // The anchor is derived from the player, so it drifts as they walk. Re-issue per 10cm of drift
+        // rather than every tick; the client re-projects a held prompt each frame by itself.
+        const signature = `${nearest.name}\0${Math.round(anchor.x / 10)}\0${Math.round(anchor.y / 10)}\0${Math.round(anchor.z / 10)}`;
+        if (signature !== labelSignature) {
+            labelSignature = signature;
+            hud.showPrompt(`${(nearest.dist / 100).toFixed(1)}m`, nearest.name, anchor.x, anchor.y, anchor.z);
+        }
+        return { name: nearest.name, dist: nearest.dist };
+    }
+
+    function startLabels(raw: unknown): boolean {
+        if (stopped) return false;
+        if (!dependencies.hud || !dependencies.localPlayer) { dependencies.notify?.("[doors] labels need the Hud and LocalPlayer natives"); return false; }
+        const timers = dependencies.timers;
+        if (labelHandle !== null && timers) timers.clearInterval(labelHandle);
+        labelHandle = null;
+        labelOptions = normalizeLabelOptions(raw);
+        if (timers) labelHandle = timers.setInterval(() => { scanLabel(); }, labelOptions.intervalMs);
+        scanLabel();
+        dependencies.notify?.(`[doors] labelling the nearest door within ${labelOptions.radius}cm`);
+        return true;
+    }
+
+    function stopLabels(): boolean {
+        const timers = dependencies.timers;
+        if (labelHandle !== null && timers) timers.clearInterval(labelHandle);
+        labelHandle = null;
+        const wasActive = labelOptions !== null;
+        labelOptions = null;
+        hideLabel();
+        if (wasActive) dependencies.notify?.("[doors] door labels off");
+        return wasActive;
+    }
+
+    function diagnostic(raw: unknown): number | boolean | unknown[] | { name: string; dist: number } | null {
         const value = parsePayload(raw);
         const action = String(value.action || "");
         const radius = Math.max(100, Math.min(20000, Number(value.radius) || (action === "list" ? 3000 : 1500)));
         if (action === "list") return list(radius);
+        if (action === "label") return startLabels(value);
+        if (action === "label-off") return stopLabels();
         if (action === "open-nearby") return doors.openNearby(radius);
         if (action === "unlock-nearby") return doors.unlockNearby(radius);
         if (action === "set-open") return doors.setOpen(String(value.name || ""), value.open !== false);
@@ -81,6 +210,7 @@ function createDoorClient(dependencies: ClientDependencies) {
 
     function stop(): void {
         if (stopped) return;
+        stopLabels();
         stopped = true;
         for (const lockId of current.unlockLocks) doors.setLock(lockId, false);
         doors.superAlohomora(false);
@@ -90,7 +220,11 @@ function createDoorClient(dependencies: ClientDependencies) {
     }
 
     dependencies.events.emitServer("hmp-doors:ready");
-    return Object.freeze({ apply, list, diagnostic, stop, status: () => ({ ready, stopped, policy: current }) });
+    return Object.freeze({
+        apply, list, diagnostic, stop,
+        labels: Object.freeze({ start: startLabels, stop: stopLabels, scan: scanLabel }),
+        status: () => ({ ready, stopped, policy: current, labels: labelOptions ? { ...labelOptions } : null }),
+    });
 }
 
-export = { createDoorClient, normalizePolicy, parsePayload };
+export = { createDoorClient, normalizePolicy, normalizeLabelOptions, doorAnchor, parsePayload, LABEL_DEFAULTS };

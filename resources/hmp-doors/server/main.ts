@@ -56,6 +56,12 @@ if (config.enableCommands) Events.on("chatCommand", (player: HmpDoorPlayer, _mes
             reply(`${resolved.policy.unlockAll ? "all physical doors unlocked" : `${resolved.policy.unlockDoors.length} named physical door(s) unlocked`}; ${resolved.policy.unlockLocks.length} logical lock(s); ${resolved.grants.length} personal grant(s)`);
             return;
         }
+        if (action === "label") {
+            const off = (args[0] || "").toLowerCase() === "off";
+            player.emit("hmp-doors:diagnostic", JSON.stringify(off ? { action: "label-off" } : { action: "label", radius: Number(args[0]) || undefined }));
+            reply(off ? "door labels off" : "labelling the nearest door; walk up to one.");
+            return;
+        }
         if (["list", "open-nearby", "unlock-nearby"].includes(action)) {
             player.emit("hmp-doors:diagnostic", JSON.stringify({ action, radius: Number(args[0]) || undefined }));
             reply(`${action} requested; see the client console for door names when listing.`);
@@ -73,7 +79,7 @@ if (config.enableCommands) Events.on("chatCommand", (player: HmpDoorPlayer, _mes
             reply(`${changed ? action === "grant" ? "granted" : "revoked" : "no change for"} '${name}' ${action === "grant" ? "to" : "from"} ${target.nickname || `#${target.id}`}`);
             return;
         }
-        reply(`Usage: /${config.command} <status|list|open-nearby|unlock-nearby|reload|grant|revoke|grants|clear>`);
+        reply(`Usage: /${config.command} <status|list|label|open-nearby|unlock-nearby|reload|grant|revoke|grants|clear>`);
     })().catch((error) => { logger.warn(`Door command failed: ${messageOf(error)}`); reply(messageOf(error)); });
 });
 
