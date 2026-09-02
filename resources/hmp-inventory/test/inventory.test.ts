@@ -175,6 +175,19 @@ test("native potion grants stay in the game bridge and appear in the unified vie
     assert.strictEqual(await inventory.has(player, "native:wiggenweld_potion", 3), true);
 });
 
+test("the unified view counts native rows toward usedSlots and weight", async () => {
+    const { inventory, registry, player } = setup();
+    registry.register({ name: "sealed_letter", label: "Sealed Letter", maxStack: 5, weight: 1, resource: "test" });
+    await inventory.add(player, "sealed_letter", 2);
+    assert.strictEqual((await inventory.get(player)).usedSlots, 1);
+
+    await inventory.add(player, "native:wiggenweld_potion", 3);
+    const view = await inventory.get(player);
+    assert.strictEqual(view.native.length, 1);
+    assert.strictEqual(view.usedSlots, 2);
+    assert.strictEqual(view.weight, 2);
+});
+
 test("native use routes through the Framework and waits for its accepted decrement", async () => {
     const { inventory, nativeRows, nativeUses, player, emitted } = setup();
     await inventory.add(player, "native:wiggenweld_potion", 2);

@@ -20,6 +20,13 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - `hmp-doors` diagnostics for finding those paths — `/doors label`, a chat echo of the nearest doors from
   `/doors list`, and `/doors lock|unlock <name|path>`, which reports how many doors matched.
 
+### Fixed
+
+- `hmp-inventory` now counts native (in-game) holdings in the inventory view's `usedSlots` and `weight`,
+  so the bundled UI header reflects everything on screen. A character carrying only game items showed
+  `0 / N slots` and `0.0 / N weight` even with items visible. The custom-container weight cap enforced
+  on `inventory.add` is unchanged.
+
 ### Upgrade notes
 
 - The `hmp-doors` lock and path features need a newer HogwartsMP client. Against an older one a `lock`

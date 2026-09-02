@@ -119,14 +119,15 @@ function createInventory(options: {
         const container = await ensureCharacter(character);
         const custom = [...container.items].sort((left, right) => left.slot - right.slot).map(enrichCustom);
         const nativeRows = player ? native.list(player).map(enrichNative) : [];
+        const items = [...custom, ...nativeRows];
         return {
             characterId: Number(character.id),
             container: { key: container.key, label: container.label, slots: container.slots, maxWeight: container.maxWeight },
-            usedSlots: container.items.length,
-            weight: weightOf(container),
+            usedSlots: items.length,
+            weight: items.reduce((total, row) => total + row.weight, 0),
             custom,
             native: nativeRows,
-            items: [...custom, ...nativeRows],
+            items,
         };
     }
 

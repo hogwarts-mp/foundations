@@ -184,7 +184,9 @@ export type HmpInventoryUseTarget =
 export interface HmpInventoryView {
     characterId: number;
     container: { key: string; label: string; slots: number; maxWeight: number };
+    /** Occupied rows across the unified view: custom container slots plus native holdings. */
     usedSlots: number;
+    /** Combined weight of every row in the unified view. Native rows currently contribute 0. */
     weight: number;
     custom: HmpInventoryCustomRow[];
     native: HmpInventoryNativeViewRow[];
