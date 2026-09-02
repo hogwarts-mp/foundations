@@ -38,6 +38,7 @@ require(path.resolve(__dirname, "..", "dist", "server.js"));
 assert.deepStrictEqual([...exportsSeen.keys()], ["locations", "ui", "spawn", "status"]);
 assert.ok(serverHandlers.has("hmp:character:selected"));
 assert.ok(serverHandlers.has("playerTeleportComplete"));
+assert.ok(serverHandlers.has("loadingFinished"));
 assert.ok(serverHandlers.has("client:hmp-spawn:select"));
 
 global.Events = {
@@ -59,6 +60,5 @@ require(path.resolve(__dirname, "..", "dist", "client.js"));
 assert.ok(clientHandlers.has("hmp-spawn:open"));
 assert.ok(clientHandlers.has("hmp-spawn:complete"));
 assert.ok(webHandlers.has("select"));
-assert.ok(emittedToServer.some((event) => event.name === "hmp-spawn:ready"));
 assert.ok(fs.existsSync(path.resolve(__dirname, "..", "dist", "index.html")));
 console.log("hmp-spawn bundle contract passed");

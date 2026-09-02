@@ -40,6 +40,7 @@ assert.deepStrictEqual([...exportsSeen.keys()], ["ui"]);
 assert.strictEqual(typeof exportsSeen.get("ui").open, "function");
 assert.ok(serverHandlers.has("worldReady"));
 assert.ok(serverHandlers.has("playerAppearanceChanged"));
+assert.ok(serverHandlers.has("loadingFinished"));
 assert.ok(serverHandlers.has("client:hmp-characters:select"));
 
 global.Events = {
@@ -68,7 +69,6 @@ assert.ok(clientHandlers.has("hmp-characters:open"));
 assert.ok(clientHandlers.has("hmp-characters:look"));
 assert.ok(clientHandlers.has("creatorConfirmed"));
 assert.ok(webHandlers.has("select"));
-assert.ok(emittedToServer.some((event) => event.name === "hmp-characters:ready"));
 assert.ok(fs.existsSync(path.resolve(__dirname, "..", "dist", "index.html")));
 assert.match(fs.readFileSync(path.resolve(__dirname, "..", "dist", "index.html"), "utf8"), /hmp-characters:portrait/);
 assert.ok(fs.existsSync(path.resolve(__dirname, "..", "dist", "fonts", "Cinzel-Variable.ttf")));
