@@ -12,6 +12,13 @@ import type { EmploymentMutation, JobsDependencies, JobsService, Player } from "
 
 const { clean, id, integer, positiveId, normalizeJob, mutation } = normalizeModule;
 const MAX_SAFE = Number.MAX_SAFE_INTEGER;
+/** Employment mutations owned by this resource bypass the grade cap so an admin can seat the first Head. */
+const ADMIN_RESOURCE = "hmp-admin";
+const RANK_APPOINT = "You cannot appoint a grade at or above your own.";
+const RANK_MANAGE = "You cannot manage an employee at or above your own grade.";
+const RANK_DISMISS = "You cannot dismiss an employee at or above your own grade.";
+
+type RankAction = "hire" | "grade" | "fire";
 
 interface JobRecord {
     definition: HmpJobDefinition<Player>;
@@ -87,6 +94,41 @@ function createJobsService(dependencies: JobsDependencies): JobsService {
             reason: normalized.reason,
             metadata: normalized.metadata,
         };
+    }
+
+    function employed(employment: HmpEmployment | null): HmpEmployment | null {
+        return employment && employment.status === "employed" ? employment : null;
+    }
+
+    async function refuse(job: HmpJobDefinition<Player>, action: RankAction, request: EmploymentMutation, target: HmpEmployment | null, actorGrade: number | null, message: string): Promise<never> {
+        try {
+            await repository.audit({
+                characterId: request.characterId,
+                jobId: job.id,
+                action: "denied",
+                actorCharacterId: request.actorCharacterId,
+                fromGrade: target?.grade ?? null,
+                toGrade: request.grade ?? null,
+                resource: request.resource,
+                reason: message,
+                metadata: { ...request.metadata, attempted: action, actorGrade, requestReason: request.reason },
+            });
+        } catch (error) { logger.warn(`[hmp-jobs] could not record denied ${action} for ${job.id}: ${messageOf(error)}`); }
+        throw jobsError("HMP_JOBS_RANK", message);
+    }
+
+    /**
+     * Grade cap. An actor acting through their own employment in the job may only hire below their
+     * grade, move an employee below them to another grade below them, or dismiss an employee below
+     * them. Ties are refused. Mutations without an actor, or owned by hmp-admin, are exempt.
+     */
+    async function enforceRank(job: HmpJobDefinition<Player>, action: RankAction, request: EmploymentMutation): Promise<void> {
+        if (request.actorCharacterId === null || request.resource === ADMIN_RESOURCE) return;
+        const actor = employed(await repository.get(request.actorCharacterId, job.id));
+        const target = employed(await repository.get(request.characterId, job.id));
+        if (!actor) return refuse(job, action, request, target, null, `You are not employed by ${job.label}.`);
+        if (action !== "hire" && target && target.grade >= actor.grade) return refuse(job, action, request, target, actor.grade, action === "fire" ? RANK_DISMISS : RANK_MANAGE);
+        if (action !== "fire" && request.grade! >= actor.grade) return refuse(job, action, request, target, actor.grade, RANK_APPOINT);
     }
 
     async function syncEmployment(employment: HmpEmployment, job?: HmpJobDefinition<Player>): Promise<void> {
@@ -202,7 +244,9 @@ function createJobsService(dependencies: JobsDependencies): JobsService {
         await start();
         const job = jobValue(rawJobId);
         const grade = gradeValue(job, rawGrade);
-        const employment = await repository.hire(mutationValue(target, job, grade.level, options));
+        const request = mutationValue(target, job, grade.level, options);
+        await enforceRank(job, "hire", request);
+        const employment = await repository.hire(request);
         await syncEmployment(employment, job);
         emit("hmp:jobs:hired", { employment, job, actor: options?.actor ?? null });
         return employment;
@@ -212,7 +256,9 @@ function createJobsService(dependencies: JobsDependencies): JobsService {
         await start();
         const job = jobValue(rawJobId);
         const targetCharacterId = characterId(target);
-        const employment = await repository.fire(mutationValue(targetCharacterId, job, undefined, options));
+        const request = mutationValue(targetCharacterId, job, undefined, options);
+        await enforceRank(job, "fire", request);
+        const employment = await repository.fire(request);
         await syncEmployment(employment, job);
         for (const [owner, duty] of dutyByPlayer) if (duty.characterId === targetCharacterId && duty.jobId === job.id) {
             dutyByPlayer.delete(owner);
@@ -227,7 +273,9 @@ function createJobsService(dependencies: JobsDependencies): JobsService {
         await start();
         const job = jobValue(rawJobId);
         const grade = gradeValue(job, rawGrade);
-        const employment = await repository.setGrade(mutationValue(target, job, grade.level, options));
+        const request = mutationValue(target, job, grade.level, options);
+        await enforceRank(job, "grade", request);
+        const employment = await repository.setGrade(request);
         await syncEmployment(employment, job);
         emit("hmp:jobs:grade", { employment, job, actor: options?.actor ?? null });
         return employment;
@@ -415,25 +463,37 @@ function createJobsService(dependencies: JobsDependencies): JobsService {
     async function manage(player: Player, rawJobId: string): Promise<unknown> {
         const job = jobValue(rawJobId);
         if (!(await hasPermission(player, "employees.manage", job.id))) throw jobsError("HMP_JOBS_ACCESS", `You cannot manage ${job.label}.`);
+        const manager = employed(await repository.get(characterId(player), job.id));
+        if (!manager) throw jobsError("HMP_JOBS_ACCESS", `You cannot manage ${job.label}.`);
+        // Mirror enforceRank so the cap is visible in the menu instead of a surprise on submit.
+        const appointable = job.grades.filter((grade) => grade.level < manager.grade);
+        const gradeOptions = appointable.map((grade) => ({ label: grade.label, value: String(grade.level) }));
+        const outranked = (employment: HmpEmployment) => employment.grade >= manager.grade;
         const entries = (await repository.employees(job.id)).slice(0, 32);
         const selected = await ui.context(player, {
             title: `${job.label} staff`,
             description: "Choose an employee or hire by character ID.",
-            options: [{ id: "hire", title: "Hire employee", description: "Enter a character ID" }, ...entries.map((employment) => ({ id: `employee:${employment.characterId}`, title: employment.characterName, description: gradeLabel(job, employment), metadata: [{ label: "Character ID", value: String(employment.characterId) }] }))],
+            options: [
+                { id: "hire", title: "Hire employee", description: appointable.length ? "Enter a character ID" : "No grade below your own", disabled: !appointable.length },
+                ...entries.map((employment) => ({ id: `employee:${employment.characterId}`, title: employment.characterName, description: outranked(employment) ? `${gradeLabel(job, employment)} · at or above your grade` : gradeLabel(job, employment), disabled: outranked(employment), metadata: [{ label: "Character ID", value: String(employment.characterId) }] })),
+            ],
             canClose: true,
         });
         if (!selected) return null;
         if (selected === "hire") {
-            const response = await ui.input(player, { title: `Hire for ${job.label}`, fields: [{ name: "characterId", label: "Character ID", type: "number", required: true, min: 1 }, { name: "grade", label: "Starting grade", type: "select", required: true, default: String(job.defaultGrade), options: job.grades.map((grade) => ({ label: grade.label, value: String(grade.level) })) }, { name: "reason", label: "Reason", type: "text" }], submitLabel: "Hire", allowCancel: true });
+            if (!appointable.length) throw jobsError("HMP_JOBS_RANK", RANK_APPOINT);
+            const defaultGrade = appointable.some((grade) => grade.level === job.defaultGrade) ? job.defaultGrade! : appointable[0].level;
+            const response = await ui.input(player, { title: `Hire for ${job.label}`, fields: [{ name: "characterId", label: "Character ID", type: "number", required: true, min: 1 }, { name: "grade", label: "Starting grade", type: "select", required: true, default: String(defaultGrade), options: gradeOptions }, { name: "reason", label: "Reason", type: "text" }], submitLabel: "Hire", allowCancel: true });
             if (!response) return null;
             return hire(positiveId(response.characterId, "character id"), job.id, Number(response.grade), { resource: "hmp-jobs", actor: player, reason: clean(response.reason, 191) });
         }
         const targetId = positiveId(selected.replace(/^employee:/, ""), "character id");
         const employment = entries.find((entry) => entry.characterId === targetId);
         if (!employment) return null;
-        const action = await ui.context(player, { title: employment.characterName, description: gradeLabel(job, employment), options: [{ id: "grade", title: "Change grade", description: "Promote or demote this employee" }, { id: "fire", title: "Dismiss employee", description: "End this employment", tone: "warning" }], canClose: true });
+        if (outranked(employment)) throw jobsError("HMP_JOBS_RANK", RANK_MANAGE);
+        const action = await ui.context(player, { title: employment.characterName, description: gradeLabel(job, employment), options: [{ id: "grade", title: "Change grade", description: appointable.length > 1 ? "Promote or demote this employee" : "No other grade below your own", disabled: appointable.length < 2 }, { id: "fire", title: "Dismiss employee", description: "End this employment", tone: "warning" }], canClose: true });
         if (action === "grade") {
-            const response = await ui.input(player, { title: `Set ${employment.characterName}'s grade`, fields: [{ name: "grade", label: "Grade", type: "select", required: true, default: String(employment.grade), options: job.grades.map((grade) => ({ label: grade.label, value: String(grade.level) })) }, { name: "reason", label: "Reason", type: "text" }], submitLabel: "Save", allowCancel: true });
+            const response = await ui.input(player, { title: `Set ${employment.characterName}'s grade`, fields: [{ name: "grade", label: "Grade", type: "select", required: true, default: String(employment.grade), options: gradeOptions }, { name: "reason", label: "Reason", type: "text" }], submitLabel: "Save", allowCancel: true });
             if (!response) return null;
             return setGrade(targetId, job.id, Number(response.grade), { resource: "hmp-jobs", actor: player, reason: clean(response.reason, 191) });
         }

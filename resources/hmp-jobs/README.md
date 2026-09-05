@@ -110,6 +110,22 @@ await Jobs.ui.manage(player, "auror");      // requires employees.manage
 The management UI accepts character IDs for hiring because characters can be offline. Names,
 grades, permissions, and job definitions are resolved on the server.
 
+### Rank
+
+Every hire, grade change, and dismissal that names an `actor` is capped at that actor's own grade in
+the job. The actor must hold current employment there and may only:
+
+- hire at a grade strictly below their own;
+- change the grade of an employee below them to another grade below them;
+- dismiss an employee below them.
+
+Ties are refused, so two Managers cannot fire each other and nobody can promote themselves. Calls
+that pass no `actor`, and calls owned by `hmp-admin` (`resource: "hmp-admin"`), bypass the cap; that
+is how an admin seats the first Head of a business. A refused attempt throws `HMP_JOBS_RANK` and is
+written to the ledger as a `denied` row, so a Manager probing the boundary is visible to admins. The
+management menu applies the same rule up front: grades at or above the manager's own are not
+offered, and employees who match or outrank them are greyed out.
+
 ## Duty and payroll
 
 ```ts
@@ -141,8 +157,10 @@ between those two commits.
 const history = await Jobs.audit.history(characterId, "auror", 50);
 ```
 
-The ledger records hiring, dismissal, grade changes, selected-job changes, duty transitions, and
-salary payments with the acting character, owning resource, reason, and metadata.
+The ledger records hiring, dismissal, grade changes, selected-job changes, duty transitions, salary
+payments, and rank-capped refusals (`denied`) with the acting character, owning resource, reason,
+and metadata. A `denied` row names the target character, the grade that was attempted, and the
+actor's own grade in its metadata.
 
 Events emitted after successful changes:
 

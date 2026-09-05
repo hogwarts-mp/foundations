@@ -28,6 +28,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ### Changed
 
+- `hmp-jobs` caps employment actions at the actor's own grade. An employee acting through their
+  job may only hire below their grade, move employees below them to grades below them, and dismiss
+  employees below them; ties are refused. Calls that pass no `actor`, or are owned by `hmp-admin`,
+  are exempt so an admin can still seat the first Head. Refused attempts throw `HMP_JOBS_RANK` and
+  are written to the ledger as `denied` rows, and the management menu hides grades and greys out
+  employees the manager cannot act on.
 - Active characters default to one spell loadout when no personal override or applicable rule sets
   the count. `loadouts.unmanage()` clears the personal override and resumes the rule/default count;
   it no longer leaves a previous character's native loadout perks in place.

@@ -91,8 +91,13 @@ export interface HmpDutyState {
 }
 
 export interface HmpJobMutationOptions<P = HmpJobPlayer> {
-    /** Owning resource written to the audit ledger. Defaults to hmp-jobs. */
+    /** Owning resource written to the audit ledger. Defaults to hmp-jobs. `hmp-admin` bypasses the grade cap. */
     resource?: string;
+    /**
+     * Character acting through their own employment in the job. Hire, setGrade, and fire are capped
+     * strictly below the actor's grade and refused with `HMP_JOBS_RANK` otherwise. Omit for
+     * system-originated changes, which are exempt.
+     */
     actor?: P | number | null;
     reason?: string;
     metadata?: Record<string, unknown>;
@@ -111,7 +116,8 @@ export interface HmpJobAuditEntry {
     id: number;
     characterId: number;
     jobId: string;
-    action: "hired" | "fired" | "grade" | "active" | "duty_on" | "duty_off" | "paid" | string;
+    /** `denied` records a hire, grade change, or dismissal refused by the grade cap. */
+    action: "hired" | "fired" | "grade" | "active" | "duty_on" | "duty_off" | "paid" | "denied" | string;
     actorCharacterId: number | null;
     fromGrade: number | null;
     toGrade: number | null;
