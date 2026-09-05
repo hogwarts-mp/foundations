@@ -1,0 +1,46 @@
+{
+  "shops": [
+    {
+      "id": "pippins",
+      "label": "J. Pippin's Potions",
+      "description": "Potions and ingredients on the Hogsmeade high street.",
+      "currency": "galleons",
+      "requirements": { "character": true },
+      "interaction": {
+        "position": { "x": 387146.8, "y": -513882.3, "z": -83219.8 },
+        "areaId": "Overland",
+        "radius": 300,
+        "character": { "characterId": "PercivalPippin", "yaw": 30 }
+      },
+      "offers": [
+        { "id": "wiggenweld", "item": "native:wiggenweld_potion", "buyPrice": 25, "sellPrice": 8, "stock": 12, "maxQuantity": 6 },
+        { "id": "edurus", "item": "native:edurus_potion", "buyPrice": 40, "stock": null, "maxQuantity": 3 },
+        { "id": "horklump", "item": "native:horklump_juice", "buyPrice": 5, "stock": 30, "maxQuantity": 10 }
+      ]
+    },
+    {
+      "id": "spintwitches",
+      "label": "Spintwitches Sporting Needs",
+      "description": "Brooms for every budget, and a few you will not find anywhere else.",
+      "currency": "galleons",
+      "requirements": { "character": true },
+      "interaction": {
+        "position": { "x": 389423.3, "y": -512671.8, "z": -83231.8 },
+        "areaId": "Overland",
+        "radius": 300,
+        "character": { "characterId": "AlbieWeekes", "yaw": -159.4 }
+      },
+      "offers": [
+        { "id": "moon-trimmer", "item": "native:broommoontrimmer", "label": "Moon Trimmer", "buyPrice": 600, "sellPrice": 150, "stock": null, "maxQuantity": 1 },
+        { "id": "yew-weaver", "item": "native:broomyewweaver", "label": "Yew Weaver", "buyPrice": 600, "sellPrice": 150, "stock": null, "maxQuantity": 1 },
+        { "id": "wind-wisp", "item": "native:broomwindwisp", "label": "Wind Wisp", "buyPrice": 600, "sellPrice": 150, "stock": null, "maxQuantity": 1 },
+        { "id": "ember-dash", "item": "native:broomemberdash", "label": "Ember Dash", "buyPrice": 600, "sellPrice": 150, "stock": null, "maxQuantity": 1 },
+        { "id": "lickety-swift", "item": "native:broomlicketyswift", "label": "Lickety Swift", "buyPrice": 800, "sellPrice": 200, "stock": null, "maxQuantity": 1 },
+        { "id": "bright-spark", "item": "native:broombrightspark", "label": "Bright Spark", "buyPrice": 1000, "sellPrice": 250, "stock": 5, "maxQuantity": 1 },
+        { "id": "night-dancer", "item": "native:broomnightdancer", "label": "Night Dancer", "buyPrice": 1000, "sellPrice": 250, "stock": 5, "maxQuantity": 1 },
+        { "id": "wildfire", "item": "native:broomwildfire", "label": "Wildfire", "buyPrice": 1000, "sellPrice": 250, "stock": 5, "maxQuantity": 1 },
+        { "id": "silver-arrow", "item": "native:broomsilverarrow", "label": "Silver Arrow", "buyPrice": 5000, "sellPrice": 1250, "stock": 1, "maxQuantity": 1 }
+      ]
+    }
+  ]
+}

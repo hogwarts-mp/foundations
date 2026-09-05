@@ -22,8 +22,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   built from an allowlisted registry id, standing at the zone's own position. Character prompts default
   to chest height and an optional `label` draws a nameplate; the README lists the accepted ids.
 - `hmp-shops` forwards an optional `interaction.character` to `hmp-interact`, so a shop registers its
-  vendor body together with its stock. A closed-testing potion vendor (Parry Pippin) stands on the
-  Hogsmeade high street with limited stock.
+  vendor body together with its stock, and reads data-declared shops from `data/hmp-shops.json`. The
+  example config places a potion vendor (Parry Pippin) on the Hogsmeade high street with limited stock.
 - Player Administration shows the target's yaw beside their position.
 
 ### Changed

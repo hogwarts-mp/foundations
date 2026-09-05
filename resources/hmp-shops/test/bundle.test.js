@@ -19,7 +19,7 @@ const inventory = {
 };
 global.Exports = { register: (name, value) => exportsSeen.set(name, value) };
 global.Imports = { get: (name) => {
-    if (name === "hmp-lib") return { logger: { create: () => logger } };
+    if (name === "hmp-lib") return { logger: { create: () => logger }, config: { load: () => ({ shops: [] }) } };
     if (name === "hmp-mysql") return database;
     if (name === "hmp-core") return { characters: { active: () => ({ id: 1 }) }, groups: { has: async () => true } };
     if (name === "hmp-inventory") return inventory;

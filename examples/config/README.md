@@ -6,8 +6,10 @@ these are safe starting values, not production secrets. See the top-level `INSTA
 `DATABASE.md` for the complete setup procedure.
 
 Configuration files are provided for resources with file-backed settings. `hmp-lib`, `hmp-ui`,
-`hmp-banking`, `hmp-interact`, `hmp-shops`, and `hmp-jobs` use built-in defaults and registration APIs;
-server-specific banks, jobs, interactions, and shops belong in a separate gameplay resource.
+`hmp-banking`, `hmp-interact`, and `hmp-jobs` use built-in defaults and registration APIs;
+server-specific banks, jobs, and interactions belong in a separate gameplay resource.
+`hmp-shops` includes a data-declared shop list (an example potion vendor with a stationary character
+body and limited stock); shops needing handlers or predicates still register from a gameplay resource.
 `hmp-doors` includes a file-backed example because physical-door access is a server-wide world policy.
 `hmp-world` includes the baseline weather, clock, date, season, mount-boundary, ambient-population, and
 native-encounter policy applied to every client.

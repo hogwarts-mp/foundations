@@ -1,8 +1,10 @@
+import configModule = require("./config");
 import repositoryModule = require("./repository");
 import schemaModule = require("./schema");
 import serviceModule = require("./service");
 import type { Player } from "./internal";
 
+const { loadConfig } = configModule;
 const { createRepository } = repositoryModule;
 const { migrations } = schemaModule;
 const { createShopsService } = serviceModule;
@@ -33,32 +35,22 @@ Events.on("resourceStart", async (name?: string) => {
     if (name && name !== "hmp-shops") return;
     await shops.start();
     logger.info("Shop registry, stock and transaction ledger ready");
-    registerClosedTestingVendor();
+    registerConfiguredShops();
 });
 
-// Closed-testing vendor on the Hogsmeade high street: a stationary Parry Pippin with limited stock,
-// placed at a surveyed spot facing yaw 30. Exercises Character + hmp-interact + shop stock end to end.
-function registerClosedTestingVendor(): void {
-    try {
-        shops.shops.register({
-            id: "debug.pippins",
-            resource: "hmp-shops",
-            label: "J. Pippin's Potions",
-            description: "Closed-testing potion vendor.",
-            requirements: { character: true },
-            interaction: {
-                position: { x: 387146.8, y: -513882.3, z: -83219.8 },
-                areaId: "Overland",
-                radius: 300,
-                character: { characterId: "PercivalPippin", yaw: 30 },
-            },
-            offers: [
-                { id: "wiggenweld", item: "native:wiggenweld_potion", buyPrice: 25, sellPrice: 8, stock: 12, maxQuantity: 6 },
-                { id: "edurus", item: "native:edurus_potion", buyPrice: 40, stock: null, maxQuantity: 3 },
-                { id: "horklump", item: "native:horklump_juice", buyPrice: 5, stock: 30, maxQuantity: 10 },
-            ],
-        });
-    } catch (error) {
-        logger.error(`Closed-testing vendor not registered: ${messageOf(error)}`);
+// Shops declared in data/hmp-shops.json. Registered after start so their items already exist in
+// hmp-inventory; one bad entry is logged and skipped rather than taking the others down with it.
+function registerConfiguredShops(): void {
+    let config: ReturnType<typeof loadConfig>;
+    try { config = loadConfig(Hmp); }
+    catch (error) {
+        logger.error(`Shop configuration not loaded: ${messageOf(error)}`);
+        return;
     }
+    let registered = 0;
+    for (const shop of config.shops) {
+        try { shops.shops.register(shop); registered++; }
+        catch (error) { logger.error(`Configured shop '${shop.id}' not registered: ${messageOf(error)}`); }
+    }
+    if (config.shops.length) logger.info(`Registered ${registered}/${config.shops.length} configured shop(s)`);
 }

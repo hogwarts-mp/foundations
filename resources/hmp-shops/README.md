@@ -8,6 +8,14 @@ The built-in currency is player-facing **Galleons**. Hogwarts Legacy stores that
 as the native `Knuts` item; `hmp-inventory` exposes it canonically as `native:galleons` and keeps
 `native:knuts` as a compatibility alias to the same native count.
 
+## Configuration
+
+Copy `examples/config/data/hmp-shops.json` to `<server-root>/data/hmp-shops.json` (or point
+`HMP_SHOPS_CONFIG` at a file) to declare shops in data. Each entry is a shop definition as below minus
+anything a JSON file cannot carry: no `resource` (they are owned by `hmp-shops`), no `allow` predicates
+and no handlers. They are registered after the service starts, so native items are available and a bad
+entry is logged and skipped. The example places a potion vendor on the Hogsmeade high street.
+
 ## Registering a shop
 
 Register inventory items before registering offers that reference them.

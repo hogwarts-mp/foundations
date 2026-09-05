@@ -75,7 +75,7 @@ created test transaction after its state has been inspected.
   diagnostic conflict count.
 - Attempt an interaction without its required group/item and confirm the server rejects it clearly.
 - Buy and sell with Galleons; test insufficient funds, limited stock, and repeated submissions.
-- Visit the closed-testing vendor (Parry Pippin on the Hogsmeade high street): confirm he is dressed,
+- Visit the example vendor from `data/hmp-shops.json` (Parry Pippin on the Hogsmeade high street): confirm he is dressed,
   facing the street, cannot be targeted or hurt by a spell, and reappears after walking 500 m away,
   reconnecting, and dying. Buy a Wiggenweld and confirm the stock count drops.
 - Report stale prompts, double purchases, invisible stock changes, or payment/item mismatches.

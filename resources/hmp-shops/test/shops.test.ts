@@ -1,10 +1,12 @@
 import assert = require("node:assert");
 import { test } from "node:test";
+import configModule = require("../server/config");
 import normalizeModule = require("../shared/normalize");
 import serviceModule = require("../server/service");
 import type { HmpShopTransaction } from "../types";
 import type { Player, ShopsRepository, TransactionDraft } from "../server/internal";
 
+const { normalizeConfig } = configModule;
 const { normalizeShop } = normalizeModule;
 const { createShopsService } = serviceModule;
 
@@ -145,6 +147,17 @@ test("normalizes bounded catalogs and rejects ambiguous offers", () => {
     assert.strictEqual(normalized.offers[0].stock, 5);
     assert.throws(() => normalizeShop({ ...shop(), offers: [shop().offers[0], shop().offers[0]] }), /duplicated/);
     assert.throws(() => normalizeShop({ ...shop(), offers: [{ id: "none", item: "potion" }] }), /buyPrice or sellPrice/);
+});
+
+test("normalizes data-configured shops and rejects malformed entries", () => {
+    const config = normalizeConfig({ shops: [{ ...shop(), resource: "ignored" }] });
+    assert.strictEqual(config.shops.length, 1);
+    assert.strictEqual(config.shops[0].resource, "hmp-shops");
+    assert.strictEqual(config.shops[0].interaction?.character?.characterId, "PercivalPippin");
+    assert.deepStrictEqual(normalizeConfig({}).shops, []);
+    assert.throws(() => normalizeConfig({ shops: {} }), /must be an array/);
+    assert.throws(() => normalizeConfig({ shops: [{ ...shop(), offers: [] }] }), /at least one offer/);
+    assert.throws(() => normalizeConfig({ shops: [shop(), shop()] }), /twice/);
 });
 
 test("registers an interaction, initializes persistent stock and cleans by owner", async () => {
