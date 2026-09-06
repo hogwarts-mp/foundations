@@ -159,6 +159,30 @@ declare global {
         holderPair(holder: string): { readonly storageHolder: string; readonly activeHolder: string } | null;
     }
 
+    interface HogwartsMpGearOperationError {
+        readonly code: "GEAR_NOT_REGISTERED" | "GEAR_NOT_OWNED" | "GEAR_UNKNOWN_SLOT" | "GEAR_SLOT_MISMATCH"
+            | "GEAR_SLOT_EMPTY" | "GEAR_UNAVAILABLE" | "GEAR_TIMEOUT" | "GEAR_FAILED";
+        readonly message: string;
+        readonly slot: string;
+    }
+
+    interface HogwartsMpGearOperationResult { readonly slot: string }
+
+    type HogwartsMpGearCallback = (error: HogwartsMpGearOperationError | null, result: HogwartsMpGearOperationResult | null) => void;
+
+    interface HogwartsMpPlayerGear {
+        /** Equippable slots, from the game's GearSlotTypes table. Empty until the client has reported. */
+        slots(): string[];
+        /** Worn gear keyed by slot, null per empty slot. null before the first client report. */
+        equipped(): Record<string, HogwartsMpGearItem | null> | null;
+        /** Owned gear fitting one slot, the worn one flagged. Slot matched case-insensitively. */
+        available(slot: string): HogwartsMpGearItem[];
+        /** Wears an item. The game derives the slot; expectedSlot is only asserted against it. */
+        equip(itemId: string, options?: { variation?: string; expectedSlot?: string }, callback?: HogwartsMpGearCallback): number;
+        /** Clears one slot. Reports GEAR_SLOT_EMPTY rather than succeeding on an empty slot. */
+        unequip(slot: string, callback?: HogwartsMpGearCallback): number;
+    }
+
     interface HogwartsMpPlayer {
         id: number;
         nickname: string;
@@ -172,6 +196,7 @@ declare global {
         ping?: number;
         ip?: string;
         inventory?: HogwartsMpNativeInventory;
+        gear?: HogwartsMpPlayerGear;
         readonly appearanceRevision?: number;
         getAppearanceBlob?(): string;
         setAppearanceBlob?(appearance: string, callback?: HogwartsMpAppearanceCallback): number;
@@ -223,6 +248,7 @@ declare global {
         on(eventName: "chatCommand", listener: (player: HogwartsMpPlayer, message: string, command: string, args: string[]) => unknown): void;
         on(eventName: "playerConnect" | "playerDisconnect" | "worldReady", listener: (player: HogwartsMpPlayer) => unknown): void;
         on(eventName: "playerInventoryUpdated", listener: (player: HogwartsMpPlayer, rows: unknown) => unknown): void;
+        on(eventName: "playerGearChanged", listener: (player: HogwartsMpPlayer) => unknown): void;
         on(eventName: "playerTeleportComplete", listener: (player: HogwartsMpPlayer, requestId: number, status: number, completion: HogwartsMpTeleportCompletion) => unknown): void;
         on(eventName: "playerLocationChanged", listener: (player: HogwartsMpPlayer, current: HogwartsMpPlayerLocation | null, previous: HogwartsMpPlayerLocation | null) => unknown): void;
         on(eventName: "resourceStop", listener: (name?: string) => unknown): void;
@@ -387,10 +413,23 @@ declare global {
         showPrompt(key: string, label: string, x: number, y: number, z: number): void;
         hidePrompt(): void;
     };
+    interface HogwartsMpGearItem {
+        readonly itemId: string;
+        readonly variation: string;
+        readonly slot: string;
+        readonly equipped: boolean;
+    }
+
     const LocalPlayer: {
         getPosition(): HogwartsMpVector3 | null;
         getRotation(): { pitch: number; yaw: number; roll: number } | null;
         getControlRotation(): { pitch: number; yaw: number; roll: number } | null;
+        /** Equippable gear slots from the game's GearSlotTypes table; empty until the GearManager is up. */
+        gearSlots(): string[];
+        /** What the local player wears, keyed by slot, null per empty slot. null if the GearManager isn't up. */
+        equippedGear(): Record<string, HogwartsMpGearItem | null> | null;
+        /** Owned gear fitting one slot, each flagged if worn. null for an unknown slot or no GearManager. */
+        availableGear(slot: string): HogwartsMpGearItem[] | null;
         stateInfo: {
             setInvulnerableToDamage(invulnerable: boolean): boolean;
         };

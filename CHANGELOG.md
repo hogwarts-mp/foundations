@@ -7,6 +7,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ### Added
 
+- HogwartsMP ambient types expose server-side player gear slots, equipped and available items,
+  equip/unequip operations, the `playerGearChanged` event, and matching local-player gear probes.
 - `hmp-webhooks` adds optional server-only named destinations, bounded queues, timeout and retry
   handling, a Discord provider, and migrated gauntlet, activity-completion, and advisory spell-cast
   relays. Endpoint URLs can remain process-environment secrets, and delivery never gates gameplay.
