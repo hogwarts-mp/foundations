@@ -1,0 +1,76 @@
+const migrations = [
+    {
+        version: 1,
+        name: "create businesses, counters, offers and the management ledger",
+        statements: [
+            `CREATE TABLE IF NOT EXISTS hmp_business (
+                id VARCHAR(24) NOT NULL,
+                job_id VARCHAR(64) NOT NULL,
+                label VARCHAR(80) NOT NULL,
+                currency_id VARCHAR(64) NOT NULL DEFAULT 'galleons',
+                enabled TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_hmp_business_job (job_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+            `CREATE TABLE IF NOT EXISTS hmp_business_shop (
+                business_id VARCHAR(24) NOT NULL,
+                id VARCHAR(24) NOT NULL,
+                label VARCHAR(80) NOT NULL,
+                description VARCHAR(180) NOT NULL DEFAULT '',
+                position_x DOUBLE NOT NULL,
+                position_y DOUBLE NOT NULL,
+                position_z DOUBLE NOT NULL,
+                area_id VARCHAR(128) NULL DEFAULT NULL,
+                region_id VARCHAR(128) NULL DEFAULT NULL,
+                radius INT UNSIGNED NOT NULL DEFAULT 300,
+                staff_radius INT UNSIGNED NOT NULL DEFAULT 1000,
+                duty_x DOUBLE NULL DEFAULT NULL,
+                duty_y DOUBLE NULL DEFAULT NULL,
+                duty_z DOUBLE NULL DEFAULT NULL,
+                vendor_character_id VARCHAR(64) NULL DEFAULT NULL,
+                vendor_yaw DOUBLE NULL DEFAULT NULL,
+                vendor_label VARCHAR(80) NULL DEFAULT NULL,
+                staffing VARCHAR(8) NOT NULL DEFAULT 'always',
+                enabled TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (business_id, id),
+                CONSTRAINT fk_hmp_business_shop_business FOREIGN KEY (business_id) REFERENCES hmp_business (id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+            `CREATE TABLE IF NOT EXISTS hmp_business_offer (
+                business_id VARCHAR(24) NOT NULL,
+                shop_id VARCHAR(24) NOT NULL,
+                id VARCHAR(64) NOT NULL,
+                item_name VARCHAR(64) NOT NULL,
+                label VARCHAR(80) NULL DEFAULT NULL,
+                buy_price INT UNSIGNED NULL DEFAULT NULL,
+                sell_price INT UNSIGNED NULL DEFAULT NULL,
+                max_quantity INT UNSIGNED NOT NULL DEFAULT 99,
+                unlimited TINYINT(1) NOT NULL DEFAULT 0,
+                enabled TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (business_id, shop_id, id),
+                CONSTRAINT fk_hmp_business_offer_shop FOREIGN KEY (business_id, shop_id) REFERENCES hmp_business_shop (business_id, id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+            `CREATE TABLE IF NOT EXISTS hmp_business_audit (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                business_id VARCHAR(24) NOT NULL,
+                shop_id VARCHAR(24) NULL DEFAULT NULL,
+                offer_id VARCHAR(64) NULL DEFAULT NULL,
+                action VARCHAR(32) NOT NULL,
+                actor_character_id BIGINT UNSIGNED NULL DEFAULT NULL,
+                before_json TEXT NULL DEFAULT NULL,
+                after_json TEXT NULL DEFAULT NULL,
+                reason VARCHAR(191) NOT NULL DEFAULT '',
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                KEY idx_hmp_business_audit_business (business_id, id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+        ],
+    },
+];
+
+export = { migrations };

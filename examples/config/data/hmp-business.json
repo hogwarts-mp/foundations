@@ -1,0 +1,46 @@
+{
+  "prices": {
+    "floor": 1,
+    "ceiling": 1000000,
+    "ceilings": { "galleons": 100000 }
+  },
+  "houseCut": {
+    "percent": 0,
+    "organizationId": "treasury",
+    "label": "Treasury",
+    "currency": "galleons"
+  },
+  "commands": {
+    "enabled": true,
+    "command": "business",
+    "adminGroups": [
+      { "key": "admin", "minimumGrade": 1 }
+    ]
+  },
+  "businesses": [
+    {
+      "id": "pippins",
+      "jobId": "pippins",
+      "label": "J. Pippin's Potions",
+      "currency": "galleons",
+      "shops": [
+        {
+          "id": "hogsmeade",
+          "label": "J. Pippin's Potions",
+          "description": "Potions and ingredients on the Hogsmeade high street.",
+          "position": { "x": 387146.8, "y": -513882.3, "z": -83219.8 },
+          "areaId": "Overland",
+          "radius": 300,
+          "staffRadius": 1000,
+          "vendor": { "characterId": "PercivalPippin", "yaw": 30 },
+          "staffing": "always",
+          "offers": [
+            { "id": "wiggenweld", "item": "native:wiggenweld_potion", "buyPrice": 25, "sellPrice": 8, "maxQuantity": 6, "stock": 12 },
+            { "id": "edurus", "item": "native:edurus_potion", "buyPrice": 40, "maxQuantity": 3, "unlimited": true },
+            { "id": "horklump", "item": "native:horklump_juice", "buyPrice": 5, "maxQuantity": 10, "stock": 30 }
+          ]
+        }
+      ]
+    }
+  ]
+}

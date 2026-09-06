@@ -10,6 +10,7 @@ COPY resources/hmp-admin/package.json resources/hmp-admin/package.json
 COPY resources/hmp-audio/package.json resources/hmp-audio/package.json
 COPY resources/hmp-banking/package.json resources/hmp-banking/package.json
 COPY resources/hmp-blips/package.json resources/hmp-blips/package.json
+COPY resources/hmp-business/package.json resources/hmp-business/package.json
 COPY resources/hmp-characters/package.json resources/hmp-characters/package.json
 COPY resources/hmp-core/package.json resources/hmp-core/package.json
 COPY resources/hmp-doors/package.json resources/hmp-doors/package.json

@@ -9,6 +9,20 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 - HogwartsMP ambient types expose server-side player gear slots, equipped and available items,
   equip/unequip operations, the `playerGearChanged` event, and matching local-player gear probes.
+- New `hmp-business` resource: player-run businesses composed from `hmp-jobs`, `hmp-banking` and
+  `hmp-shops` without changing any of them. A business is one job and its organization account and
+  may run any number of counters, each registered with `hmp-shops` as `business:<business>:<counter>`
+  with its own position, vendor body, offers and persistent stock. Employees holding the job
+  permission `shop.manage` use the management menu to set prices within configured bounds, restock
+  from their inventory, withdraw and transfer stock, add, retire and restore offers, open and close
+  counters, change the staffing policy (`always`, `staffed`, `kiosk`) and vendor body, and read the
+  books. A per-business till moves purchases from the buyer's bank account into the organization
+  account in one bank transfer keyed by the shop reference; an optional house cut pays a treasury
+  once per purchase. `staffed` counters open only while an employee is on duty within reach of the
+  counter and show the vendor body otherwise; an optional surveyed clock-in zone per counter toggles
+  duty. Every change is written to a ledger with actor, before, after and reason. Administrators
+  create businesses and place counters through `/business` (gated by configured groups) or the API,
+  and `data/hmp-business.json` can seed businesses on first start; the example declares Pippin's.
 - `hmp-webhooks` adds optional server-only named destinations, bounded queues, timeout and retry
   handling, a Discord provider, and migrated gauntlet, activity-completion, and advisory spell-cast
   relays. Endpoint URLs can remain process-environment secrets, and delivery never gates gameplay.

@@ -10,6 +10,8 @@ Configuration files are provided for resources with file-backed settings. `hmp-l
 server-specific banks, jobs, and interactions belong in a separate gameplay resource.
 `hmp-shops` includes a data-declared shop list (an example potion vendor with a stationary character
 body and limited stock); shops needing handlers or predicates still register from a gameplay resource.
+`hmp-business` includes price bounds, the house-cut policy, the `/business` admin groups, and a
+data-declared Pippin's business that comes alive once a gameplay resource registers the `pippins` job.
 `hmp-doors` includes a file-backed example because physical-door access is a server-wide world policy.
 `hmp-world` includes the baseline weather, clock, date, season, mount-boundary, ambient-population, and
 native-encounter policy applied to every client.

@@ -80,6 +80,24 @@ created test transaction after its state has been inspected.
   reconnecting, and dying. Buy a Wiggenweld and confirm the stock count drops.
 - Report stale prompts, double purchases, invisible stock changes, or payment/item mismatches.
 
+### Player-run businesses
+
+- Register a job whose top grade carries `shop.manage`, then as an administrator run `/business create`,
+  stand at a counter and run `/business shop`, `/business vendor`, `/business offer` and `/business stock`.
+  Confirm the counter appears in `hmp-shops` with the vendor body and the seeded stock.
+- Hire a character at the top grade and open `Business.ui.manage` for them: change a price, restock
+  from carried potions, withdraw again, retire and restore an offer, and read the books. Confirm each
+  step appears in `/business audit` with the acting character and before/after values.
+- Hire a second character at a grade without `shop.manage` and confirm the menu refuses them.
+- Set the counter to `staffed`: as a customer confirm "Nobody is at the counter" and the vendor body;
+  clock an employee in beside the counter and confirm the body disappears and the shop opens; clock
+  out and confirm the body returns.
+- Buy as a customer and confirm the buyer's bank account drops and the organization account rises by
+  the same amount; sell back as staff and confirm the reverse. Empty the organization account and
+  confirm a buyback is refused cleanly.
+- Report counters that stay closed after a duty change, stock that differs between the shelf and the
+  books, or a purchase that moved money without moving items.
+
 ### Doors
 
 - Confirm the default policy leaves physical doors closed but allows them to be opened normally.

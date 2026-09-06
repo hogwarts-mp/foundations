@@ -1,7 +1,7 @@
 # Install HMP Foundations
 
 This guide is for a server owner installing the complete Foundations pack. Foundations is one versioned
-unit: install all twenty-five `hmp-*` resources from the same release and upgrade them together.
+unit: install all twenty-six `hmp-*` resources from the same release and upgrade them together.
 
 ## Before you begin
 
@@ -57,7 +57,7 @@ The result must look like this:
 ```
 
 Do not leave an extra nesting level such as
-`<server-root>/resources/hmp-foundations/resources/hmp-core`. There should be exactly twenty-five
+`<server-root>/resources/hmp-foundations/resources/hmp-core`. There should be exactly twenty-six
 top-level `hmp-*` directories.
 
 On Linux, resource and configuration names are case-sensitive. Preserve names such as `hmp-core`
@@ -222,10 +222,11 @@ the supported order:
 21. `hmp-spells`
 22. `hmp-duels`
 23. `hmp-jobs`
-24. `hmp-admin`
-25. `hmp-webhooks`
+24. `hmp-business`
+25. `hmp-admin`
+26. `hmp-webhooks`
 
-If a server wrapper has a manual resource allowlist, include all twenty-five names and preserve this
+If a server wrapper has a manual resource allowlist, include all twenty-six names and preserve this
 order. `hmp-banking` and `hmp-interact` are independent peers at the same priority; their relative
 order is not significant.
 
@@ -300,7 +301,7 @@ Never post passwords, connection URLs, bootstrap secrets, player IPs, or identit
 1. Stop the server and prevent player connections.
 2. Back up the Foundations database and `<server-root>/data/hmp-*.json`.
 3. Read [CHANGELOG.md](CHANGELOG.md) and compare the new `examples/config` files with local settings.
-4. Replace all twenty-five `hmp-*` directories together; do not merge old and new `dist` directories.
+4. Replace all twenty-six `hmp-*` directories together; do not merge old and new `dist` directories.
 5. Start the server and let every migration and resource reach ready state before admitting players.
 6. Restart clients after changing client-bearing resources.
 
