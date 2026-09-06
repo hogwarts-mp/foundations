@@ -26,6 +26,11 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   Buybacks are off by default; when `prices.buybacks.enabled` is set, the shop pays a per-offer
   share (capped by `maxRatio`) of the item's server-owned reference value rather than an owner-set
   price, and `shop.manage` holders may never sell to their own counters.
+- `hmp-business` adds a focused in-game business console opened with `/business`. Managers get
+  overview, counters, stock and pricing, staff, and ledger views for businesses granted through
+  `shop.manage`; configured administrators also get business creation, position-captured counter and
+  clock-in placement, direct stock seeding, and other setup controls. Existing subcommands remain as
+  administrator-only fallbacks.
 - `hmp-inventory` item definitions accept a `referenceValue`, the server-owned worth of one unit.
   Native items take the host catalog's `economyValue` when it is exposed; custom items declare it.
 - `hmp-webhooks` adds optional server-only named destinations, bounded queues, timeout and retry

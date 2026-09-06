@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.json",
   "include": [
     "server/**/*.ts",
+    "client/**/*.ts",
     "shared/**/*.ts",
     "test/**/*.test.ts",
     "types.d.ts",

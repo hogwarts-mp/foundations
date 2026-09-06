@@ -118,9 +118,16 @@ job's own `dutyPoints` apply.
 
 ## Management menu
 
+With commands enabled, `/business` opens the full business console. A holder of `shop.manage` sees
+only businesses they manage; configured administrators see every business plus creation, surveyed
+counter placement, direct stock seeding and other administrative controls. The console contains the
+overview, counters, stock and pricing, staff, and ledger views. It owns keyboard/mouse focus until
+closed and refreshes after every accepted action.
+
 `Business.ui.manage(player)` opens the menu for businesses the player manages through `shop.manage`;
 `Business.ui.manage(player, "pippins")` opens one directly. Wire it to a command, an interaction or
-the employment menu from a gameplay resource. The menu offers:
+the employment menu from a gameplay resource when a lightweight context-menu flow is preferable to
+the full console. Both surfaces offer:
 
 1. **Prices**: what customers pay within the configured bounds and, when buybacks are enabled and the
    item has a reference value, the buyback share.
@@ -158,8 +165,10 @@ Errors carry codes: `HMP_BUSINESS_ACCESS`, `HMP_BUSINESS_ADMIN`, `HMP_BUSINESS_N
 
 ## Administration commands
 
-`/business` is registered when `commands.enabled` is true and guarded by `commands.adminGroups`
-(`hmp-core` groups). Every action is written to the ledger with the administrator's character.
+`/business` is registered when `commands.enabled` is true. With no arguments it opens the console for
+either a business manager or a configured administrator. Subcommands remain administrator-only
+fallbacks guarded by `commands.adminGroups` (`hmp-core` groups). Every action is written to the
+ledger with the administrator's character.
 
 ```text
 /business list | audit <business> [limit] | sync

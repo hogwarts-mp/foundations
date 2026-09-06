@@ -1,15 +1,42 @@
 import assert = require("node:assert");
 import { test } from "node:test";
 import configModule = require("../server/config");
+import commandsModule = require("../server/commands");
 import normalizeModule = require("../shared/normalize");
 import serviceModule = require("../server/service");
 import type { HmpShopCurrencyProvider, HmpShopDefinition } from "../../hmp-shops/types";
 import type { HmpBusiness, HmpBusinessAuditEntry, HmpBusinessOffer, HmpBusinessShop } from "../types";
-import type { AuditDraft, BusinessRepository, Player } from "../server/internal";
+import type { AuditDraft, BusinessRepository, BusinessService, CommandConfig, Core, Logger, Player } from "../server/internal";
+import type { HmpCommandContext, HmpCommandRouter } from "../../hmp-lib/types";
 
 const { normalizeConfig } = configModule;
+const { registerCommands } = commandsModule;
 const { normalizeBusiness, normalizeShop, normalizeOffer, shopKey } = normalizeModule;
 const { createBusinessService, compactReference } = serviceModule;
+
+test("opens the business console from the bare command while keeping fallbacks administrator-only", async () => {
+    let guard: ((context: HmpCommandContext<Player>) => unknown) | null = null;
+    let handler: ((context: HmpCommandContext<Player>) => unknown) | null = null;
+    const router = {
+        register(_name: string, options: { guard: (context: HmpCommandContext<Player>) => unknown }, callback: (context: HmpCommandContext<Player>) => unknown) {
+            guard = options.guard;
+            handler = callback;
+            return () => true;
+        },
+    } as unknown as HmpCommandRouter<Player>;
+    const player = { id: 77, nickname: "Manager", position: { x: 0, y: 0, z: 0 } } as unknown as Player;
+    const opened: Array<string | undefined> = [];
+    const service = { businesses: { managed: async () => [{ id: "pippins" }] } } as unknown as BusinessService;
+    const core = { groups: { has: async () => false } } as unknown as Core;
+    const config = { enabled: true, command: "business", adminGroups: [{ key: "admin", minimumGrade: 1 }] } as CommandConfig;
+    const logger = { info() {}, warn() {}, error() {} } as Logger;
+    registerCommands({ router, service, core, config, logger, open: async (_player, businessId) => { opened.push(businessId); return true; } });
+    const context = { player, args: [], command: "business", invokedAs: "business", message: "/business", usage: "/business [action]", reply: () => true } as unknown as HmpCommandContext<Player>;
+    assert.strictEqual(await guard!(context), true);
+    await handler!(context);
+    assert.deepStrictEqual(opened, [undefined]);
+    assert.strictEqual(await guard!({ ...context, args: ["list"] }), "You are not allowed to administer businesses.");
+});
 
 const COUNTER = { x: 1000, y: 2000, z: 300 };
 const JOB = { id: "pippins", resource: "hmp-hogsmeade", label: "J. Pippin's Potions", group: "job:pippins", grades: [], banking: { organizationId: "pippins", currency: "galleons" } };

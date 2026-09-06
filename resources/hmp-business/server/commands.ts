@@ -13,6 +13,7 @@ interface CommandDependencies {
     core: Core;
     config: CommandConfig;
     logger: Logger;
+    open: (player: Player, businessId?: string) => Promise<unknown>;
 }
 
 const USAGE = [
@@ -50,7 +51,7 @@ function describeOffer(offer: HmpBusinessOffer, stock: number | null, buyback: n
 }
 
 function registerCommands(dependencies: CommandDependencies): () => boolean {
-    const { router, service, core, config, logger } = dependencies;
+    const { router, service, core, config, logger, open } = dependencies;
 
     async function isAdmin(player: Player): Promise<boolean> {
         if (!config.adminGroups.length) return false;
@@ -84,6 +85,7 @@ function registerCommands(dependencies: CommandDependencies): () => boolean {
     }
 
     async function run(context: Context): Promise<unknown> {
+        if (!context.args.length) return open(context.player);
         const [action = "help", ...rest] = context.args;
         const options = (reason = "") => actorOptions(context, reason);
         switch (action.toLowerCase()) {
@@ -175,7 +177,7 @@ function registerCommands(dependencies: CommandDependencies): () => boolean {
             }
             case "manage": {
                 const [businessId] = rest;
-                return service.manageTrusted(context.player, businessId);
+                return open(context.player, businessId);
             }
             default:
                 context.reply(`Usage: /${config.command} <action>`);
@@ -185,9 +187,16 @@ function registerCommands(dependencies: CommandDependencies): () => boolean {
     }
 
     return router.register(config.command, {
-        description: "Create and administer player-run businesses.",
-        usage: `/${config.command} <action> …`,
-        guard: async ({ player }) => (await isAdmin(player)) || "You are not allowed to administer businesses.",
+        description: "Open the business console; administrators may also use command fallbacks.",
+        usage: `/${config.command} [action …]`,
+        guard: async ({ player, args }) => {
+            const action = String(args[0] || "").toLowerCase();
+            if (!action || action === "manage") {
+                if (await isAdmin(player)) return true;
+                return (await service.businesses.managed(player)).length > 0 || "You do not manage any business.";
+            }
+            return (await isAdmin(player)) || "You are not allowed to administer businesses.";
+        },
     }, async (context) => {
         try { await run(context); }
         catch (error) {

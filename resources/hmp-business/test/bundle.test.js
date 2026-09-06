@@ -1,8 +1,13 @@
 const assert = require("node:assert");
+const fs = require("node:fs");
 const path = require("node:path");
 
 const exportsSeen = new Map();
 const handlers = new Map();
+const clientHandlers = new Map();
+const localHandlers = new Map();
+const webHandlers = new Map();
+const emittedToServer = [];
 const logger = { info() {}, warn() {}, error() {}, debug() {} };
 const database = {
     transaction: async (work) => typeof work === "function" ? work(database) : [],
@@ -21,6 +26,8 @@ global.Imports = { get: (name) => {
         player: { byId: () => null },
         position: { within: () => false },
         command: { createRouter: () => ({ register: () => () => true, handle: async () => false }) },
+        rateLimit: { create: () => ({ allow: () => true }) },
+        input: { controls: { acquire: () => ({ release: () => true }) } },
     };
     if (name === "hmp-mysql") return database;
     if (name === "hmp-core") return { characters: { active: () => ({ id: 1 }) }, groups: { has: async () => true } };
@@ -32,7 +39,8 @@ global.Imports = { get: (name) => {
     if (name === "hmp-jobs") return { jobs: { get: () => null }, permissions: { has: async () => false }, duty: { list: () => [], toggle: async () => null } };
     throw new Error(`Unexpected import ${name}`);
 } };
-global.Events = { on: (name, handler) => handlers.set(name, handler), emit() {} };
+global.Events = { on: (name, handler) => handlers.set(name, handler), onClient: (name, handler) => clientHandlers.set(name, handler), emit() {} };
+global.PlayerManager = { getById: () => null };
 
 require(path.resolve(__dirname, "..", "dist", "server.js"));
 assert.deepStrictEqual([...exportsSeen.keys()], ["businesses", "shops", "offers", "stock", "books", "ui", "audit", "status"]);
@@ -41,5 +49,17 @@ assert.ok(handlers.has("hmp:shop:purchased"));
 assert.ok(handlers.has("playerDisconnect"));
 assert.ok(handlers.has("resourceStop"));
 assert.ok(handlers.has("chatCommand"));
+assert.ok(clientHandlers.has("hmp-business:action"));
 assert.strictEqual(exportsSeen.get("status")().state, "starting");
+
+global.Events = { on: (name, handler) => localHandlers.set(name, handler), emitServer: (name, payload) => emittedToServer.push({ name, payload }) };
+global.Imports = { get: () => ({ input: { controls: { acquire: () => ({ release: () => true }) } } }) };
+global.Web = { createView: () => 1, on: (_view, name, handler) => webHandlers.set(name, handler), emit() {}, showView() {}, hideView() {}, focusView() {} };
+global.Game = { notify() {} };
+require(path.resolve(__dirname, "..", "dist", "client.js"));
+assert.ok(localHandlers.has("hmp-business:open"));
+localHandlers.get("hmp-business:open")(JSON.stringify({ businesses: [], shops: [], offers: [] }));
+assert.ok(webHandlers.has("action"));
+assert.ok(emittedToServer.some((event) => event.name === "hmp-business:ready"));
+assert.ok(fs.existsSync(path.resolve(__dirname, "..", "dist", "index.html")));
 console.log("hmp-business bundle contract passed");
