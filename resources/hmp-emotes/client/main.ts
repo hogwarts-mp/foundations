@@ -39,6 +39,7 @@ declare const LocalPlayer: {
     photoPose(path?: string): boolean;
     playClip(path?: string, options?: { loop?: boolean; hold?: boolean; rate?: number }): boolean;
     playAbility(path: string, channel?: string): boolean;
+    cancelAbility(channel?: string): boolean;
     stopPlayerInput(): boolean | null;
     restorePlayerInput(): boolean | null;
     emotePreview(options?: PreviewOptions): PreviewState;
@@ -98,6 +99,13 @@ function preview(options: PreviewOptions): PreviewState | null {
 function stopEmote(): void {
     preview({ anchor: false });
     LocalPlayer.stopEmote();
+}
+
+function stopEverything(): void {
+    stopEmote();
+    try { LocalPlayer.cancelAbility("FullBody"); } catch (_) {}
+    try { LocalPlayer.cancelAbility("PartialBody"); } catch (_) {}
+    try { LocalPlayer.photoPose(""); } catch (_) {}
 }
 
 function play(row: EmoteRow): boolean {
@@ -269,7 +277,7 @@ Events.on("resourceStop", (name?: string) => {
     stopped = true;
     if (placing) placeStop(false);
     hideMenu();
-    stopEmote();
+    stopEverything();
     preview({ release: true });
     destroyView();
     Input.cleanup("hmp-emotes");
