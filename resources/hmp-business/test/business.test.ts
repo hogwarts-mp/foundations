@@ -14,7 +14,7 @@ const { createBusinessService, compactReference } = serviceModule;
 const COUNTER = { x: 1000, y: 2000, z: 300 };
 const JOB = { id: "pippins", resource: "hmp-hogsmeade", label: "J. Pippin's Potions", group: "job:pippins", grades: [], banking: { organizationId: "pippins", currency: "galleons" } };
 
-function setup(overrides: { houseCutPercent?: number; jobRegistered?: boolean } = {}) {
+function setup(overrides: { houseCutPercent?: number; jobRegistered?: boolean; buybacks?: boolean } = {}) {
     let clock = 1_000_000;
     let nextAuditId = 1;
     const josh = { id: 7, nickname: "Josh", position: { x: 0, y: 0, z: 0 }, emit() {}, teleport: () => 0 } as unknown as Player;
@@ -124,7 +124,11 @@ function setup(overrides: { houseCutPercent?: number; jobRegistered?: boolean } 
     const counts = new Map<string, number>([["native:wiggenweld_potion", 3], ["native:edurus_potion", 0]]);
     const failAdds = new Map<string, number>();
     const inventory = {
-        items: { get: (name: string) => ["native:wiggenweld_potion", "native:edurus_potion"].includes(name) ? { name, label: name === "native:wiggenweld_potion" ? "Wiggenweld Potion" : "Edurus Potion" } : null },
+        items: { get: (name: string) => ({
+            "native:wiggenweld_potion": { name, label: "Wiggenweld Potion" },
+            "native:edurus_potion": { name, label: "Edurus Potion", referenceValue: 30 },
+            "native:horklump_juice": { name, label: "Horklump Juice" },
+        } as Record<string, unknown>)[name] || null },
         inventory: {
             async count(_player: Player, name: string) { return counts.get(name) || 0; },
             async has(_player: Player, name: string, amount = 1) { return (counts.get(name) || 0) >= amount; },
@@ -182,7 +186,7 @@ function setup(overrides: { houseCutPercent?: number; jobRegistered?: boolean } 
         events: { emit(name, payload) { emitted.push({ name, payload }); } },
         logger: { info: () => true, warn: () => true, error: () => true },
         migrations: [],
-        config: { prices: { floor: 1, ceiling: 100000, ceilings: {} }, houseCut: { percent: overrides.houseCutPercent ?? 0, organizationId: "treasury", label: "Treasury", currency: "galleons" } },
+        config: { prices: { floor: 1, ceiling: 100000, ceilings: {}, buybacks: { enabled: overrides.buybacks === true, maxRatio: 0.5, referenceValues: { "native:wiggenweld_potion": 20 } } }, houseCut: { percent: overrides.houseCutPercent ?? 0, organizationId: "treasury", label: "Treasury", currency: "galleons" } },
         now: () => clock,
         today: () => "2026-09-05",
     });
@@ -203,7 +207,7 @@ async function pippins(state: ReturnType<typeof setup>, staffing: "always" | "st
     await state.service.start();
     await state.service.businesses.create({ id: "pippins", jobId: "pippins", label: "J. Pippin's Potions" });
     await state.service.shops.add("pippins", { id: "hogsmeade", label: "Hogsmeade counter", position: COUNTER, areaId: "Overland", radius: 300, staffRadius: 500, vendor: { characterId: "PercivalPippin", yaw: 30 }, staffing, dutyPoint: { x: 1100, y: 2000, z: 300 } });
-    await state.service.offers.set("pippins", "hogsmeade", { id: "wiggenweld", item: "native:wiggenweld_potion", buyPrice: 25, sellPrice: 8, maxQuantity: 6, stock: 5 });
+    await state.service.offers.set("pippins", "hogsmeade", { id: "wiggenweld", item: "native:wiggenweld_potion", buyPrice: 25, buybackRatio: 0.4, maxQuantity: 6, stock: 5 });
 }
 
 const key = shopKey("pippins", "hogsmeade");
@@ -225,6 +229,10 @@ test("normalizes businesses, counters and offers within price bounds", () => {
     assert.throws(() => normalizeOffer("pippins", "stall", { id: "free", item: "native:wiggenweld_potion", buyPrice: 0 }, bounds), /between 1 and 500/);
     assert.throws(() => normalizeOffer("pippins", "stall", { id: "dear", item: "native:wiggenweld_potion", buyPrice: 501 }, bounds), /between 1 and 500/);
     assert.throws(() => normalizeOffer("pippins", "stall", { id: "none", item: "native:wiggenweld_potion" }, bounds), /buy price or a sell price/);
+    assert.throws(() => normalizeOffer("pippins", "stall", { id: "both", item: "native:wiggenweld_potion", buyPrice: 5, sellPrice: 3 }, bounds), /beside a buy price/);
+    assert.throws(() => normalizeOffer("pippins", "stall", { id: "ratio", item: "native:wiggenweld_potion", buyPrice: 5, buybackRatio: 1.5 }, bounds), /between 0 and 1/);
+    assert.strictEqual(normalizeOffer("pippins", "stall", { id: "ratio", item: "native:wiggenweld_potion", buyPrice: 5, buybackRatio: 0.3333 }, bounds).offer.buybackRatio, 0.333);
+    assert.strictEqual(normalizeOffer("pippins", "stall", { id: "pawn", item: "native:wiggenweld_potion", sellPrice: 3 }, bounds).offer.buyPrice, undefined);
     assert.strictEqual(shopKey("pippins", "stall"), "business:pippins:stall");
     assert.ok(compactReference("bizd", "x".repeat(200)).length <= 96);
     assert.strictEqual(compactReference("bizd", "shop:7:abc"), "bizd:shop:7:abc");
@@ -240,6 +248,10 @@ test("normalizes data-declared businesses and rejects malformed entries", () => 
     assert.strictEqual(config.houseCut.percent, 5);
     assert.strictEqual(config.houseCut.organizationId, "treasury");
     assert.strictEqual(config.commands.command, "business");
+    assert.deepStrictEqual(config.prices.buybacks, { enabled: false, maxRatio: 0.5, referenceValues: {} });
+    assert.deepStrictEqual(normalizeConfig({ prices: { buybacks: { enabled: true, maxRatio: 0.25, referenceValues: { "native:wiggenweld_potion": 20.7 } } } }).prices.buybacks, { enabled: true, maxRatio: 0.25, referenceValues: { "native:wiggenweld_potion": 20 } });
+    assert.throws(() => normalizeConfig({ prices: { buybacks: { maxRatio: 2 } } }), /between 0 and 1/);
+    assert.throws(() => normalizeConfig({ prices: { buybacks: { referenceValues: { potion: 0 } } } }), /positive number/);
     assert.deepStrictEqual(config.commands.adminGroups, [{ key: "admin", minimumGrade: 1 }]);
     assert.strictEqual(config.businesses[0].shops[0].offers[0].stock, 12);
     assert.deepStrictEqual(normalizeConfig({}).businesses, []);
@@ -261,9 +273,9 @@ test("registers counters with hmp-shops under the business id, bound to the job 
     assert.deepStrictEqual(registered.interaction?.character, { characterId: "PercivalPippin", yaw: 30, label: undefined });
     assert.ok(state.currencies.has("business:pippins"));
     assert.ok(state.interactions.has("business:pippins:hogsmeade:duty"));
-    assert.strictEqual(await registered.offers[0].requirements!.allow!({ player: state.customer, character: { id: 14 }, shop: registered, offer: registered.offers[0], direction: "sell" }), "Only staff may sell to this counter.");
-    assert.strictEqual(await registered.offers[0].requirements!.allow!({ player: state.clerk, character: { id: 13 }, shop: registered, offer: registered.offers[0], direction: "sell" }), true);
-    assert.strictEqual(await registered.offers[0].requirements!.allow!({ player: state.customer, character: { id: 14 }, shop: registered, offer: registered.offers[0], direction: "buy" }), true);
+    assert.strictEqual(registered.offers[0].sellPrice, undefined, "buybacks are off by default");
+    assert.strictEqual(registered.offers[0].requirements, undefined);
+    assert.strictEqual(state.service.offers.buybackPrice("pippins", "hogsmeade", "wiggenweld"), null);
     assert.strictEqual(state.service.shops.shopId("pippins", "hogsmeade"), key);
     assert.deepStrictEqual(state.audits.map((entry) => entry.action), ["business.create", "shop.add", "offer.add"]);
     assert.strictEqual(state.service.status().liveShops, 1);
@@ -307,7 +319,7 @@ test("enforces shop.manage, administrator-only placement and price bounds, and a
     await pippins(state);
     await assert.rejects(state.service.offers.setPrices("pippins", "hogsmeade", "wiggenweld", { buyPrice: 30 }, { actor: state.clerk }), /cannot manage/);
     await assert.rejects(state.service.offers.setPrices("pippins", "hogsmeade", "wiggenweld", { buyPrice: 0 }, { actor: state.josh }), /between 1 and 100000/);
-    const updated = await state.service.offers.setPrices("pippins", "hogsmeade", "wiggenweld", { buyPrice: 30, sellPrice: null }, { actor: state.josh, reason: "Winter prices" });
+    const updated = await state.service.offers.setPrices("pippins", "hogsmeade", "wiggenweld", { buyPrice: 30 }, { actor: state.josh, reason: "Winter prices" });
     assert.strictEqual(updated.buyPrice, 30);
     assert.strictEqual(updated.sellPrice, undefined);
     const entry = state.audits.at(-1)!;
@@ -431,7 +443,7 @@ test("drives the management menu to set prices and restock", async () => {
     const state = setup();
     await pippins(state);
     state.contextChoices.push("prices", "wiggenweld");
-    state.inputChoices.push({ buyPrice: 32, sellPrice: "", reason: "" });
+    state.inputChoices.push({ buyPrice: 32, reason: "" });
     const updated = await state.service.ui.manage(state.josh) as HmpBusinessOffer;
     assert.strictEqual(updated.buyPrice, 32);
     assert.strictEqual(updated.sellPrice, undefined);
@@ -465,4 +477,62 @@ test("seeds configured businesses once and tears everything down on stop", async
     assert.strictEqual(state.currencies.size, 0);
     assert.strictEqual(state.interactions.size, 0);
     assert.strictEqual(state.service.status().state, "stopped");
+});
+
+test("keeps counters buy-only while buybacks are disabled", async () => {
+    const state = setup();
+    await pippins(state);
+    await assert.rejects(state.service.offers.setPrices("pippins", "hogsmeade", "wiggenweld", { buybackRatio: 0.3 }, { actor: state.josh }), /disabled/);
+    await state.service.offers.set("pippins", "hogsmeade", { id: "scraps", item: "native:horklump_juice", sellPrice: 3 });
+    const registered = state.registrations.get(key)!;
+    assert.deepStrictEqual(registered.offers.map((offer) => offer.id), ["wiggenweld"], "a sell-only offer is not published while buybacks are off");
+    assert.strictEqual(registered.offers[0].sellPrice, undefined);
+    assert.strictEqual(state.service.offers.buybackPrice("pippins", "hogsmeade", "scraps"), null);
+    assert.strictEqual(state.service.offers.get("pippins", "hogsmeade", "wiggenweld")?.buybackRatio, 0.4, "the seeded share is kept for when buybacks are enabled");
+});
+
+test("derives buyback prices from reference values and keeps managers off their own counters", async () => {
+    const state = setup({ buybacks: true });
+    await pippins(state);
+    const allow = (player: Player, direction: "buy" | "sell", offerId = "wiggenweld") => {
+        const shop = state.registrations.get(key)!;
+        const offer = shop.offers.find((entry) => entry.id === offerId)!;
+        return offer.requirements!.allow!({ player, character: { id: 1 }, shop, offer, direction });
+    };
+    assert.strictEqual(state.registrations.get(key)!.offers[0].sellPrice, 8, "0.4 of the configured reference value 20");
+    assert.strictEqual(state.service.offers.buybackPrice("pippins", "hogsmeade", "wiggenweld"), 8);
+    assert.strictEqual(await allow(state.customer, "sell"), "Only staff may sell to this counter.");
+    assert.strictEqual(await allow(state.josh, "sell"), "Managers cannot sell to their own counters.");
+    assert.strictEqual(await allow(state.clerk, "sell"), true);
+    assert.strictEqual(await allow(state.customer, "buy"), true);
+
+    await assert.rejects(state.service.offers.setPrices("pippins", "hogsmeade", "wiggenweld", { buybackRatio: 0.6 }, { actor: state.josh }), /may not exceed 0.5/);
+    await assert.rejects(state.service.offers.setPrices("pippins", "hogsmeade", "wiggenweld", { sellPrice: 90 }, { actor: state.josh }), /beside a buy price/);
+    const raised = await state.service.offers.setPrices("pippins", "hogsmeade", "wiggenweld", { buybackRatio: 0.5 }, { actor: state.josh });
+    assert.strictEqual(raised.buybackRatio, 0.5);
+    assert.strictEqual(state.registrations.get(key)!.offers[0].sellPrice, 10);
+    assert.strictEqual(state.audits.at(-1)!.action, "offer.price");
+    const dropped = await state.service.offers.setPrices("pippins", "hogsmeade", "wiggenweld", { buybackRatio: null }, { actor: state.josh });
+    assert.strictEqual(dropped.buybackRatio, null);
+    assert.strictEqual(state.registrations.get(key)!.offers[0].sellPrice, undefined);
+
+    await state.service.offers.set("pippins", "hogsmeade", { id: "edurus", item: "native:edurus_potion", buyPrice: 40, buybackRatio: 0.5 }, { actor: state.josh });
+    assert.strictEqual(state.service.offers.referenceValue("native:edurus_potion"), 30, "item definitions supply reference values when the config has none");
+    assert.strictEqual(state.registrations.get(key)!.offers.find((offer) => offer.id === "edurus")!.sellPrice, 15);
+    await state.service.offers.set("pippins", "hogsmeade", { id: "horklump", item: "native:horklump_juice", buyPrice: 5, buybackRatio: 0.5 }, { actor: state.josh });
+    assert.strictEqual(state.service.offers.referenceValue("native:horklump_juice"), null);
+    assert.strictEqual(state.registrations.get(key)!.offers.find((offer) => offer.id === "horklump")!.sellPrice, undefined, "no reference value means no buyback");
+
+    await state.service.offers.set("pippins", "hogsmeade", { id: "scraps", item: "native:horklump_juice", sellPrice: 3 });
+    const pawn = state.registrations.get(key)!.offers.find((offer) => offer.id === "scraps")!;
+    assert.strictEqual(pawn.buyPrice, undefined);
+    assert.strictEqual(pawn.sellPrice, 3, "administrator-set sell-only offers keep their raw price");
+    assert.strictEqual(await allow(state.josh, "sell", "scraps"), "Managers cannot sell to their own counters.");
+
+    state.contextChoices.push("prices", "wiggenweld");
+    state.inputChoices.push({ buyPrice: 25, buybackRatio: 0.25, reason: "" });
+    const menu = await state.service.ui.manage(state.josh, "pippins") as HmpBusinessOffer;
+    assert.strictEqual(menu.buybackRatio, 0.25);
+    assert.ok(state.inputs.some((dialog) => JSON.stringify(dialog).includes("Buyback share")));
+    assert.ok(state.notifications.some((entry) => entry.description.includes("buys back at Ⓖ5")));
 });

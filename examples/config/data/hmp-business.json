@@ -2,7 +2,16 @@
   "prices": {
     "floor": 1,
     "ceiling": 1000000,
-    "ceilings": { "galleons": 100000 }
+    "ceilings": { "galleons": 100000 },
+    "buybacks": {
+      "enabled": false,
+      "maxRatio": 0.5,
+      "referenceValues": {
+        "native:wiggenweld_potion": 20,
+        "native:edurus_potion": 30,
+        "native:horklump_juice": 4
+      }
+    }
   },
   "houseCut": {
     "percent": 0,
@@ -35,7 +44,7 @@
           "vendor": { "characterId": "PercivalPippin", "yaw": 30 },
           "staffing": "always",
           "offers": [
-            { "id": "wiggenweld", "item": "native:wiggenweld_potion", "buyPrice": 25, "sellPrice": 8, "maxQuantity": 6, "stock": 12 },
+            { "id": "wiggenweld", "item": "native:wiggenweld_potion", "buyPrice": 25, "buybackRatio": 0.4, "maxQuantity": 6, "stock": 12 },
             { "id": "edurus", "item": "native:edurus_potion", "buyPrice": 40, "maxQuantity": 3, "unlimited": true },
             { "id": "horklump", "item": "native:horklump_juice", "buyPrice": 5, "maxQuantity": 10, "stock": 30 }
           ]

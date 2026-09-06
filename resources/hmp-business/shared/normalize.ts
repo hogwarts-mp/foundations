@@ -61,6 +61,15 @@ function price(value: unknown, name: string, bounds: PriceBounds): number | unde
     return rounded;
 }
 
+/** A buyback share in 0..1 with three decimals; empty means the offer is never bought back. */
+function ratio(value: unknown, name: string): number | null {
+    if (value === undefined || value === null || value === "") return null;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 0 || numeric > 1) throw new TypeError(`${name} must be between 0 and 1`);
+    const rounded = Math.round(numeric * 1000) / 1000;
+    return rounded > 0 ? rounded : null;
+}
+
 function staffing(value: unknown): HmpBusinessStaffing {
     const normalized = String(value ?? "always").trim().toLowerCase() as HmpBusinessStaffing;
     if (!STAFFING.has(normalized)) throw new TypeError(`staffing policy '${String(value)}' is invalid`);
@@ -124,6 +133,8 @@ function normalizeOffer(businessId: string, shopId: string, raw: HmpBusinessOffe
     const buyPrice = price(raw.buyPrice, `offer '${offerId}' buy price`, bounds);
     const sellPrice = price(raw.sellPrice, `offer '${offerId}' sell price`, bounds);
     if (buyPrice === undefined && sellPrice === undefined) throw new TypeError(`offer '${offerId}' needs a buy price or a sell price`);
+    if (buyPrice !== undefined && sellPrice !== undefined) throw new TypeError(`offer '${offerId}' cannot carry a sell price beside a buy price; buybacks derive from buybackRatio`);
+    const buybackRatio = ratio(raw.buybackRatio, `offer '${offerId}' buyback ratio`);
     const unlimited = raw.unlimited === true;
     return {
         offer: Object.freeze({
@@ -134,6 +145,7 @@ function normalizeOffer(businessId: string, shopId: string, raw: HmpBusinessOffe
             label: clean(raw.label, 80) || undefined,
             buyPrice,
             sellPrice,
+            buybackRatio,
             maxQuantity: integer(raw.maxQuantity, 99, 1, 1000000),
             unlimited,
             enabled: raw.enabled !== false,
@@ -142,4 +154,4 @@ function normalizeOffer(businessId: string, shopId: string, raw: HmpBusinessOffe
     };
 }
 
-export = { clean, id, integer, positiveId, vector, price, staffing, vendor, shopKey, normalizeBusiness, normalizeShop, normalizeOffer, SHORT_ID };
+export = { clean, id, integer, positiveId, vector, price, ratio, staffing, vendor, shopKey, normalizeBusiness, normalizeShop, normalizeOffer, SHORT_ID };

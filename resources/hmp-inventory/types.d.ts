@@ -132,6 +132,12 @@ export interface HmpItemDefinition<P = HmpInventoryPlayer> {
     usable?: boolean;
     consumable?: boolean;
     use?(context: HmpInventoryUseContext<P>): void | Promise<void>;
+    /**
+     * Server-owned worth of one unit in the base currency, used by economy resources to derive prices
+     * that players must not set themselves (for example shop buybacks). Native items take the game's
+     * `EconomyValue` when the host catalog exposes it. Omit when the item has no reference worth.
+     */
+    referenceValue?: number;
     /** Setting this makes the item game-native; custom metadata is not stored on native rows. */
     nativeId?: string;
     /** Expected native holder, used for documentation and display. Routing is validated by the Framework catalog. */

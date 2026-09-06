@@ -31,6 +31,7 @@ function createItemRegistry(): Registry {
         const unique = value.unique === true;
         const maxStack = unique ? 1 : Math.max(1, Math.min(100000, Math.trunc(Number(value.maxStack ?? value.stack)) || 1));
         const weight = Math.max(0, Math.min(100000, Number(value.weight) || 0));
+        const referenceValue = Math.trunc(Number(value.referenceValue));
         return Object.freeze({
             name,
             aliases: Object.freeze(itemAliases),
@@ -45,6 +46,7 @@ function createItemRegistry(): Registry {
             usable: value.usable === true || typeof value.use === "function",
             consumable: value.consumable === true,
             use: typeof value.use === "function" ? value.use as (context: HmpInventoryUseContext<Player>) => void | Promise<void> : null,
+            referenceValue: Number.isFinite(referenceValue) && referenceValue > 0 ? Math.min(2147483647, referenceValue) : undefined,
             nativeId,
             holder: nativeId ? clean(value.holder, 64) || null : null,
             resource: clean(value.resource ?? "unknown", 64) || "unknown",

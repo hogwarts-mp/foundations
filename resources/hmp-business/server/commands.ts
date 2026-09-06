@@ -23,7 +23,7 @@ const USAGE = [
     "vendor <business> <counter> <characterId|none> [yaw] [label…]",
     "staffing <business> <counter> <always|staffed|kiosk>",
     "open <business> <counter> | close <business> <counter>",
-    "offer <business> <counter> <item> <buy|-> [sell|-] [max] [offerId]",
+    "offer <business> <counter> <item> <buy|-> [buyback|-] [max] [offerId]  (buyback is a 0..1 share of the reference value, or the raw price when buy is -)",
     "retire <business> <counter> <offer> | restore <business> <counter> <offer>",
     "stock <business> <counter> <offer> <quantity>",
     "manage [business]",
@@ -45,8 +45,8 @@ function describeShop(shop: HmpBusinessShop, staffed: boolean): string {
     return `  ${shop.id} · ${shop.label} · ${shop.enabled ? (staffed ? "open, staffed" : "open") : "closed"} · ${shop.staffing}${shop.vendor ? ` · vendor ${shop.vendor.characterId}` : ""}${shop.dutyPoint ? " · clock-in" : ""}`;
 }
 
-function describeOffer(offer: HmpBusinessOffer, stock: number | null): string {
-    return `    ${offer.id} · ${offer.item} · buy ${offer.buyPrice ?? "-"} · sell ${offer.sellPrice ?? "-"} · max ${offer.maxQuantity} · stock ${offer.unlimited ? "∞" : stock ?? 0}${offer.enabled ? "" : " · retired"}`;
+function describeOffer(offer: HmpBusinessOffer, stock: number | null, buyback: number | null): string {
+    return `    ${offer.id} · ${offer.item} · buy ${offer.buyPrice ?? "-"} · buyback ${buyback ?? "-"}${offer.buybackRatio ? ` (share ${offer.buybackRatio})` : ""} · max ${offer.maxQuantity} · stock ${offer.unlimited ? "∞" : stock ?? 0}${offer.enabled ? "" : " · retired"}`;
 }
 
 function registerCommands(dependencies: CommandDependencies): () => boolean {
@@ -77,7 +77,7 @@ function registerCommands(dependencies: CommandDependencies): () => boolean {
             for (const shop of service.shops.list(business.id)) {
                 context.reply(describeShop(shop, service.shops.isStaffed(business.id, shop.id)));
                 for (const offer of service.offers.list(business.id, shop.id, true)) {
-                    context.reply(describeOffer(offer, offer.unlimited ? null : await service.stock.get(business.id, shop.id, offer.id)));
+                    context.reply(describeOffer(offer, offer.unlimited ? null : await service.stock.get(business.id, shop.id, offer.id), service.offers.buybackPrice(business.id, shop.id, offer.id)));
                 }
             }
         }
@@ -147,10 +147,18 @@ function registerCommands(dependencies: CommandDependencies): () => boolean {
                 return context.reply(`'${shop.id}' is now ${shop.enabled ? "open" : "closed"}.`);
             }
             case "offer": {
-                const [businessId, shopId, item, buy, sell, max, offerId] = rest;
-                if (!businessId || !shopId || !item || buy === undefined) return context.reply("Usage: /business offer <business> <counter> <item> <buy|-> [sell|-] [max] [offerId]");
-                const offer = await service.offers.set(businessId, shopId, { id: offerId || item, item, buyPrice: optionalPrice(buy), sellPrice: optionalPrice(sell), maxQuantity: max === undefined ? undefined : Number(max) }, options());
-                return context.reply(`Offer '${offer.id}' at '${shopId}': ${offer.item}, buy ${offer.buyPrice ?? "-"}, sell ${offer.sellPrice ?? "-"}, max ${offer.maxQuantity}. Seed stock with /business stock.`);
+                const [businessId, shopId, item, buy, buyback, max, offerId] = rest;
+                if (!businessId || !shopId || !item || buy === undefined) return context.reply("Usage: /business offer <business> <counter> <item> <buy|-> [buyback|-] [max] [offerId]");
+                const buyPrice = optionalPrice(buy);
+                const sellOnly = buyPrice === null;
+                const offer = await service.offers.set(businessId, shopId, {
+                    id: offerId || item, item, buyPrice,
+                    sellPrice: sellOnly ? optionalPrice(buyback) : null,
+                    buybackRatio: sellOnly ? null : optionalPrice(buyback),
+                    maxQuantity: max === undefined ? undefined : Number(max),
+                }, options());
+                const paid = service.offers.buybackPrice(businessId, shopId, offer.id);
+                return context.reply(`Offer '${offer.id}' at '${shopId}': ${offer.item}, buy ${offer.buyPrice ?? "-"}, buyback ${paid ?? "-"}${offer.buybackRatio ? ` (share ${offer.buybackRatio})` : ""}, max ${offer.maxQuantity}. Seed stock with /business stock.`);
             }
             case "retire":
             case "restore": {

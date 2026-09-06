@@ -43,6 +43,7 @@ interface OfferRow {
     label: string | null;
     buy_price: number | string | null;
     sell_price: number | string | null;
+    buyback_ratio: number | string | null;
     max_quantity: number | string;
     unlimited: number | string | boolean;
     enabled: number | string | boolean;
@@ -114,6 +115,7 @@ function mapOffer(row: OfferRow): HmpBusinessOffer {
         label: row.label || undefined,
         buyPrice: optionalNumber(row.buy_price),
         sellPrice: optionalNumber(row.sell_price),
+        buybackRatio: row.buyback_ratio === null || row.buyback_ratio === undefined ? null : Number(row.buyback_ratio),
         maxQuantity: Number(row.max_quantity),
         unlimited: flag(row.unlimited),
         enabled: flag(row.enabled),
@@ -203,14 +205,14 @@ function createRepository(database: Database): BusinessRepository {
     async function saveOffer(offer: HmpBusinessOffer): Promise<void> {
         await database.update(
             `INSERT INTO hmp_business_offer
-                (business_id, shop_id, id, item_name, label, buy_price, sell_price, max_quantity, unlimited, enabled)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (business_id, shop_id, id, item_name, label, buy_price, sell_price, buyback_ratio, max_quantity, unlimited, enabled)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
              ON DUPLICATE KEY UPDATE
                 item_name = VALUES(item_name), label = VALUES(label), buy_price = VALUES(buy_price), sell_price = VALUES(sell_price),
-                max_quantity = VALUES(max_quantity), unlimited = VALUES(unlimited), enabled = VALUES(enabled)`,
+                buyback_ratio = VALUES(buyback_ratio), max_quantity = VALUES(max_quantity), unlimited = VALUES(unlimited), enabled = VALUES(enabled)`,
             [
                 offer.businessId, offer.shopId, offer.id, offer.item, offer.label || null,
-                offer.buyPrice ?? null, offer.sellPrice ?? null, offer.maxQuantity, offer.unlimited ? 1 : 0, offer.enabled ? 1 : 0,
+                offer.buyPrice ?? null, offer.sellPrice ?? null, offer.buybackRatio ?? null, offer.maxQuantity, offer.unlimited ? 1 : 0, offer.enabled ? 1 : 0,
             ],
         );
     }

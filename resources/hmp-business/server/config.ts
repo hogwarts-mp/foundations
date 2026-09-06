@@ -20,7 +20,20 @@ function normalizePrices(raw: unknown): PriceConfig {
         if (!isObject(value.ceilings)) throw new TypeError("hmp-business configuration 'prices.ceilings' must be an object");
         for (const [currency, limit] of Object.entries(value.ceilings)) ceilings[id(currency, "price ceiling currency")] = integer(limit, ceiling, floor, 2147483647);
     }
-    return Object.freeze({ floor, ceiling, ceilings: Object.freeze(ceilings) });
+    const buybacksRaw = isObject(value.buybacks) ? value.buybacks : {};
+    const maxRatioValue = Number(buybacksRaw.maxRatio ?? 0.5);
+    if (!Number.isFinite(maxRatioValue) || maxRatioValue < 0 || maxRatioValue > 1) throw new TypeError("hmp-business configuration 'prices.buybacks.maxRatio' must be between 0 and 1");
+    const referenceValues: Record<string, number> = {};
+    if (buybacksRaw.referenceValues !== undefined) {
+        if (!isObject(buybacksRaw.referenceValues)) throw new TypeError("hmp-business configuration 'prices.buybacks.referenceValues' must be an object");
+        for (const [item, worth] of Object.entries(buybacksRaw.referenceValues)) {
+            const amount = Number(worth);
+            if (!Number.isFinite(amount) || amount < 1) throw new TypeError(`hmp-business configuration reference value for '${item}' must be a positive number`);
+            referenceValues[id(item, "reference value item")] = Math.trunc(amount);
+        }
+    }
+    const buybacks = Object.freeze({ enabled: buybacksRaw.enabled === true, maxRatio: Math.round(maxRatioValue * 1000) / 1000, referenceValues: Object.freeze(referenceValues) });
+    return Object.freeze({ floor, ceiling, ceilings: Object.freeze(ceilings), buybacks });
 }
 
 function normalizeSeed(raw: unknown, index: number, prices: PriceConfig): SeedBusiness {

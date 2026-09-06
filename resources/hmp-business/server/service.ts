@@ -13,7 +13,7 @@ import type {
 } from "../types";
 import type { AuditDraft, BusinessDependencies, BusinessService, DutyEvent, Player, SeedBusiness, ShopTradeEvent } from "./internal";
 
-const { clean, id: normalizeId, integer, positiveId, price, shopKey, normalizeBusiness, normalizeShop, normalizeOffer } = normalizeModule;
+const { clean, id: normalizeId, integer, positiveId, price, ratio, shopKey, normalizeBusiness, normalizeShop, normalizeOffer } = normalizeModule;
 
 const RESOURCE = "hmp-business";
 const MANAGE = "shop.manage";
@@ -108,6 +108,7 @@ function offerAsInput(offer: HmpBusinessOffer): HmpBusinessOfferInput {
         label: offer.label,
         buyPrice: offer.buyPrice,
         sellPrice: offer.sellPrice,
+        buybackRatio: offer.buybackRatio,
         maxQuantity: offer.maxQuantity,
         unlimited: offer.unlimited,
         enabled: offer.enabled,
@@ -175,6 +176,28 @@ function createBusinessService(dependencies: BusinessDependencies): BusinessServ
 
     function boundsFor(currency: string) {
         return { floor: config.prices.floor, ceiling: config.prices.ceilings[currency] ?? config.prices.ceiling };
+    }
+
+    const buybacks = config.prices.buybacks;
+
+    /** Server-owned worth of one unit: the config override wins, then the item definition. Null means never bought back. */
+    function referenceValueOf(item: string): number | null {
+        const override = buybacks.referenceValues[item];
+        if (override !== undefined) return override;
+        const declared = Number(inventory.items.get(item)?.referenceValue);
+        return Number.isFinite(declared) && declared > 0 ? Math.trunc(declared) : null;
+    }
+
+    /** What the shop pays for one unit. Sell-only offers keep their administrator-set price; everything else derives from the ratio. */
+    function buybackPriceOf(record: BusinessRecord, offer: HmpBusinessOffer): number | undefined {
+        if (!buybacks.enabled) return undefined;
+        if (offer.buyPrice === undefined) return offer.sellPrice;
+        if (!offer.buybackRatio) return undefined;
+        const reference = referenceValueOf(offer.item);
+        if (reference === null) return undefined;
+        const bounds = boundsFor(record.business.currency);
+        const value = Math.min(bounds.ceiling, Math.floor(reference * offer.buybackRatio));
+        return value >= bounds.floor ? value : undefined;
     }
 
     function jobOf(record: BusinessRecord) {
@@ -277,18 +300,30 @@ function createBusinessService(dependencies: BusinessDependencies): BusinessServ
         const group = groupOf(record);
         const staffed = isStaffedNow(record, shop);
         const body = Boolean(shop.vendor) && shop.staffing !== "kiosk" && !staffed;
-        const offers: HmpShopOffer<Player>[] = enabledOffers.map((offer) => ({
-            id: offer.id,
-            item: offer.item,
-            label: offer.label,
-            buyPrice: offer.buyPrice,
-            sellPrice: offer.sellPrice,
-            stock: offer.unlimited ? null : 0,
-            maxQuantity: offer.maxQuantity,
-            requirements: offer.sellPrice === undefined ? undefined : {
-                allow: async (context) => context.direction !== "sell" || await core.groups.has(context.player, group, 0) || "Only staff may sell to this counter.",
-            },
-        }));
+        const jobId = record.business.jobId;
+        const offers: HmpShopOffer<Player>[] = [];
+        for (const offer of enabledOffers) {
+            const sellPrice = buybackPriceOf(record, offer);
+            if (offer.buyPrice === undefined && sellPrice === undefined) continue;
+            offers.push({
+                id: offer.id,
+                item: offer.item,
+                label: offer.label,
+                buyPrice: offer.buyPrice,
+                sellPrice,
+                stock: offer.unlimited ? null : 0,
+                maxQuantity: offer.maxQuantity,
+                requirements: sellPrice === undefined ? undefined : {
+                    allow: async (context) => {
+                        if (context.direction !== "sell") return true;
+                        if (!await core.groups.has(context.player, group, 0)) return "Only staff may sell to this counter.";
+                        if (await jobs.permissions.has(context.player, MANAGE, jobId)) return "Managers cannot sell to their own counters.";
+                        return true;
+                    },
+                },
+            });
+        }
+        if (!offers.length) return null;
         const definition: HmpShopDefinition<Player> = {
             id: shopKey(record.business.id, shop.id),
             resource: RESOURCE,
@@ -570,11 +605,16 @@ function createBusinessService(dependencies: BusinessDependencies): BusinessServ
         const { offer, stock } = normalizeOffer(record.business.id, shop.id, raw, boundsFor(record.business.currency));
         if (!inventory.items.get(offer.item)) throw businessError("HMP_BUSINESS_ITEM", `Item '${offer.item}' does not exist.`);
         if (offer.unlimited && !trusted) throw businessError("HMP_BUSINESS_ADMIN", "Only an administrator can offer unlimited stock.");
+        if (offer.sellPrice !== undefined && !trusted) throw businessError("HMP_BUSINESS_BUYBACK", "Buyback prices derive from the item's reference value; set a buyback ratio instead.");
         const before = record.offers.get(offerKey(shop.id, offer.id)) || null;
+        if (offer.buybackRatio !== null && offer.buybackRatio !== (before?.buybackRatio ?? null)) {
+            if (!buybacks.enabled && !trusted) throw businessError("HMP_BUSINESS_BUYBACK", "Buybacks are disabled on this server.");
+            if (offer.buybackRatio > buybacks.maxRatio) throw businessError("HMP_BUSINESS_BUYBACK", `The buyback ratio may not exceed ${buybacks.maxRatio}.`);
+        }
         await repository.saveOffer(offer);
         record.offers.set(offerKey(shop.id, offer.id), offer);
         if (!before && stock !== null) await shops.stock.set(shopKey(record.business.id, shop.id), offer.id, stock);
-        const priceChanged = Boolean(before && (before.buyPrice !== offer.buyPrice || before.sellPrice !== offer.sellPrice));
+        const priceChanged = Boolean(before && (before.buyPrice !== offer.buyPrice || before.sellPrice !== offer.sellPrice || before.buybackRatio !== offer.buybackRatio));
         await audit({
             businessId: record.business.id, shopId: shop.id, offerId: offer.id,
             action: before ? (priceChanged ? "offer.price" : "offer.update") : "offer.add",
@@ -588,14 +628,15 @@ function createBusinessService(dependencies: BusinessDependencies): BusinessServ
         return offer;
     }
 
-    async function setPrices(rawBusinessId: string, rawShopId: string, rawOfferId: string, prices: { buyPrice?: number | null; sellPrice?: number | null }, options?: Options): Promise<HmpBusinessOffer> {
+    async function setPrices(rawBusinessId: string, rawShopId: string, rawOfferId: string, prices: { buyPrice?: number | null; sellPrice?: number | null; buybackRatio?: number | null }, options?: Options): Promise<HmpBusinessOffer> {
         const record = recordOf(rawBusinessId);
         const shop = shopOf(record, rawShopId);
         const before = offerOf(record, shop.id, rawOfferId);
         const bounds = boundsFor(record.business.currency);
         const buyPrice = prices.buyPrice === undefined ? before.buyPrice : price(prices.buyPrice, `offer '${before.id}' buy price`, bounds);
         const sellPrice = prices.sellPrice === undefined ? before.sellPrice : price(prices.sellPrice, `offer '${before.id}' sell price`, bounds);
-        return setOffer(record.business.id, shop.id, { ...offerAsInput(before), buyPrice: buyPrice ?? null, sellPrice: sellPrice ?? null }, options);
+        const buybackRatio = prices.buybackRatio === undefined ? before.buybackRatio : ratio(prices.buybackRatio, `offer '${before.id}' buyback ratio`);
+        return setOffer(record.business.id, shop.id, { ...offerAsInput(before), buyPrice: buyPrice ?? null, sellPrice: sellPrice ?? null, buybackRatio }, options);
     }
 
     async function setOfferEnabled(rawBusinessId: string, rawShopId: string, rawOfferId: string, enabled: boolean, options?: Options): Promise<HmpBusinessOffer> {
@@ -861,7 +902,7 @@ function createBusinessService(dependencies: BusinessDependencies): BusinessServ
             options: candidates.map((offer, index) => ({
                 id: offer.id,
                 title: itemLabel(offer),
-                description: [offer.buyPrice === undefined ? "" : `Buy ${money(offer.buyPrice, record)}`, offer.sellPrice === undefined ? "" : `Sell ${money(offer.sellPrice, record)}`].filter(Boolean).join(" · ") || undefined,
+                description: [offer.buyPrice === undefined ? "" : `Customers pay ${money(offer.buyPrice, record)}`, buybackPriceOf(record, offer) === undefined ? "" : `Buys back at ${money(buybackPriceOf(record, offer)!, record)}`].filter(Boolean).join(" · ") || undefined,
                 tone: offer.enabled ? undefined : "warning",
                 metadata: [
                     { label: "Stock", value: offer.unlimited ? "Unlimited" : String(stocks[index] ?? 0) },
@@ -886,12 +927,14 @@ function createBusinessService(dependencies: BusinessDependencies): BusinessServ
         if (!shop) return null;
         const offer = await pickOffer(player, record, shop, "Set prices");
         if (!offer) return null;
+        if (offer.buyPrice === undefined) { ui.notify(player, { description: `${itemLabel(offer)} is a buyback-only offer whose price an administrator set.`, tone: "warning" }); return null; }
         const bounds = boundsFor(record.business.currency);
+        const reference = buybacks.enabled ? referenceValueOf(offer.item) : null;
         const response = await ui.input(player, {
             title: `${itemLabel(offer)} prices`,
             fields: [
-                { name: "buyPrice", label: "Customers pay", type: "number", description: `Leave empty to stop selling. ${bounds.floor} to ${bounds.ceiling}.`, default: offer.buyPrice ?? "", min: bounds.floor, max: bounds.ceiling },
-                { name: "sellPrice", label: "Shop pays staff", type: "number", description: "Leave empty to stop buying back.", default: offer.sellPrice ?? "", min: bounds.floor, max: bounds.ceiling },
+                { name: "buyPrice", label: "Customers pay", type: "number", description: `${bounds.floor} to ${bounds.ceiling}.`, required: true, default: offer.buyPrice, min: bounds.floor, max: bounds.ceiling },
+                ...(reference === null ? [] : [{ name: "buybackRatio", label: "Buyback share", type: "number" as const, description: `Share of the reference value ${money(reference, record)} the shop pays staff, 0 to ${buybacks.maxRatio}. Leave empty to stop buying back.`, default: offer.buybackRatio ?? "", min: 0, max: buybacks.maxRatio }]),
                 { name: "reason", label: "Reason", type: "text" },
             ],
             submitLabel: "Save",
@@ -899,8 +942,9 @@ function createBusinessService(dependencies: BusinessDependencies): BusinessServ
         });
         if (!response) return null;
         const optional = (value: unknown) => value === "" || value === undefined || value === null ? null : Number(value);
-        const updated = await setPrices(record.business.id, shop.id, offer.id, { buyPrice: optional(response.buyPrice), sellPrice: optional(response.sellPrice) }, { actor: player, reason: clean(response.reason, 191) });
-        ui.notify(player, { description: `${itemLabel(updated)} now ${[updated.buyPrice === undefined ? "" : `sells for ${money(updated.buyPrice, record)}`, updated.sellPrice === undefined ? "" : `buys for ${money(updated.sellPrice, record)}`].filter(Boolean).join(" and ") || "is listed without prices"}.`, tone: "success" });
+        const updated = await setPrices(record.business.id, shop.id, offer.id, { buyPrice: optional(response.buyPrice), ...(reference === null ? {} : { buybackRatio: optional(response.buybackRatio) }) }, { actor: player, reason: clean(response.reason, 191) });
+        const buyback = buybackPriceOf(record, updated);
+        ui.notify(player, { description: `${itemLabel(updated)} now sells for ${money(updated.buyPrice!, record)}${buyback === undefined ? "" : ` and buys back at ${money(buyback, record)}`}.`, tone: "success" });
         return updated;
     }
 
@@ -957,8 +1001,8 @@ function createBusinessService(dependencies: BusinessDependencies): BusinessServ
             title: `New offer at ${shop.label}`,
             fields: [
                 { name: "item", label: "Item name", type: "text", required: true, placeholder: "native:wiggenweld_potion" },
-                { name: "buyPrice", label: "Customers pay", type: "number", min: bounds.floor, max: bounds.ceiling },
-                { name: "sellPrice", label: "Shop pays staff", type: "number", min: bounds.floor, max: bounds.ceiling },
+                { name: "buyPrice", label: "Customers pay", type: "number", required: true, min: bounds.floor, max: bounds.ceiling },
+                ...(buybacks.enabled ? [{ name: "buybackRatio", label: "Buyback share", type: "number" as const, description: `Share of the item's reference value the shop pays staff, 0 to ${buybacks.maxRatio}. Ignored for items without a reference value.`, min: 0, max: buybacks.maxRatio }] : []),
                 { name: "maxQuantity", label: "Maximum per purchase", type: "number", default: 10, min: 1, max: 1000000 },
                 { name: "reason", label: "Reason", type: "text" },
             ],
@@ -968,7 +1012,7 @@ function createBusinessService(dependencies: BusinessDependencies): BusinessServ
         if (!response) return null;
         const item = clean(response.item, 64);
         const optional = (value: unknown) => value === "" || value === undefined || value === null ? null : Number(value);
-        const offer = await setOffer(record.business.id, shop.id, { id: item, item, buyPrice: optional(response.buyPrice), sellPrice: optional(response.sellPrice), maxQuantity: Number(response.maxQuantity) || 10 }, { actor: player, reason: clean(response.reason, 191) });
+        const offer = await setOffer(record.business.id, shop.id, { id: item, item, buyPrice: optional(response.buyPrice), buybackRatio: buybacks.enabled ? optional(response.buybackRatio) : null, maxQuantity: Number(response.maxQuantity) || 10 }, { actor: player, reason: clean(response.reason, 191) });
         ui.notify(player, { description: `${itemLabel(offer)} is now listed at ${shop.label}. Restock it from your inventory.`, tone: "success" });
         return offer;
     }
@@ -1158,6 +1202,8 @@ function createBusinessService(dependencies: BusinessDependencies): BusinessServ
             setPrices,
             retire: (businessId: string, shopId: string, offerId: string, options?: Options) => setOfferEnabled(businessId, shopId, offerId, false, options),
             restore: (businessId: string, shopId: string, offerId: string, options?: Options) => setOfferEnabled(businessId, shopId, offerId, true, options),
+            buybackPrice: (businessId: string, shopId: string, offerId: string) => { const target = stockTarget(businessId, shopId, offerId); return buybackPriceOf(target.record, target.offer) ?? null; },
+            referenceValue: (item: string) => referenceValueOf(normalizeId(item, "item name")),
             get: (businessId: string, shopId: string, offerId: string) => records.get(String(businessId || "").trim())?.offers.get(offerKey(String(shopId || "").trim(), String(offerId || "").trim())) || null,
             list: (businessId: string, shopId?: string, includeRetired = false) => {
                 const record = records.get(String(businessId || "").trim());

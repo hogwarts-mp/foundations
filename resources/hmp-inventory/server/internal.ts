@@ -91,6 +91,7 @@ export interface NormalizedItemDefinition extends Omit<HmpItemDefinition<Player>
     usable: boolean;
     consumable: boolean;
     use?: NonNullable<HmpItemDefinition<Player>["use"]>;
+    referenceValue?: number;
     nativeId?: string;
     holder?: string;
     resource: string;

@@ -89,6 +89,7 @@ function createNativeItems(catalog?: HogwartsMpInventoryCatalog | null): HmpItem
             unique: definition.kind === "gear",
             usable: definition.usableFromInventory,
             consumable: definition.consumable,
+            referenceValue: Number.isFinite(definition.economyValue) && Number(definition.economyValue) > 0 ? Math.trunc(Number(definition.economyValue)) : undefined,
             resource: "hmp-inventory",
         };
     });

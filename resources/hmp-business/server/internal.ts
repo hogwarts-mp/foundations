@@ -46,11 +46,21 @@ export interface SeedBusiness extends HmpBusinessDefinition {
     shops: SeedShop[];
 }
 
+export interface BuybackConfig {
+    /** Off by default: no counter buys anything from anyone. */
+    enabled: boolean;
+    /** Highest share of an item's reference value a manager may offer, in `0..1`. */
+    maxRatio: number;
+    /** Administrator overrides of reference values by item name; they win over item definitions. */
+    referenceValues: Record<string, number>;
+}
+
 export interface PriceConfig {
     floor: number;
     ceiling: number;
     /** Per-currency ceilings that override `ceiling`. */
     ceilings: Record<string, number>;
+    buybacks: BuybackConfig;
 }
 
 export interface HouseCutConfig {

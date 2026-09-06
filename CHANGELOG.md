@@ -23,6 +23,11 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   duty. Every change is written to a ledger with actor, before, after and reason. Administrators
   create businesses and place counters through `/business` (gated by configured groups) or the API,
   and `data/hmp-business.json` can seed businesses on first start; the example declares Pippin's.
+  Buybacks are off by default; when `prices.buybacks.enabled` is set, the shop pays a per-offer
+  share (capped by `maxRatio`) of the item's server-owned reference value rather than an owner-set
+  price, and `shop.manage` holders may never sell to their own counters.
+- `hmp-inventory` item definitions accept a `referenceValue`, the server-owned worth of one unit.
+  Native items take the host catalog's `economyValue` when it is exposed; custom items declare it.
 - `hmp-webhooks` adds optional server-only named destinations, bounded queues, timeout and retry
   handling, a Discord provider, and migrated gauntlet, activity-completion, and advisory spell-cast
   relays. Endpoint URLs can remain process-environment secrets, and delivery never gates gameplay.

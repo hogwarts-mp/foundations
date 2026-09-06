@@ -47,6 +47,7 @@ const migrations = [
                 label VARCHAR(80) NULL DEFAULT NULL,
                 buy_price INT UNSIGNED NULL DEFAULT NULL,
                 sell_price INT UNSIGNED NULL DEFAULT NULL,
+                buyback_ratio DECIMAL(4,3) NULL DEFAULT NULL,
                 max_quantity INT UNSIGNED NOT NULL DEFAULT 99,
                 unlimited TINYINT(1) NOT NULL DEFAULT 0,
                 enabled TINYINT(1) NOT NULL DEFAULT 1,

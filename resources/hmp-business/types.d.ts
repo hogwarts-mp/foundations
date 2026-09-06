@@ -56,7 +56,13 @@ export interface HmpBusinessOffer {
     item: string;
     label?: string;
     buyPrice?: number;
+    /** Administrator-set price on a sell-only offer (no `buyPrice`). Offers customers buy never carry one. */
     sellPrice?: number;
+    /**
+     * Share of the item's reference value the shop pays when buying back, in `0..1` and capped by
+     * `prices.buybacks.maxRatio`. Only effective while buybacks are enabled and the item has a reference value.
+     */
+    buybackRatio: number | null;
     maxQuantity: number;
     /** Unlimited offers never track stock; everything else is finite and lives in hmp-shops. */
     unlimited: boolean;
@@ -91,7 +97,9 @@ export interface HmpBusinessOfferInput {
     item: string;
     label?: string;
     buyPrice?: number | null;
+    /** Administrator-only, and only on sell-only offers. Managers set `buybackRatio` instead. */
     sellPrice?: number | null;
+    buybackRatio?: number | null;
     maxQuantity?: number;
     unlimited?: boolean;
     enabled?: boolean;
@@ -172,7 +180,11 @@ export interface HmpBusinessShopsApi<P = HmpBusinessPlayer> {
 
 export interface HmpBusinessOffersApi<P = HmpBusinessPlayer> {
     set(businessId: string, shopId: string, offer: HmpBusinessOfferInput, options?: HmpBusinessMutationOptions<P>): Promise<HmpBusinessOffer>;
-    setPrices(businessId: string, shopId: string, offerId: string, prices: { buyPrice?: number | null; sellPrice?: number | null }, options?: HmpBusinessMutationOptions<P>): Promise<HmpBusinessOffer>;
+    setPrices(businessId: string, shopId: string, offerId: string, prices: { buyPrice?: number | null; sellPrice?: number | null; buybackRatio?: number | null }, options?: HmpBusinessMutationOptions<P>): Promise<HmpBusinessOffer>;
+    /** The price the shop currently pays for one unit, or null when it does not buy that offer back. */
+    buybackPrice(businessId: string, shopId: string, offerId: string): number | null;
+    /** Server-owned reference value of an item: the config override, else the item definition's `referenceValue`. */
+    referenceValue(item: string): number | null;
     retire(businessId: string, shopId: string, offerId: string, options?: HmpBusinessMutationOptions<P>): Promise<HmpBusinessOffer>;
     restore(businessId: string, shopId: string, offerId: string, options?: HmpBusinessMutationOptions<P>): Promise<HmpBusinessOffer>;
     get(businessId: string, shopId: string, offerId: string): HmpBusinessOffer | null;

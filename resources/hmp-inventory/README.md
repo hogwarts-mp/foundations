@@ -167,6 +167,12 @@ hmpInventory.items.register({
 await hmpInventory.inventory.add(player, "native:custom_broom", 1);
 ```
 
+Definitions may carry a `referenceValue`: the server-owned worth of one unit in the base currency,
+which economy resources such as `hmp-business` use to derive prices players must not set themselves
+(shop buybacks). Native items take the game's `EconomyValue` when the host `InventoryCatalog`
+exposes `economyValue`; custom items declare it at registration; items without one have no
+reference worth and are never bought back.
+
 Native holders matter. Potions on the potion wheel, resources, equipped mounts, stored mounts and gear are not interchangeable buckets. The `holder` field records the expected destination for display and review; the Framework's generated native catalog validates the item id and performs the actual holder routing. Equipping a mount is a separate holder move, not a second grant.
 
 Definitions marked `usableFromInventory` by the Framework show a **Use item** action in the bundled UI. HMP routes that action through `player.inventory.use()` and waits for the game's exact native decrement proof before reporting success. Resources can invoke the same path directly:

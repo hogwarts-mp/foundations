@@ -38,7 +38,7 @@ Jobs.jobs.register({
 /business shop pippins hogsmeade Hogsmeade counter
 /business vendor pippins hogsmeade PercivalPippin 30
 /business dutypoint pippins hogsmeade
-/business offer pippins hogsmeade native:wiggenweld_potion 25 8 6 wiggenweld
+/business offer pippins hogsmeade native:wiggenweld_potion 25 0.4 6 wiggenweld
 /business stock pippins hogsmeade wiggenweld 12
 ```
 
@@ -63,7 +63,8 @@ Every enabled counter of an enabled business is registered with `hmp-shops` as
 - one `hmp-shops` offer per enabled business offer. Stock stays in `hmp-shops`' own table keyed by
   the counter, so two counters selling the same potion hold separate supplies. Offers a manager
   creates always track finite stock; only an administrator can list an `unlimited` offer.
-- an offer-level `allow` predicate so only members of the job group may sell back to the shop.
+- an offer-level `allow` predicate so only members of the job group may sell back to the shop, and
+  never a holder of `shop.manage` (see Buybacks).
 
 Counters are registered when the resource starts, after every edit, and again on duty transitions.
 A business whose job is not registered yet stays unpublished and is retried whenever another resource
@@ -83,6 +84,30 @@ same staff cover every counter of the business. The vendor body is refreshed on 
 events; an employee who walks away while clocked in leaves a `staffed` counter refusing customers
 until the next duty change re-evaluates the body.
 
+### Buybacks
+
+Buybacks are **off by default**: no counter buys anything from anyone, offers carry no sell price,
+and the management menu shows no buyback field. This matches the buy-only shops of ox_inventory and
+qb-shops and is the safe policy, because an owner-set buyback price would let a manager drain the
+till by selling one potion to their own counter at a price near the ceiling.
+
+Set `prices.buybacks.enabled` to turn them on. A buyback price is then never owner-set. It is
+`buybackRatio × referenceValue`, rounded down, where:
+
+- `buybackRatio` is per offer in `0..1`. Managers set it from the Prices menu, capped by
+  `prices.buybacks.maxRatio` (default `0.5`).
+- the reference value comes from the server: `prices.buybacks.referenceValues` in the config wins,
+  otherwise the `referenceValue` on the `hmp-inventory` item definition (the game's `EconomyValue`
+  for native items once the host catalog exposes it, or a value the registering resource declares).
+  An item without a reference value is never bought back, whatever the ratio.
+- holders of `shop.manage` may not sell to their own counters even when buybacks are on; their
+  income is wages and permitted organization withdrawals. Collusion between a manager and a clerk
+  remains possible and is left to the ledgers, which name both parties.
+
+A raw `sellPrice` survives only as an administrator-set field on sell-only offers (an ingredient
+buyer that sells nothing), so a pawn counter can still be declared in data or with
+`/business offer <business> <counter> <item> - <price>`. It too pays only while buybacks are enabled.
+
 ### Clock-in zones
 
 A counter may carry a surveyed `dutyPoint`. `hmp-business` then registers an `hmp-interact` zone
@@ -97,7 +122,8 @@ job's own `dutyPoints` apply.
 `Business.ui.manage(player, "pippins")` opens one directly. Wire it to a command, an interaction or
 the employment menu from a gameplay resource. The menu offers:
 
-1. **Prices**: what customers pay and what the shop pays staff, within the configured bounds.
+1. **Prices**: what customers pay within the configured bounds and, when buybacks are enabled and the
+   item has a reference value, the buyback share.
 2. **Restock from inventory**: items the player carries move onto the shelf; a failed shelf write
    returns them.
 3. **Withdraw to inventory**: capped at the current stock; a failed grant returns stock to the shelf.
@@ -116,7 +142,8 @@ ledger.
 ```ts
 const Business = Imports.get("hmp-business");
 
-await Business.offers.setPrices("pippins", "hogsmeade", "wiggenweld", { buyPrice: 30, sellPrice: 10 }, { actor: player, reason: "Winter prices" });
+await Business.offers.setPrices("pippins", "hogsmeade", "wiggenweld", { buyPrice: 30, buybackRatio: 0.4 }, { actor: player, reason: "Winter prices" });
+Business.offers.buybackPrice("pippins", "hogsmeade", "wiggenweld"); // null while buybacks are off
 await Business.stock.restock(player, "pippins", "hogsmeade", "wiggenweld", 6);
 await Business.stock.transfer("pippins", "hogsmeade", "stall", "wiggenweld", 4, { actor: player });
 await Business.shops.update("pippins", "hogsmeade", { staffing: "staffed" }, { actor: player });
@@ -126,7 +153,8 @@ const books = await Business.books.summary("pippins", { actor: player });
 Errors carry codes: `HMP_BUSINESS_ACCESS`, `HMP_BUSINESS_ADMIN`, `HMP_BUSINESS_NOT_FOUND`,
 `HMP_BUSINESS_SHOP`, `HMP_BUSINESS_OFFER`, `HMP_BUSINESS_ITEM`, `HMP_BUSINESS_ITEMS`,
 `HMP_BUSINESS_STOCK`, `HMP_BUSINESS_QUANTITY`, `HMP_BUSINESS_BUSY`, `HMP_BUSINESS_BANK`,
-`HMP_BUSINESS_CURRENCY`, `HMP_BUSINESS_EXISTS`, `HMP_BUSINESS_SHOP_EXISTS`, `HMP_BUSINESS_CHARACTER`.
+`HMP_BUSINESS_CURRENCY`, `HMP_BUSINESS_EXISTS`, `HMP_BUSINESS_SHOP_EXISTS`, `HMP_BUSINESS_CHARACTER`,
+`HMP_BUSINESS_BUYBACK`.
 
 ## Administration commands
 
@@ -141,13 +169,14 @@ Errors carry codes: `HMP_BUSINESS_ACCESS`, `HMP_BUSINESS_ADMIN`, `HMP_BUSINESS_N
 /business vendor <business> <counter> <characterId|none> [yaw] [label…]
 /business staffing <business> <counter> <always|staffed|kiosk>
 /business open <business> <counter> | close <business> <counter>
-/business offer <business> <counter> <item> <buy|-> [sell|-] [max] [offerId]
+/business offer <business> <counter> <item> <buy|-> [buyback|-] [max] [offerId]
 /business retire <business> <counter> <offer> | restore <business> <counter> <offer>
 /business stock <business> <counter> <offer> <quantity>
 /business manage [business]
 ```
 
-Removing a business deletes its counters and offers; its ledger rows and the `hmp-shops` stock rows
+`buyback` is the 0..1 share of the reference value, or the raw price when `buy` is `-` (a sell-only
+offer). Removing a business deletes its counters and offers; its ledger rows and the `hmp-shops` stock rows
 remain.
 
 ## Configuration
@@ -157,7 +186,10 @@ Copy `examples/config/data/hmp-business.json` to `<server-root>/data/hmp-busines
 
 ```json
 {
-  "prices": { "floor": 1, "ceiling": 1000000, "ceilings": { "galleons": 100000 } },
+  "prices": {
+    "floor": 1, "ceiling": 1000000, "ceilings": { "galleons": 100000 },
+    "buybacks": { "enabled": false, "maxRatio": 0.5, "referenceValues": { "native:wiggenweld_potion": 20 } }
+  },
   "houseCut": { "percent": 0, "organizationId": "treasury", "label": "Treasury", "currency": "galleons" },
   "commands": { "enabled": true, "command": "business", "adminGroups": [{ "key": "admin", "minimumGrade": 1 }] },
   "businesses": []
@@ -165,7 +197,8 @@ Copy `examples/config/data/hmp-business.json` to `<server-root>/data/hmp-busines
 ```
 
 - `prices`: bounds for every buy and sell price a manager or administrator sets; `ceilings` is keyed
-  by currency and overrides `ceiling`.
+  by currency and overrides `ceiling`. `buybacks` is the policy described above; `referenceValues`
+  overrides item reference values by item name.
 - `houseCut`: a whole-number percentage of every purchase moved from the organization account to the
   treasury organization, keyed by the shop transaction reference so a replayed purchase never pays
   twice. When no organization with that id is registered, `hmp-business` registers a treasury of the

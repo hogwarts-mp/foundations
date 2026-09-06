@@ -113,13 +113,19 @@ function setup() {
 
 test("builds native definitions from InventoryCatalog while preserving curated aliases", () => {
     const definitions: HogwartsMpInventoryCatalogDefinition[] = [
-        { itemId: "WoundCleaning", itemType: "PotionUsable", holder: "HealthPotionStorage", maxStack: 25, kind: "item", inventoryable: true, persistent: true, consumable: true, usableFromInventory: true },
+        { itemId: "WoundCleaning", itemType: "PotionUsable", holder: "HealthPotionStorage", maxStack: 25, kind: "item", inventoryable: true, persistent: true, consumable: true, usableFromInventory: true, economyValue: 20 },
         { itemId: "Back_001_Common", itemType: "GearStated", holder: "ActorBackpack", maxStack: 1, kind: "gear", inventoryable: true, persistent: true, consumable: false, usableFromInventory: false },
         { itemId: "Knuts", itemType: "SPECIAL", holder: "ResourceInventory", maxStack: 999999, kind: "item", inventoryable: true, persistent: false, consumable: false, usableFromInventory: false },
     ];
     const items = createNativeItems(catalogOf(definitions));
     assert.strictEqual(items[0].name, "native:wiggenweld_potion");
     assert.strictEqual(items[0].usable, true);
+    assert.strictEqual(items[0].referenceValue, 20);
+    assert.strictEqual(items[1].referenceValue, undefined);
+    const catalogRegistry = createItemRegistry();
+    assert.strictEqual(catalogRegistry.register(items[0]).referenceValue, 20);
+    assert.strictEqual(catalogRegistry.register({ name: "tonic", resource: "test", referenceValue: 12.9 }).referenceValue, 12);
+    assert.strictEqual(catalogRegistry.register({ name: "scrap", resource: "test", referenceValue: 0 }).referenceValue, undefined);
     assert.strictEqual(items[1].name, "native:back_001_common");
     assert.strictEqual(items[1].kind, "gear");
     assert.strictEqual(items[2].name, "native:galleons");

@@ -141,6 +141,8 @@ declare global {
         readonly persistent: boolean;
         readonly consumable: boolean;
         readonly usableFromInventory: boolean;
+        /** The game's `ItemDefinition.EconomyValue`, when the host catalog exposes it. */
+        readonly economyValue?: number;
     }
 
     interface HogwartsMpInventoryCatalog {
