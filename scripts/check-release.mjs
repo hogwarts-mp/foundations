@@ -13,7 +13,7 @@ const requiredFiles = [
     "examples/config/README.md",
     "examples/config/environment.example",
 ];
-const requiredExamples = ["hmp-mysql", "hmp-core", "hmp-houses", "hmp-characters", "hmp-spawn", "hmp-inventory", "hmp-audio", "hmp-blips", "hmp-doors", "hmp-emotes", "hmp-spells", "hmp-progression", "hmp-activities", "hmp-pvp", "hmp-duels", "hmp-npcs", "hmp-admin", "hmp-shops"];
+const requiredExamples = ["hmp-mysql", "hmp-core", "hmp-houses", "hmp-characters", "hmp-spawn", "hmp-inventory", "hmp-audio", "hmp-blips", "hmp-doors", "hmp-emotes", "hmp-spells", "hmp-progression", "hmp-activities", "hmp-pvp", "hmp-duels", "hmp-npcs", "hmp-admin", "hmp-shops", "hmp-webhooks"];
 
 async function json(file) {
     return JSON.parse(await readFile(path.join(root, file), "utf8"));

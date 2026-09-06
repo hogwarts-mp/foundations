@@ -7,6 +7,9 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ### Added
 
+- `hmp-webhooks` adds optional server-only named destinations, bounded queues, timeout and retry
+  handling, a Discord provider, and migrated gauntlet, activity-completion, and advisory spell-cast
+  relays. Endpoint URLs can remain process-environment secrets, and delivery never gates gameplay.
 - `hmp-inventory` gains a `startingItems` config list, granted once per character the first
   time it loads after being created. Entries are a bare item name or
   `{ name, amount, metadata }`, resolve through the same registry as `inventory.add` (custom

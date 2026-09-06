@@ -40,6 +40,7 @@ The dedicated server may run on Windows x64 or Linux x86-64; Hogwarts Legacy cli
 | [`hmp-progression`](resources/hmp-progression) | Character XP, native-confirmed levels, talent points, managed talents and replay-safe rewards. |
 | [`hmp-banking`](resources/hmp-banking) | Character and organization accounts, native-cash exchange, atomic transfers and an audited ledger. |
 | [`hmp-jobs`](resources/hmp-jobs) | Persistent employment, grades, duty, permissions, management and bank-backed payroll. |
+| [`hmp-webhooks`](resources/hmp-webhooks) | Server-only named webhook destinations, queued delivery, retries and optional gameplay-event relays. |
 
 ## Development
 
@@ -91,7 +92,7 @@ server owners normally use that server image or the downloadable ZIP instead of 
 ## Versioning
 
 Foundations uses one lockstep version for the pack and every first-party resource it contains. Install,
-upgrade, and roll back the twenty-four resources as one unit. Before `1.0.0`, minor releases may contain
+upgrade, and roll back the twenty-five resources as one unit. Before `1.0.0`, minor releases may contain
 breaking API, configuration, or schema changes; patch releases are intended to remain compatible
 within their minor line. See the [full version policy](COMPATIBILITY.md#version-policy) and
 [changelog](CHANGELOG.md).

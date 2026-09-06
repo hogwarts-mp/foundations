@@ -6,7 +6,7 @@ upstream release identifier.
 
 | Component | Supported baseline | Status | Notes |
 |---|---|---|---|
-| HMP Foundations | `0.3.0` pack and resources | Supported | All twenty-four resources must use the same version. |
+| HMP Foundations | `0.3.0` pack and resources | Supported | All twenty-five resources must use the same version. |
 | HogwartsMP scripting host | Mod commit `b85eecf409c59179ef836d613b3a3766f01ed593` or newer | Closed-test | Requires the matching Framework support for script-role manifests and resource containers. Pin the eventual upstream release tag before a public Foundations release. |
 | MafiaHub Framework | `16.2.0` or newer | Supported | Required for the `fw://` local resource scheme. On `16.1.x` and older every resource-served page, font, and icon fails to load. |
 | Hogwarts Legacy client data | Steam build ID `20773316` | Supported baseline | The native inventory catalog declares this game-data build. Other builds require revalidation. |

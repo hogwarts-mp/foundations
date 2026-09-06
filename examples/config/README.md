@@ -24,10 +24,13 @@ native-encounter policy applied to every client.
 `hmp-pvp` includes the server-wide default decision, lethal-mode default, staff groups, and join-sync delay;
 keep the fallback `deny` and lethal mode off unless the server intentionally runs open-world mortal PvP.
 `hmp-duels` includes challenge expiry, countdown, command, and non-lethal health-floor settings.
+`hmp-webhooks` includes named destinations plus gauntlet, activity, and advisory spell-cast routes. Its
+Discord URL is intentionally supplied through the server environment rather than the JSON example.
 
 The MySQL JSON intentionally contains `CHANGE_ME`. Prefer injecting `HMP_MYSQL_URL` or the individual
 database environment variables instead of keeping a production password in the file. Likewise,
 `HMP_ADMIN_BOOTSTRAP_SECRET` exists only in the process environment and must contain at least 16 bytes.
+Webhook endpoint secrets should likewise be injected through the destination's configured `urlEnv`.
 Foundations does not automatically read `environment.example` or a `.env` file.
 
 Review at minimum:
@@ -49,3 +52,5 @@ Review at minimum:
 - the global PvP fallback decision, lethal-mode default/staff groups, duel countdown/expiry, and the
   non-lethal health floor;
 - the admin role-to-capability rules and verified-identity policy.
+- whether outbound webhooks are enabled, which event routes are appropriate, and which environment
+  variables hold each destination URL.

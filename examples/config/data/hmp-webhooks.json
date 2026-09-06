@@ -1,0 +1,34 @@
+{
+  "enabled": false,
+  "destinations": {
+    "discord": {
+      "enabled": true,
+      "provider": "discord",
+      "urlEnv": "HMP_WEBHOOKS_DISCORD_URL",
+      "username": "Hogwarts MP",
+      "avatarUrl": "",
+      "minIntervalMs": 1500,
+      "queueLimit": 40,
+      "maxAttempts": 4,
+      "retryBaseMs": 1000,
+      "requestTimeoutMs": 10000
+    }
+  },
+  "routes": {
+    "gauntlet": {
+      "enabled": true,
+      "destination": "discord",
+      "only": []
+    },
+    "activities": {
+      "enabled": true,
+      "destination": "discord",
+      "only": ["duel:standard"]
+    },
+    "spells": {
+      "enabled": true,
+      "destination": "discord",
+      "only": ["AvadaKedavra", "Crucio", "Imperio"]
+    }
+  }
+}

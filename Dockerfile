@@ -28,6 +28,7 @@ COPY resources/hmp-shops/package.json resources/hmp-shops/package.json
 COPY resources/hmp-spawn/package.json resources/hmp-spawn/package.json
 COPY resources/hmp-spells/package.json resources/hmp-spells/package.json
 COPY resources/hmp-ui/package.json resources/hmp-ui/package.json
+COPY resources/hmp-webhooks/package.json resources/hmp-webhooks/package.json
 COPY resources/hmp-world/package.json resources/hmp-world/package.json
 RUN npm ci
 
