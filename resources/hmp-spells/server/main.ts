@@ -147,7 +147,7 @@ if (config.enableCommands) Events.on("chatCommand", (player: HmpSpellPlayer, _me
             }
             if (action === "clear") {
                 const count = await spells.grants.clear(target, context);
-                reply(`cleared ${count} spell grant(s) for ${target.nickname || `#${target.id}`}; native revocation fully applies after reconnect/travel`);
+                reply(`cleared ${count} spell grant(s) for ${target.nickname || `#${target.id}`}`);
                 return;
             }
             if (action === "loadouts") {
@@ -168,7 +168,7 @@ if (config.enableCommands) Events.on("chatCommand", (player: HmpSpellPlayer, _me
                 ? await spells.grants.grant(target, spellName, context)
                 : await spells.grants.revoke(target, spellName, context);
             const label = spells.catalog.get(spellName)?.name || spellName;
-            reply(`${changed ? action === "grant" ? "granted" : "revoked" : "no change for"} '${label}' ${action === "grant" ? "to" : "from"} ${target.nickname || `#${target.id}`}${action === "revoke" && changed ? "; fully applies after reconnect/travel" : ""}`);
+            reply(`${changed ? action === "grant" ? "granted" : "revoked" : "no change for"} '${label}' ${action === "grant" ? "to" : "from"} ${target.nickname || `#${target.id}`}`);
             return;
         }
         reply(`Usage: /${config.command} <status|list|loadout|reload|grant|revoke|grants|clear|loadouts|unmanage-loadouts>`);

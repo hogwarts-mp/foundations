@@ -28,9 +28,14 @@ function evaluateRules(rules: ReadonlyArray<HmpSpellRule>, groups: EffectiveGrou
     const unlockSpells = [...candidates].filter((lockId) => verdict(spellRules.filter((rule) => rule.spells === "*" || (Array.isArray(rule.spells) && rule.spells.includes(lockId)))) === "allow");
     for (const lockId of entitlements.spells) if (!unlockSpells.includes(lockId)) unlockSpells.push(lockId);
     const ruleLoadouts = applicable.filter((rule) => rule.action === "allow" && rule.bonusLoadouts !== undefined).map((rule) => rule.bonusLoadouts as number);
+    // A native unlock sticks, so an unallowed spell has to be named to be taken back. Deriving the
+    // revoke list from the catalog rather than from stored history keeps `deny` honest for a spell
+    // already in hand, and makes the policy reproduce the fresh-character lock table plus the grants.
+    const allowed = new Set(unlockSpells);
     return {
         unlockSpells: unlockSpells.sort(),
         bonusLoadouts: entitlements.bonusLoadouts === null ? (ruleLoadouts.length ? Math.max(...ruleLoadouts) : null) : entitlements.bonusLoadouts,
+        lockSpells: ALL_LOCKS.filter((lockId) => !allowed.has(lockId)).sort(),
     };
 }
 

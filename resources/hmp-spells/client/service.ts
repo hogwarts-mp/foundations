@@ -25,7 +25,7 @@ interface NativeSpellCastResult {
 }
 
 interface NativeSpells {
-    setPolicy(lockIds: string[], bonusLoadouts?: number): void;
+    setPolicy(lockIds: string[], bonusLoadouts?: number, relockIds?: string[]): void;
     currentLoadout(): number | null;
     loadout(loadoutIndex?: number): NativeSpellLoadout | null;
     setLoadoutSlot(slot: number, spellName: string | null, loadoutIndex?: number, emitAssignmentEvent?: boolean): boolean;
@@ -54,14 +54,16 @@ function parsePayload(raw: unknown): Record<string, unknown> {
     return raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
 }
 
+const normalizeLockIds = (raw: unknown): string[] => (Array.isArray(raw)
+    ? [...new Set(raw.filter((entry): entry is string => typeof entry === "string" && /^Spell_[A-Za-z0-9_]+$/.test(entry)))]
+    : []);
+
 function normalizePolicy(raw: unknown): HmpResolvedSpellPolicy {
     const value = parsePayload(raw);
-    const unlockSpells = Array.isArray(value.unlockSpells)
-        ? [...new Set(value.unlockSpells.filter((entry): entry is string => typeof entry === "string" && /^Spell_[A-Za-z0-9_]+$/.test(entry)))]
-        : [];
+    const unlockSpells = normalizeLockIds(value.unlockSpells);
     const number = Number(value.bonusLoadouts);
     const bonusLoadouts = value.bonusLoadouts !== null && Number.isSafeInteger(number) && number >= 0 && number <= 3 ? number : null;
-    return { unlockSpells, bonusLoadouts };
+    return { unlockSpells, bonusLoadouts, lockSpells: normalizeLockIds(value.lockSpells) };
 }
 
 function createSpellClient(dependencies: ClientDependencies) {
@@ -119,7 +121,7 @@ function createSpellClient(dependencies: ClientDependencies) {
         if (stopped) return current;
         const payload = parsePayload(raw);
         const next = normalizePolicy(payload);
-        dependencies.spells.setPolicy(next.unlockSpells, next.bonusLoadouts === null ? -1 : next.bonusLoadouts);
+        dependencies.spells.setPolicy(next.unlockSpells, next.bonusLoadouts === null ? -1 : next.bonusLoadouts, next.lockSpells ?? []);
         const previousCharacterId = characterId;
         const rawCharacterId = Number(payload.characterId);
         characterId = Number.isSafeInteger(rawCharacterId) && rawCharacterId > 0 ? rawCharacterId : null;
@@ -249,7 +251,7 @@ function createSpellClient(dependencies: ClientDependencies) {
     function stop(): void {
         if (stopped) return;
         stopped = true;
-        dependencies.spells.setPolicy([], -1);
+        dependencies.spells.setPolicy([], -1, []); // stop enforcing; never re-lock on the way out
         current = normalizePolicy({});
         characterId = null;
         assignments = EMPTY_ASSIGNMENTS();

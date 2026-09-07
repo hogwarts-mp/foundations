@@ -156,8 +156,11 @@ created test transaction after its state has been inspected.
   Switch characters and confirm each character restores its own assignments without leaking slots.
 - Grant one spell to a character, reconnect, and confirm it remains unlocked. Switch characters and
   confirm the personal grant does not leak.
-- Revoke the grant and confirm Foundations policy changes immediately. Confirm the documented native
-  limitation: the already-unlocked spell may remain usable until reconnect/travel, then must disappear.
+- Revoke the grant and confirm the spell is taken away immediately — no reconnect or travel — and that
+  it stays gone after walking between streaming cells and after a reconnect.
+- Deny `Protego` in config, reload, and confirm blocking is gone; restore the rule and confirm it
+  returns. This is the wandless-minigame path, and it is the only check that proves `deny` is honest
+  for a spell already in hand.
 - Set bonus loadouts from 0 through 3 and confirm exactly 1 through 4 total diamonds are available.
   Return loadouts to unmanaged ownership and confirm natural progression is no longer altered.
 - Add/remove a group used by a spell rule and confirm its policy refreshes without restarting the server.

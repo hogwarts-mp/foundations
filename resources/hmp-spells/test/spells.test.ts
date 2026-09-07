@@ -9,8 +9,8 @@ import providersModule = require("../shared/providers");
 import type { HmpSpellLoadoutAssignments, HmpSpellRule } from "../types";
 
 const { catalog } = catalogModule;
-const { normalizeRule } = configModule;
-const { evaluateRules } = policyModule;
+const { normalizeRule, loadConfig } = configModule;
+const { evaluateRules, ALL_LOCKS } = policyModule;
 const { createSpellService, ASSIGNMENTS_METADATA_KEY, METADATA_KEY } = serviceModule;
 const { createSpellClient } = clientModule;
 const { cloneLoadoutAssignments, normalizeLoadoutAssignments, normalizeSlotSpellId } = loadoutsModule;
@@ -48,9 +48,24 @@ async function run(): Promise<void> {
         normalizeRule({ id: "auror", resource: "test", priority: 100, action: "allow", spells: ["Accio", "Stupefy"], match: { groups: [{ key: "job:auror", minimumGrade: 2 }] } }, 2),
     ];
     const guest = evaluateRules(rules, [], { spells: [], bonusLoadouts: null });
-    assert.deepStrictEqual(guest, { unlockSpells: ["Spell_Lumos"], bonusLoadouts: 1 });
+    assert.deepStrictEqual(guest.unlockSpells, ["Spell_Lumos"]);
+    assert.strictEqual(guest.bonusLoadouts, 1);
     const auror = evaluateRules(rules, [{ key: "job:auror", grade: 2 }], { spells: ["Spell_Incendio"], bonusLoadouts: 2 });
-    assert.deepStrictEqual(auror, { unlockSpells: ["Spell_Accio", "Spell_Incendio", "Spell_Lumos", "Spell_Stupefy"], bonusLoadouts: 2 });
+    assert.deepStrictEqual(auror.unlockSpells, ["Spell_Accio", "Spell_Incendio", "Spell_Lumos", "Spell_Stupefy"]);
+    assert.strictEqual(auror.bonusLoadouts, 2);
+    // Authoritative both ways: every catalog spell the rules don't allow is named for re-locking, and
+    // the two sides never overlap. A denied spell must be revoked, not merely left out.
+    assert.deepStrictEqual(guest.lockSpells, ALL_LOCKS.filter((lockId) => lockId !== "Spell_Lumos").sort());
+    assert.ok(guest.lockSpells.includes("Spell_Accio"), "a deny rule must actively re-lock, not just withhold");
+    assert.ok(guest.lockSpells.includes("Spell_Protego"), "nothing is exempt — vanilla defaults are stated by config, not hardcoded");
+    assert.ok(!auror.lockSpells.some((lockId) => auror.unlockSpells.includes(lockId)), "a spell must never be granted and revoked at once");
+    // The shipped default must not re-lock what the freeride boot just opened — re-locking
+    // Spell_AimMode would silently take right-click aim away on a stock server.
+    const shipped = loadConfig({ config: { load: (_path: string, o: { defaults: unknown }) => o.defaults } } as never, { env: {}, cwd: "." });
+    const baseline = evaluateRules(shipped.rules, [], { spells: [], bonusLoadouts: null });
+    for (const lockId of ["Spell_Protego", "Spell_Stupefy", "Spell_AimMode"]) {
+        assert.ok(!baseline.lockSpells.includes(lockId), `default config re-locks ${lockId}`);
+    }
     assert.throws(() => normalizeRule({ id: "bad", resource: "x", priority: 1, action: "allow", spells: ["Typo"] }, 0), /unknown spell/);
     assert.throws(() => normalizeRule({ id: "bad", resource: "x", priority: 1, action: "deny", bonusLoadouts: 1 }, 0), /only valid on allow/);
     assert.strictEqual(normalizeLoadoutAssignments([["Lumos"]]), null);
@@ -119,6 +134,21 @@ async function run(): Promise<void> {
     assert.deepStrictEqual(await service.loadouts.getAssignments(player), savedAssignments);
     assert.strictEqual(await service.loadouts.unmanage(player), true);
     assert.strictEqual(await service.loadouts.get(player), null);
+    // An unlock sticks on the client, so the pushed policy has to NAME the revoked lock; dropping it
+    // from unlockSpells cannot take the spell back on its own.
+    const pushed = () => JSON.parse(String(player.emitted.at(-1)?.payload));
+    const grantedPolicy = pushed();
+    assert.ok(grantedPolicy.unlockSpells.includes("Spell_Incendio"));
+    assert.ok(!grantedPolicy.lockSpells.includes("Spell_Incendio"));
+    assert.strictEqual(await service.grants.revoke(player, "Incendio"), true);
+    const revokedPolicy = pushed();
+    assert.ok(!revokedPolicy.unlockSpells.includes("Spell_Incendio"));
+    assert.ok(revokedPolicy.lockSpells.includes("Spell_Incendio"), "a revoke must name the lock");
+    await service.policy.sync(player);
+    assert.ok(pushed().lockSpells.includes("Spell_Incendio"),
+        "a revoke must keep being re-asserted on every sync, not fire once");
+    assert.strictEqual(await service.grants.grant(player, "Incendio", { resource: "test" }), true);
+    assert.ok(!pushed().lockSpells.includes("Spell_Incendio"), "re-granting must clear the revoke");
     assert.strictEqual(await service.grants.revoke(player, "Incendio"), true);
     assert.ok(emitted.some((event) => event.name === "hmp:spells:granted"));
     assert.ok(emitted.some((event) => event.name === "hmp:spells:revoked"));
@@ -129,7 +159,7 @@ async function run(): Promise<void> {
     assert.strictEqual(service.rules.list().length, 0);
     assert.ok(player.emitted.some((event) => event.name === "hmp-spells:policy"));
 
-    const policies: Array<{ ids: string[]; loadouts: number | undefined }> = [];
+    const policies: Array<{ ids: string[]; loadouts: number | undefined; relock: string[] | undefined }> = [];
     const serverEvents: Array<{ name: string; payload: unknown }> = [];
     const nativeAssignments: HmpSpellLoadoutAssignments = [
         [null, null, null, null],
@@ -146,7 +176,7 @@ async function run(): Promise<void> {
     const client = createSpellClient({
         events: { emitServer: (name, payload) => serverEvents.push({ name, payload }) },
         spells: {
-            setPolicy: (ids, loadouts) => policies.push({ ids, loadouts }),
+            setPolicy: (ids, loadouts, relock) => policies.push({ ids, loadouts, relock }),
             currentLoadout: () => activeLoadout,
             loadout: (index = activeLoadout) => ({ index, current: activeLoadout, source: "quick-actions", slots: [...nativeAssignments[index]] }),
             setLoadoutSlot: (slot, spellName, index = activeLoadout, emitAssignmentEvent = true) => {
@@ -165,7 +195,7 @@ async function run(): Promise<void> {
     assignmentListener = client.importNativeAssignments;
     assert.deepStrictEqual(serverEvents.map((event) => event.name), ["hmp-spells:ready"]);
     client.apply({ unlockSpells: ["Spell_Lumos", "invalid"], bonusLoadouts: 2, characterId: 42, assignments: savedAssignments, providers: [testProvider] });
-    assert.deepStrictEqual(policies[0], { ids: ["Spell_Lumos"], loadouts: 2 });
+    assert.deepStrictEqual(policies[0], { ids: ["Spell_Lumos"], loadouts: 2, relock: [] });
     assert.deepStrictEqual(nativeAssignments, [
         ["Lumos", "Accio", null, "Incendio"], ["Levioso", "Confringo", "Disillusionment", null],
         [null, null, null, null], ["Reparo", null, null, null],
@@ -299,8 +329,12 @@ async function run(): Promise<void> {
     client.apply({ characterId: 42, assignments: moddedAssignments, providers: [nativeProvider] });
     assert.deepStrictEqual(nativeAssignments[0], [moddedName, moddedName, null, null]);
     assert.strictEqual(recordCasts.length, recordCastsBeforeRestore, "native modded spells must not use the record-casting workaround");
+    client.apply({ characterId: 42, assignments: moddedAssignments, providers: [nativeProvider], lockSpells: ["Spell_Incendio", "bogus"] });
+    assert.deepStrictEqual(policies.at(-1)?.relock, ["Spell_Incendio"], "revoked locks must reach the native enforcer, filtered");
+    client.apply({ characterId: 42, assignments: moddedAssignments, providers: [nativeProvider] });
+    assert.deepStrictEqual(policies.at(-1)?.relock, [], "a policy with no lockSpells must clear the revoke list, not keep the last one");
     client.stop();
-    assert.deepStrictEqual(policies.at(-1), { ids: [], loadouts: -1 });
+    assert.deepStrictEqual(policies.at(-1), { ids: [], loadouts: -1, relock: [] });
 }
 
 run().then(() => console.log("hmp-spells tests passed"));

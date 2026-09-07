@@ -111,9 +111,16 @@ Provider registrations are owner-scoped and disappear when their resource stops;
 intact and become available again when the provider returns. The reserved `record:` adapter remains
 available for migration/testing, but named providers are the intended API.
 
-Native spell locks are currently additive within a live game session. A revoked spell disappears from
-Foundations policy immediately but may remain castable until reconnecting or travelling into a state that
-rebuilds the game's lock manager. Bonus-loadout changes apply immediately. Each active character uses
+A native unlock sticks for the rest of the session, so a revoke cannot work by dropping the lock from
+the policy. The resolved policy is authoritative over the whole spell lock table: every catalog spell
+the rules don't allow is listed in `lockSpells` and re-locked by the client, immediately and on every
+later sync. `action: "deny"` therefore takes a spell already in hand, which is what a timed
+`rules.register(...)` deny (a duel, a wandless minigame) needs; dispose the rule to hand it back.
+Nothing is exempt. The default config carries a `freeride-baseline` allow rule for `Spell_Protego`,
+`Spell_Stupefy` (the game's fresh-character defaults) and `Spell_AimMode` (opened by the client's
+freeride boot); dropping that rule denies them, which is a supported choice but rarely the intent.
+
+Bonus-loadout changes apply immediately. Each active character uses
 its explicit count override, otherwise the applicable rule count, otherwise zero bonus diamonds (one
 total loadout). `unmanage` clears the character override and restores the rule/default count; this can
 remove extra native loadout perks. Count changes do not erase saved slot assignments or spell grants.

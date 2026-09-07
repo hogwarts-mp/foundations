@@ -77,6 +77,9 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ### Fixed
 
+- `hmp-spells` now actively re-locks every catalog spell excluded by the resolved policy, so
+  character grant revocation and deny rules take effect immediately instead of leaving native
+  unlocks available until reconnect. The default policy explicitly preserves the freeride baseline.
 - Client assignment saves are acknowledged without replaying native slot writes, avoiding duplicate
   assignment sounds and invalid icons while the spell menu is open. Character restoration remains
   separate from user assignment events.

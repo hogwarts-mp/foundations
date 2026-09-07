@@ -38,6 +38,9 @@ export interface HmpResolvedSpellPolicy {
     unlockSpells: string[];
     /** Active characters resolve to 0-3 bonus diamonds, defaulting to 0. null leaves native perks unmanaged. */
     bonusLoadouts: number | null;
+    /** Every catalog spell the rules do not allow. An unlock sticks, so a revoke has to name the lock
+     * for the client to take it back; dropping it from unlockSpells changes nothing. */
+    lockSpells: string[];
 }
 
 export interface HmpSpellEntitlements {
