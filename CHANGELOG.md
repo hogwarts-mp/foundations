@@ -33,6 +33,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   administrator-only fallbacks.
 - `hmp-inventory` item definitions accept a `referenceValue`, the server-owned worth of one unit.
   Native items take the host catalog's `economyValue` when it is exposed; custom items declare it.
+- New `hmp-worldstate` resource: persisted, server-authoritative world state that players change,
+  as a keyed MySQL-backed store pushed to every client with a full sync on join and live change
+  broadcasts. Its first system is repairable objects: one player's Reparo repairs a statue for
+  everyone, a blast breaks it for everyone, and late joiners snap to the current state. Objects are
+  keyed by the game's own uid (a CRC-32 of the placed location) through the native `Breakables`
+  builtin, which reports only changes the local player caused and re-applies recorded state whenever
+  a cell streams in. Other resources register their own systems with validation, entry caps and
+  optional broadcast. `/worldstate` (gated by configured groups) inspects and corrects the store.
 - `hmp-webhooks` adds optional server-only named destinations, bounded queues, timeout and retry
   handling, a Discord provider, and migrated gauntlet, activity-completion, and advisory spell-cast
   relays. Endpoint URLs can remain process-environment secrets, and delivery never gates gameplay.

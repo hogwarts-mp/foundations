@@ -15,6 +15,7 @@ data-declared Pippin's business that comes alive once a gameplay resource regist
 `hmp-doors` includes a file-backed example because physical-door access is a server-wide world policy.
 `hmp-world` includes the baseline weather, clock, date, season, mount-boundary, ambient-population, and
 native-encounter policy applied to every client.
+`hmp-worldstate` includes the `/worldstate` admin groups and the repairable-object report limit.
 `hmp-npcs` includes total and per-resource limits for NPCs managed through the Foundation service.
 `hmp-emotes` includes one for curated aliases, editor groups, the `allowAll` catalog policy, and renderer selection.
 `hmp-audio` includes one for Wwise aliases, positional range, handle limits, and closed-test commands.

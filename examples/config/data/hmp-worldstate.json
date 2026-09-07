@@ -1,0 +1,17 @@
+{
+  "command": "worldstate",
+  "enableCommands": true,
+  "adminGroups": [
+    {
+      "key": "admin",
+      "minimumGrade": 1
+    }
+  ],
+  "breakables": {
+    "enabled": true,
+    "reportLimit": {
+      "limit": 20,
+      "windowMs": 10000
+    }
+  }
+}
