@@ -1,4 +1,5 @@
 const assert = require("node:assert");
+const fs = require("node:fs");
 const path = require("node:path");
 
 const exportsSeen = new Map();
@@ -34,4 +35,6 @@ assert.deepStrictEqual([...exportsSeen.keys()], ["shops", "currencies", "transac
 assert.ok(handlers.has("playerDisconnect"));
 assert.ok(handlers.has("resourceStop"));
 assert.strictEqual(exportsSeen.get("currencies").get("galleons").label, "Galleons");
+const clientSource = fs.readFileSync(path.resolve(__dirname, "..", "dist", "client.js"), "utf8");
+assert.ok(clientSource.includes("client dependency shim ready"));
 console.log("hmp-shops bundle contract passed");

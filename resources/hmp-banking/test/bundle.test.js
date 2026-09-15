@@ -1,4 +1,5 @@
 const assert = require("node:assert");
+const fs = require("node:fs");
 const path = require("node:path");
 
 const exportsSeen = new Map();
@@ -35,4 +36,6 @@ assert.ok(handlers.has("hmp:character:unloading"));
 assert.ok(handlers.has("resourceStop"));
 assert.strictEqual(exportsSeen.get("currencies").get("galleons").cashItem, "native:galleons");
 assert.strictEqual(exportsSeen.get("providers").shops({ resource: "test" }).id, "bank-galleons");
+const clientSource = fs.readFileSync(path.resolve(__dirname, "..", "dist", "client.js"), "utf8");
+assert.ok(clientSource.includes("client dependency shim ready"));
 console.log("hmp-banking bundle contract passed");

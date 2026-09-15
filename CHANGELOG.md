@@ -77,6 +77,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ### Fixed
 
+- `hmp-banking`, `hmp-jobs`, and `hmp-shops` publish client dependency shims so client-bearing
+  resources such as the business console and admin menu satisfy the Framework's shared dependency graph.
 - `hmp-spells` now actively re-locks every catalog spell excluded by the resolved policy, so
   character grant revocation and deny rules take effect immediately instead of leaving native
   unlocks available until reconnect. The default policy explicitly preserves the freeride baseline.
