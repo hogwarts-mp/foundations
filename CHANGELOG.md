@@ -5,6 +5,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-15
+
 ### Added
 
 - HogwartsMP ambient types expose server-side player gear slots, equipped and available items,
@@ -67,6 +69,7 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ### Changed
 
+- Set the pack, all twenty-seven resources, and internal dependency pins to lockstep version `0.4.0`.
 - `hmp-jobs` caps employment actions at the actor's own grade. An employee acting through their
   job may only hire below their grade, move employees below them to grades below them, and dismiss
   employees below them; ties are refused. Calls that pass no `actor`, or are owned by `hmp-admin`,
@@ -273,6 +276,7 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - The initial admin resource focuses on moderation and corrective operations; spectate, noclip, and
   god mode are not included.
 
+[0.4.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.4.0
 [0.3.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.3.0
 [0.2.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.2.0
 [0.1.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.1.0

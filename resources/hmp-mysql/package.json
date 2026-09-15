@@ -1,6 +1,6 @@
 {
   "name": "hmp-mysql",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "author": "HogwartsMP",
   "description": "Shared promise-based MySQL and MariaDB access for HogwartsMP server resources.",

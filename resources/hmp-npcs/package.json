@@ -1,6 +1,6 @@
 {
   "name": "hmp-npcs",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "author": "HogwartsMP",
   "description": "Verified Hogwarts Legacy NPC catalog and resource-scoped spawn lifecycle for HogwartsMP.",
@@ -28,7 +28,7 @@
     ],
     "exports": ["catalog", "spawn", "destroy", "clear", "get", "list", "status"],
     "resourceDependencies": [
-      { "name": "hmp-lib", "version": "0.3.0" }
+      { "name": "hmp-lib", "version": "0.4.0" }
     ],
     "errorBehavior": "stop",
     "priority": -410
