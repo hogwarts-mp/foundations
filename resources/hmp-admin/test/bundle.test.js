@@ -16,6 +16,7 @@ const core = {
 };
 const ui = { notify: () => true, input: async () => null, context: async () => null, close: () => true };
 const banking = { transactions: { pending: async () => [] } };
+const spells = { catalog: { get: () => null, list: () => [] }, grants: { list: async () => [], grant: async () => false, revoke: async () => false } };
 
 global.Exports = { register: (name, value) => exportsSeen.set(name, value) };
 global.Imports = {
@@ -26,6 +27,7 @@ global.Imports = {
         if (name === "hmp-inventory") return { inventory: {} };
         if (name === "hmp-banking") return banking;
         if (name === "hmp-jobs") return { employment: {} };
+        if (name === "hmp-spells") return spells;
         if (name === "hmp-lib") return {
             logger: { create: () => logger },
             config: { load: (_path, options) => ({ ...options.defaults }), env: { boolean: (_value, fallback) => fallback } },

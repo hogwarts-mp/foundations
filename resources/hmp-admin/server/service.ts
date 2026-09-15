@@ -10,6 +10,7 @@ import type {
     Jobs,
     Logger,
     Player,
+    Spells,
 } from "./internal";
 
 interface TeleportWaiter {
@@ -30,13 +31,14 @@ function createAdminService(options: {
     inventory: Inventory;
     banking: Banking;
     jobs: Jobs;
+    spells: Spells;
     config: AdminConfig;
     logger: Logger;
     migrations: Parameters<AdminRepository["start"]>[0];
     listPlayers: () => Player[];
     getPlayer: (id: number) => Player | null;
 }) {
-    const { repository, permissions, core, inventory, banking, jobs, config, logger, migrations, listPlayers, getPlayer } = options;
+    const { repository, permissions, core, inventory, banking, jobs, spells, config, logger, migrations, listPlayers, getPlayer } = options;
     const pendingTeleports = new Map<string, TeleportWaiter>();
     const startedAt = Date.now();
     let state: "starting" | "ready" | "degraded" | "stopped" = "starting";
@@ -194,6 +196,21 @@ function createAdminService(options: {
             const quantity = Math.trunc(Number(amount));
             if (!Number.isSafeInteger(quantity) || quantity <= 0) throw new TypeError("amount must be a positive integer");
             return audited(actor, "admin.inventory", `inventory.${operation}`, player, reason, { item, amount: quantity }, () => inventory.inventory[operation === "give" ? "add" : "remove"](player, item, quantity));
+        },
+        async spellGrants(actor: Player, target: Player | number) {
+            await permissions.require(actor, "admin.spells");
+            const player = targetPlayer(target);
+            if (!session(player).character) throw adminError("HMP_ADMIN_CHARACTER_MISSING", "The target has no active character.");
+            return spells.grants.list(player);
+        },
+        async spell(actor: Player, target: Player | number, operation: "grant" | "revoke", rawSpell: string, reason: string) {
+            const player = targetPlayer(target);
+            if (!session(player).character) throw adminError("HMP_ADMIN_CHARACTER_MISSING", "The target has no active character.");
+            if (operation !== "grant" && operation !== "revoke") throw new TypeError("operation must be grant or revoke");
+            const definition = spells.catalog.get(String(rawSpell || ""));
+            if (!definition) throw new TypeError(`Unknown spell '${String(rawSpell || "")}'`);
+            const note = reasonOf(reason, `${operation === "grant" ? "Granted" : "Revoked"} by an administrator`);
+            return audited(actor, "admin.spells", `spells.${operation}`, player, note, { spell: definition.lockId, name: definition.name }, () => spells.grants[operation](player, definition.lockId, { resource: "hmp-admin", actor, reason: note }));
         },
         async group(actor: Player, target: Player | number, operation: "set" | "remove", scope: "account" | "character", group: string, grade: number, reason: string) {
             const player = targetPlayer(target);

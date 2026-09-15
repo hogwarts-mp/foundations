@@ -24,6 +24,7 @@
         "admin.groups",
         "admin.jobs",
         "admin.inventory",
+        "admin.spells",
         "admin.banking",
         "admin.audit",
         "admin.environment"

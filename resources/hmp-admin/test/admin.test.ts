@@ -8,7 +8,7 @@ import type { AdminConfig, AdminRepository, Player } from "../server/internal";
 
 const { createPermissions } = permissionsModule;
 const { createAdminService } = serviceModule;
-const { inventoryOptions } = uiModule;
+const { inventoryOptions, spellOptions } = uiModule;
 
 test("builds searchable administration choices from canonical inventory definitions", () => {
     const inventory = {
@@ -27,6 +27,23 @@ test("builds searchable administration choices from canonical inventory definiti
     assert.deepStrictEqual(inventoryOptions(inventory, "documents sealed"), [options[1]]);
 });
 
+test("builds spell choices around the character's current personal grants", () => {
+    const definitions = [
+        { name: "Accio", lockId: "Spell_Accio" },
+        { name: "Incendio", lockId: "Spell_Incendio" },
+        { name: "Levioso", lockId: "Spell_Levioso" },
+    ];
+    const spells = {
+        catalog: {
+            list: (query = "") => definitions.filter((spell) => `${spell.name} ${spell.lockId}`.toLowerCase().includes(query.toLowerCase())),
+            get: (value: string) => definitions.find((spell) => spell.name.toLowerCase() === value.toLowerCase() || spell.lockId.toLowerCase() === value.toLowerCase()) || null,
+        },
+    } as never;
+    assert.deepStrictEqual(spellOptions(spells, "lev", ["Spell_Accio"], "grant"), [{ label: "Levioso", value: "Spell_Levioso", description: "Spell_Levioso" }]);
+    assert.deepStrictEqual(spellOptions(spells, "acc", ["Spell_Accio"], "revoke"), [{ label: "Accio", value: "Spell_Accio", description: "Spell_Accio · Personally granted" }]);
+    assert.deepStrictEqual(spellOptions(spells, "acc", ["Spell_Accio"], "grant"), []);
+});
+
 function setup() {
     let nextAudit = 1;
     let nextWarning = 1;
@@ -39,6 +56,8 @@ function setup() {
     const groupMutations: unknown[][] = [];
     const jobMutations: unknown[][] = [];
     const bankMutations: unknown[][] = [];
+    const spellMutations: unknown[][] = [];
+    const personalSpells = new Map<number, Set<string>>();
     const kicked = new Map<number, string>();
     const holds = new Map<number, Set<string>>();
 
@@ -101,7 +120,7 @@ function setup() {
         command: "admin", requireVerifiedIdentity: true, allowUnsafeAssertedBans: false, teleportTimeoutMs: 5000, auditPageSize: 50,
         bootstrapSecret: "closed-test-secret", roleRules: [
             { group: "admin", minimumGrade: 1, capabilities: ["admin.view", "admin.kick", "admin.teleport", "admin.freeze", "admin.warn"] },
-            { group: "admin", minimumGrade: 2, capabilities: ["admin.groups", "admin.jobs", "admin.inventory", "admin.banking", "admin.audit"] },
+            { group: "admin", minimumGrade: 2, capabilities: ["admin.groups", "admin.jobs", "admin.inventory", "admin.spells", "admin.banking", "admin.audit"] },
             { group: "admin", minimumGrade: 3, capabilities: ["admin.ban", "admin.reconcile"] },
         ],
     };
@@ -114,15 +133,46 @@ function setup() {
             async reconcile(...args: unknown[]) { bankMutations.push(["reconcile", ...args]); return {}; },
         },
     };
+    const spellDefinitions = [
+        { name: "Accio", lockId: "Spell_Accio" },
+        { name: "Incendio", lockId: "Spell_Incendio" },
+        { name: "Levioso", lockId: "Spell_Levioso" },
+    ];
+    const resolveSpell = (value: string) => spellDefinitions.find((spell) => spell.name.toLowerCase() === value.toLowerCase() || spell.lockId.toLowerCase() === value.toLowerCase())?.lockId || null;
+    const spells = {
+        catalog: {
+            resolve: resolveSpell,
+            get(value: string) { const lockId = resolveSpell(value); return lockId ? spellDefinitions.find((spell) => spell.lockId === lockId) || null : null; },
+            list(query = "") { return spellDefinitions.filter((spell) => `${spell.name} ${spell.lockId}`.toLowerCase().includes(query.toLowerCase())); },
+        },
+        grants: {
+            async list(value: Player) { return [...personalSpells.get(value.id) || []]; },
+            async grant(value: Player, spell: string, context?: unknown) {
+                if (!personalSpells.has(value.id)) personalSpells.set(value.id, new Set());
+                const grants = personalSpells.get(value.id)!;
+                if (grants.has(spell)) return false;
+                grants.add(spell);
+                spellMutations.push(["grant", value.id, spell, context]);
+                return true;
+            },
+            async revoke(value: Player, spell: string, context?: unknown) {
+                const grants = personalSpells.get(value.id);
+                if (!grants?.delete(spell)) return false;
+                spellMutations.push(["revoke", value.id, spell, context]);
+                return true;
+            },
+        },
+    };
     const service = createAdminService({
         repository, permissions, core: core as never,
         inventory: { inventory: { async add(...args: unknown[]) { inventoryMutations.push(["add", ...args]); return 5; }, async remove(...args: unknown[]) { inventoryMutations.push(["remove", ...args]); return 4; } } } as never,
         banking: banking as never,
         jobs: { employment: { async hire(...args: unknown[]) { jobMutations.push(["hire", ...args]); return {}; }, async fire(...args: unknown[]) { jobMutations.push(["fire", ...args]); return {}; }, async setGrade(...args: unknown[]) { jobMutations.push(["grade", ...args]); return {}; } } } as never,
+        spells: spells as never,
         config, logger: { debug: () => true, info: () => true, warn: () => true, error: () => true }, migrations: [],
         listPlayers: () => players, getPlayer: (id) => players.find((entry) => entry.id === id) || null,
     });
-    return { service, permissions, config, verifiedAdmin, assertedAdmin, verifiedTarget, assertedTarget, audit, warnings, bans, kicked, holds, inventoryMutations, groupMutations, jobMutations, bankMutations };
+    return { service, permissions, config, verifiedAdmin, assertedAdmin, verifiedTarget, assertedTarget, audit, warnings, bans, kicked, holds, inventoryMutations, groupMutations, jobMutations, bankMutations, spellMutations };
 }
 
 test("requires verified staff identity but supports session-only closed-test bootstrap", async () => {
@@ -134,7 +184,7 @@ test("requires verified staff identity but supports session-only closed-test boo
     assert.strictEqual(await state.permissions.has(state.assertedAdmin, "admin.ban"), true);
     assert.strictEqual(state.permissions.revoke(state.assertedAdmin), true);
     assert.strictEqual(await state.permissions.has(state.assertedAdmin, "admin.view"), false);
-    assert.deepStrictEqual(await state.permissions.capabilities(state.verifiedAdmin), ["admin.audit", "admin.ban", "admin.banking", "admin.freeze", "admin.groups", "admin.inventory", "admin.jobs", "admin.kick", "admin.reconcile", "admin.teleport", "admin.view", "admin.warn"]);
+    assert.deepStrictEqual(await state.permissions.capabilities(state.verifiedAdmin), ["admin.audit", "admin.ban", "admin.banking", "admin.freeze", "admin.groups", "admin.inventory", "admin.jobs", "admin.kick", "admin.reconcile", "admin.spells", "admin.teleport", "admin.view", "admin.warn"]);
 });
 
 test("inspects, freezes, warns, kicks, and audits player actions", async () => {
@@ -183,6 +233,28 @@ test("routes corrective mutations through foundations services with completed au
     assert.strictEqual(state.jobMutations.length, 1);
     assert.strictEqual(state.bankMutations.length, 2);
     assert.ok(state.audit.every((entry) => entry.status === "completed"));
+});
+
+test("grants and revokes canonical personal spells with actor context and audit", async () => {
+    const state = setup();
+    assert.deepStrictEqual(await state.service.actions.spellGrants(state.verifiedAdmin, state.verifiedTarget), []);
+    assert.strictEqual(await state.service.actions.spell(state.verifiedAdmin, state.verifiedTarget, "grant", "Incendio", "completed class"), true);
+    assert.strictEqual(await state.service.actions.spell(state.verifiedAdmin, state.verifiedTarget, "grant", "Spell_Incendio", "duplicate check"), false);
+    assert.deepStrictEqual(await state.service.actions.spellGrants(state.verifiedAdmin, state.verifiedTarget), ["Spell_Incendio"]);
+    assert.strictEqual(await state.service.actions.spell(state.verifiedAdmin, state.verifiedTarget, "revoke", "Incendio", "corrected grant"), true);
+    assert.strictEqual(await state.service.actions.spell(state.verifiedAdmin, state.verifiedTarget, "revoke", "Incendio", "duplicate check"), false);
+    await assert.rejects(state.service.actions.spell(state.verifiedAdmin, state.verifiedTarget, "grant", "NotASpell", "invalid"), /Unknown spell/);
+    assert.deepStrictEqual(state.spellMutations.map((entry) => entry.slice(0, 3)), [
+        ["grant", state.verifiedTarget.id, "Spell_Incendio"],
+        ["revoke", state.verifiedTarget.id, "Spell_Incendio"],
+    ]);
+    const grantContext = state.spellMutations[0][3] as { resource: string; actor: Player; reason: string };
+    assert.strictEqual(grantContext.resource, "hmp-admin");
+    assert.strictEqual(grantContext.actor, state.verifiedAdmin);
+    assert.strictEqual(grantContext.reason, "completed class");
+    assert.deepStrictEqual(state.audit.map((entry) => entry.action), ["spells.grant", "spells.grant", "spells.revoke", "spells.revoke"]);
+    assert.ok(state.audit.every((entry) => entry.status === "completed"));
+    assert.deepStrictEqual(state.audit[0].metadata, { spell: "Spell_Incendio", name: "Incendio" });
 });
 
 test("refuses durable bans for asserted identities and enforces verified bans on session ready", async () => {

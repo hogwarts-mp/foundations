@@ -10,6 +10,7 @@ export type HmpAdminCapability =
     | "admin.groups"
     | "admin.jobs"
     | "admin.inventory"
+    | "admin.spells"
     | "admin.banking"
     | "admin.reconcile"
     | "admin.audit"
@@ -111,6 +112,8 @@ export interface HmpAdminActionsApi<P = HmpAdminPlayer> {
     freeze(actor: P, target: P | number, reason?: string): Promise<boolean>;
     release(actor: P, target: P | number, reason?: string): Promise<boolean>;
     inventory(actor: P, target: P | number, operation: "give" | "remove", item: string, amount: number, reason: string): Promise<number>;
+    spellGrants(actor: P, target: P | number): Promise<string[]>;
+    spell(actor: P, target: P | number, operation: "grant" | "revoke", spell: string, reason: string): Promise<boolean>;
     group(actor: P, target: P | number, operation: "set" | "remove", scope: "account" | "character", group: string, grade: number, reason: string): Promise<boolean>;
     job(actor: P, target: P | number, operation: "hire" | "fire" | "grade", job: string, grade: number, reason: string): Promise<boolean>;
     banking(actor: P, target: P | number, operation: "credit" | "debit", amount: number, currency: string, reason: string): Promise<boolean>;

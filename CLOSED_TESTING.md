@@ -246,6 +246,8 @@ created test transaction after its state has been inspected.
 - Confirm go-to and bring reject players in different game areas rather than applying foreign-map
   coordinates.
 - Correct a custom item, group, job grade, and small Galleon balance, then verify the result.
+- Grant `Incendio` from the player's Spells menu, confirm it unlocks immediately, then revoke the
+  personal grant and confirm it locks again. Verify both changes appear in the administrative audit.
 - Review the audit after both a successful action and an intentionally rejected action.
 - Confirm an asserted-identity player cannot receive a durable ban. Test a timed ban only with a
   disposable verified identity once the real provider is available.

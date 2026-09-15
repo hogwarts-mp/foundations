@@ -1,11 +1,13 @@
 import type { HmpBankTransaction } from "../../hmp-banking/types";
 import type { HmpUiContextOption, HmpUiSelectOption } from "../../hmp-ui/types";
 import type { HmpAdmin, HmpAdminBan, HmpAdminCapability, HmpAdminPlayerSummary } from "../types";
-import type { Banking, Inventory, Player, Ui } from "./internal";
+import type { Banking, Inventory, Player, Spells, Ui } from "./internal";
 
 type AdminService = Pick<HmpAdmin<Player>, "permissions" | "players" | "actions" | "moderation" | "audit" | "status">;
 
 const MAX_INVENTORY_CHOICES = 32;
+const MAX_SPELL_CHOICES = 32;
+type SpellOperation = "grant" | "revoke";
 
 function inventoryOptions(inventory: Inventory, rawQuery = ""): HmpUiSelectOption[] {
     const query = String(rawQuery || "").trim().toLowerCase();
@@ -28,8 +30,30 @@ function inventoryOptions(inventory: Inventory, rawQuery = ""): HmpUiSelectOptio
         .map(({ rank: _rank, ...option }) => option);
 }
 
-function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking; inventory: Inventory }) {
-    const { admin, ui, banking, inventory } = options;
+function spellOptions(spells: Spells, rawQuery = "", granted: ReadonlyArray<string> = [], operation: SpellOperation = "grant"): HmpUiSelectOption[] {
+    const query = String(rawQuery || "").trim().toLowerCase();
+    const terms = query.split(/\s+/).filter(Boolean);
+    const current = new Set(granted);
+    const definitions = operation === "revoke"
+        ? [...current].flatMap((spell) => { const definition = spells.catalog.get(spell); return definition ? [definition] : []; })
+        : spells.catalog.list(query);
+    const seen = new Set<string>();
+    return definitions.flatMap((definition) => {
+        if (seen.has(definition.lockId)) return [];
+        if (operation === "grant" && current.has(definition.lockId)) return [];
+        const haystack = `${definition.name} ${definition.lockId}`.toLowerCase();
+        if (terms.some((term) => !haystack.includes(term))) return [];
+        seen.add(definition.lockId);
+        return [{
+            label: definition.name,
+            value: definition.lockId,
+            description: operation === "revoke" ? `${definition.lockId} · Personally granted` : definition.lockId,
+        }];
+    }).sort((left, right) => left.label.localeCompare(right.label));
+}
+
+function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking; inventory: Inventory; spells: Spells }) {
+    const { admin, ui, banking, inventory, spells } = options;
     const openMenus = new Set<number>();
 
     const text = (value: unknown): string => String(value ?? "").trim();
@@ -153,6 +177,55 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
         await run(player, () => admin.actions.group(player, target.playerId, text(result.operation) as "set" | "remove", text(result.scope) as "account" | "character", text(result.group), number(result.grade), text(result.reason)), "Group membership updated.");
     }
 
+    async function spellMenu(player: Player, target: HmpAdminPlayerSummary): Promise<void> {
+        while (openMenus.has(player.id)) {
+            let granted: string[];
+            try { granted = await admin.actions.spellGrants(player, target.playerId); }
+            catch (error) { notifyError(player, error); return; }
+            const search = await ui.input(player, {
+                title: `Search spells · ${target.nickname}`,
+                fields: [
+                    { name: "operation", label: "Operation", type: "select", options: [{ label: "Grant", value: "grant" }, { label: "Revoke personal grant", value: "revoke" }] },
+                    { name: "query", label: "Spell search", placeholder: "Incendio, lev, Spell_Accio…", description: "Searches spell names and native lock IDs." },
+                ],
+                submitLabel: "Find spells",
+            });
+            if (!search) return;
+            const operation = text(search.operation) as SpellOperation;
+            const query = text(search.query);
+            const choices = spellOptions(spells, query, granted, operation);
+            if (!choices.length) {
+                ui.notify(player, {
+                    title: operation === "revoke" ? "No matching personal grants" : "No matching spells",
+                    description: operation === "revoke" ? `This character has no personal spell grant matching '${query || "all spells"}'.` : `No ungranted catalog spell matches '${query || "all spells"}'.`,
+                    tone: "warning",
+                });
+                continue;
+            }
+            if (choices.length > MAX_SPELL_CHOICES) {
+                ui.notify(player, { title: "Refine spell search", description: `${choices.length} spells match. Narrow the search to ${MAX_SPELL_CHOICES} or fewer results.`, tone: "warning", duration: 7000 });
+                continue;
+            }
+            const result = await ui.input(player, {
+                title: `Spells · ${target.nickname}`,
+                fields: [
+                    { name: "spell", label: "Spell", type: "select", searchable: true, required: true, options: choices },
+                    { name: "reason", label: "Reason", type: "textarea", required: true },
+                ],
+                submitLabel: operation === "grant" ? "Grant spell" : "Revoke grant",
+            });
+            if (!result) return;
+            try {
+                const changed = await admin.actions.spell(player, target.playerId, operation, text(result.spell), text(result.reason));
+                ui.notify(player, {
+                    description: changed ? `Personal spell grant ${operation === "grant" ? "added" : "revoked"}.` : `The personal spell grant was already ${operation === "grant" ? "present" : "absent"}.`,
+                    tone: changed ? "success" : "inform",
+                });
+            } catch (error) { notifyError(player, error); }
+            return;
+        }
+    }
+
     async function jobMenu(player: Player, target: HmpAdminPlayerSummary): Promise<void> {
         const result = await ui.input(player, {
             title: `Employment · ${target.nickname}`,
@@ -217,6 +290,7 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
             if (allowed(capabilities, "admin.freeze")) actions.push({ id: target.frozen ? "release" : "freeze", title: target.frozen ? "Release player" : "Freeze player", description: "Uses the Framework's authoritative movement hold." });
             if (allowed(capabilities, "admin.warn")) actions.push({ id: "warn", title: "Issue warning", description: "Record and deliver a staff warning." }, { id: "warnings", title: "Warning history", description: "Review prior warnings." });
             if (allowed(capabilities, "admin.inventory")) actions.push({ id: "inventory", title: "Inventory", description: "Give or remove a registered custom or native item." });
+            if (allowed(capabilities, "admin.spells")) actions.push({ id: "spells", title: "Spells", description: "Grant or revoke this character's persistent personal spell entitlements." });
             if (allowed(capabilities, "admin.groups")) actions.push({ id: "groups", title: "Groups", description: "Change account or character roles." });
             if (allowed(capabilities, "admin.jobs")) actions.push({ id: "jobs", title: "Employment", description: "Hire, fire, or change a job grade." });
             if (allowed(capabilities, "admin.banking")) actions.push({ id: "banking", title: "Banking", description: "Apply an audited credit or debit." });
@@ -231,6 +305,7 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
                 if (choice === "kick") return;
             } else if (choice === "warnings") await warningHistory(player, target);
             else if (choice === "inventory") await inventoryMenu(player, target);
+            else if (choice === "spells") await spellMenu(player, target);
             else if (choice === "groups") await groupMenu(player, target);
             else if (choice === "jobs") await jobMenu(player, target);
             else if (choice === "banking") await bankingMenu(player, target);
@@ -339,4 +414,4 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
     return Object.freeze({ open, close: (player: Player) => { openMenus.delete(player.id); return ui.close(player, "Admin menu closed"); }, status: () => ({ openMenus: openMenus.size }) });
 }
 
-export = { createAdminUi, inventoryOptions };
+export = { createAdminUi, inventoryOptions, spellOptions };

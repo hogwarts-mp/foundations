@@ -32,7 +32,7 @@ The default `admin` group grants capabilities cumulatively:
 | Grade | Capabilities |
 |---:|---|
 | 1 | View players, kick, go to/bring, freeze/release, warn, announce |
-| 2 | Groups, employment, inventory, banking, audit history, environment controls |
+| 2 | Groups, employment, inventory, personal spell grants, banking, audit history, environment controls |
 | 3 | Verified-identity bans and pending bank reconciliation |
 
 Production access requires a `verified` identity by default. Once identities are live, assign a
@@ -55,8 +55,9 @@ accepts `HMP_ADMIN_COMMAND`, `HMP_ADMIN_REQUIRE_VERIFIED`, and `HMP_ADMIN_CONFIG
   and administrative freeze state.
 - Moderation: durable warnings, kick, verified-identity timed or permanent bans, ban review/revoke.
 - Intervention: acknowledged streamed go-to/bring and Framework-authoritative freeze/release.
-- Corrections: server-filtered, searchable custom/native inventory items, account/character groups, employment, and personal bank
-  credits/debits in Galleons or another registered currency.
+- Corrections: server-filtered, searchable custom/native inventory items and spell grants,
+  account/character groups, employment, and personal bank credits/debits in Galleons or another
+  registered currency. Revoking a personal spell grant does not override a spell allowed by policy rules.
 - Recovery: inspect and explicitly complete, compensate, or fail pending bank transactions.
 - Audit: recent pending, completed, and failed actions with actor, target, reason, and error.
 

@@ -28,7 +28,8 @@
       { "name": "hmp-ui", "version": "0.3.0" },
       { "name": "hmp-inventory", "version": "0.3.0" },
       { "name": "hmp-banking", "version": "0.3.0" },
-      { "name": "hmp-jobs", "version": "0.3.0" }
+      { "name": "hmp-jobs", "version": "0.3.0" },
+      { "name": "hmp-spells", "version": "0.3.0" }
     ],
     "errorBehavior": "stop",
     "priority": -300

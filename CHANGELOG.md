@@ -62,6 +62,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   vendor body together with its stock, and reads data-declared shops from `data/hmp-shops.json`. The
   example config places a potion vendor (Parry Pippin) on the Hogsmeade high street with limited stock.
 - Player Administration shows the target's yaw beside their position.
+- Player Administration can search the spell catalog and grant or revoke a character's persistent
+  personal spell entitlements through the audited `hmp-spells` API.
 
 ### Changed
 

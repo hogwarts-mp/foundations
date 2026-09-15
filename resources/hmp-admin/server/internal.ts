@@ -4,6 +4,7 @@ import type { HmpInventory } from "../../hmp-inventory/types";
 import type { HmpJobs } from "../../hmp-jobs/types";
 import type { HmpLogger } from "../../hmp-lib/types";
 import type { HmpMySQL, HmpMySQLMigration } from "../../hmp-mysql/types";
+import type { HmpSpellsServer } from "../../hmp-spells/types";
 import type { HmpUiServer } from "../../hmp-ui/types";
 import type { HmpAdminAuditEntry, HmpAdminBan, HmpAdminCapability, HmpAdminRoleRule, HmpAdminWarning } from "../types";
 
@@ -12,6 +13,7 @@ export type Core = HmpCore<Player>;
 export type Inventory = HmpInventory<Player>;
 export type Banking = HmpBanking<Player>;
 export type Jobs = HmpJobs<Player>;
+export type Spells = HmpSpellsServer<Player>;
 export type Ui = HmpUiServer<Player>;
 export type Database = HmpMySQL;
 export type Logger = Pick<HmpLogger, "debug" | "info" | "warn" | "error">;
