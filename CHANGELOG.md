@@ -12,6 +12,11 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   `Spell_AimMode`, `Spell_Stupefy` and `Spell_Protego`, taking right-click aiming and the basic spell
   away. The baseline is now restored after the config loads; a `deny` at priority 900 or stronger, or a
   rule of the same id, still overrides it.
+- `hmp-spells` and `hmp-doors` no longer warn `Player does not have a ready hmp-core session` on every
+  join. `hmp-core` creates the session after an awaited database round-trip, so `playerConnect` and the
+  world-readiness events always arrived first and their sync failed; `hmp:session:ready` then synced
+  successfully. `policy.sync` now returns `null` for a player without a session, and `policy.syncAll`
+  skips them and counts only the players it actually synced instead of aborting the whole refresh.
 
 ## [0.4.0] - 2026-09-15
 

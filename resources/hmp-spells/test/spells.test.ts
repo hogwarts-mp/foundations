@@ -125,9 +125,12 @@ async function run(): Promise<void> {
     const emitted: Array<{ name: string; args: unknown[] }> = [];
     let activeCharacterId = 42;
     let hasActiveCharacter = true;
+    let sessionReady = true;
+    let effectiveCalls = 0;
     const core = {
+        sessions: { isReady: () => sessionReady },
         characters: { active: () => hasActiveCharacter ? ({ id: activeCharacterId, accountId: 1, slot: 1, name: "Test", status: "active", createdAt: "", updatedAt: "", deletedAt: null }) : null },
-        groups: { effective: async () => [{ scope: "character", key: "job:auror", grade: 2, metadata: {} }] },
+        groups: { effective: async () => { effectiveCalls++; return [{ scope: "character", key: "job:auror", grade: 2, metadata: {} }]; } },
         metadata: {
             getCharacter: async (id: number, key: string) => metadata.get(`${id}:${key}`),
             setCharacter: async (id: number, key: string, value: unknown) => { metadata.set(`${id}:${key}`, value); return value; },
@@ -138,6 +141,19 @@ async function run(): Promise<void> {
         config: { command: "spells", enableCommands: true, adminGroups: [], rules, maxCastReportsPerSecond: 12 },
         players: () => [player], emit: (name, ...args) => emitted.push({ name, args }),
     });
+
+    // hmp-core creates its session after an awaited database round-trip, so playerConnect and the
+    // world-readiness events all beat it. Syncing then must be a quiet no-op, not a logged failure.
+    sessionReady = false;
+    const callsBeforeSession = effectiveCalls;
+    assert.strictEqual(await service.policy.sync(player), null, "a session-less sync must not resolve a policy");
+    assert.strictEqual(player.emitted.length, 0, "a session-less sync must not emit a policy");
+    assert.strictEqual(await service.policy.syncAll(), 0, "syncAll must count only the players it actually synced");
+    assert.strictEqual(effectiveCalls, callsBeforeSession, "a session-less sync must not reach hmp-core at all");
+    sessionReady = true;
+    assert.ok(await service.policy.sync(player), "the same sync resolves once the session is ready");
+    assert.strictEqual(await service.policy.syncAll(), 1);
+
     assert.strictEqual(await service.grants.grant(player, "Incendio", { resource: "test" }), true);
     assert.deepStrictEqual(await service.grants.list(player), ["Spell_Incendio"]);
     assert.deepStrictEqual(metadata.get(`42:${METADATA_KEY}`), { version: 1, spells: ["Spell_Incendio"] });

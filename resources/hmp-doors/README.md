@@ -76,7 +76,9 @@ diagnostics — nothing re-applies them as cells stream, so persist a rule once 
 Server exports:
 
 - `policy.resolve(player)` returns the active character, groups, grants, and resolved policy.
-- `policy.sync(player)` and `policy.syncAll()` recompute and push complete client policies.
+- `policy.sync(player)` and `policy.syncAll()` recompute and push complete client policies. `sync`
+  returns `null` and `syncAll` skips a player with no `hmp-core` session yet; `hmp:session:ready`
+  syncs them moments later.
 - `grants.list/grant/revoke/clear(player, doorName?)` manage character-scoped physical-door exceptions.
 - `status()` reports rule, synchronization, and lifecycle state.
 

@@ -6,6 +6,7 @@ const serverHandlers = new Map();
 const logger = { info() {}, warn() {}, error() {}, debug() {} };
 const player = { id: 1, nickname: "Smoke", emit() {}, sendChat() {} };
 const core = {
+    sessions: { isReady: () => true },
     characters: { active: () => null },
     groups: { effective: async () => [], has: async () => true },
     metadata: { getCharacter: async () => [], setCharacter: async (_id, _key, value) => value },

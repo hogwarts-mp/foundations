@@ -51,7 +51,8 @@ export interface HmpDoorResolution<P = HmpDoorPlayer> {
 
 export interface HmpDoorPolicyApi<P = HmpDoorPlayer> {
     resolve(player: P): Promise<HmpDoorResolution<P>>;
-    sync(player: P): Promise<HmpResolvedDoorPolicy>;
+    // null when the player has no hmp-core session yet; hmp:session:ready syncs them.
+    sync(player: P): Promise<HmpResolvedDoorPolicy | null>;
     syncAll(): Promise<number>;
 }
 

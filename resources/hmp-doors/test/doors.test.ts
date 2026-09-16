@@ -61,15 +61,31 @@ async function run(): Promise<void> {
 
     const player = { id: 7, nickname: "Test", emitted: [] as Array<{ name: string; payload: unknown }>, emit(name: string, payload?: unknown) { this.emitted.push({ name, payload }); } };
     const metadata = new Map<string, unknown>();
+    let sessionReady = true;
+    let effectiveCalls = 0;
     const core = {
+        sessions: { isReady: () => sessionReady },
         characters: { active: () => ({ id: 42, accountId: 1, slot: 1, name: "Test", status: "active", createdAt: "", updatedAt: "", deletedAt: null }) },
-        groups: { effective: async () => [{ scope: "character", key: "staff", grade: 2, metadata: {} }] },
+        groups: { effective: async () => { effectiveCalls++; return [{ scope: "character", key: "staff", grade: 2, metadata: {} }]; } },
         metadata: {
             getCharacter: async (_id: number, key: string) => metadata.get(key),
             setCharacter: async (_id: number, key: string, value: unknown) => { metadata.set(key, value); return value; },
         },
     };
     const service = createDoorService({ core: core as never, config: { command: "doors", enableCommands: true, adminGroups: [], rules }, players: () => [player] });
+
+    // hmp-core creates its session after an awaited database round-trip, so playerConnect beats it.
+    // Syncing then must be a quiet no-op, not a logged failure.
+    sessionReady = false;
+    const callsBeforeSession = effectiveCalls;
+    assert.strictEqual(await service.policy.sync(player), null, "a session-less sync must not resolve a policy");
+    assert.strictEqual(player.emitted.length, 0, "a session-less sync must not emit a policy");
+    assert.strictEqual(await service.policy.syncAll(), 0, "syncAll must count only the players it actually synced");
+    assert.strictEqual(effectiveCalls, callsBeforeSession, "a session-less sync must not reach hmp-core at all");
+    sessionReady = true;
+    assert.ok(await service.policy.sync(player), "the same sync resolves once the session is ready");
+    assert.strictEqual(await service.policy.syncAll(), 1);
+
     assert.strictEqual(await service.grants.grant(player, "SecretPassage"), true);
     assert.deepStrictEqual(metadata.get(METADATA_KEY), ["SecretPassage"]);
     assert.deepStrictEqual(await service.grants.list(player), ["SecretPassage"]);

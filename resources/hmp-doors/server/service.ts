@@ -42,7 +42,11 @@ function createDoorService<P extends HmpDoorPlayer>(dependencies: DoorDependenci
         return { player, character: activeCharacter(player), groups, grants, policy: evaluateRules(config.rules, groups, grants) };
     }
 
+    // hmp-core creates the session only after an awaited database round-trip, so playerConnect always
+    // arrives first. hmp:session:ready re-syncs moments later, so treat a session-less player as
+    // not-yet rather than as the failure it would otherwise be logged as.
     async function sync(player: P) {
+        if (!core.sessions.isReady(player)) return null;
         const resolution = await resolve(player);
         player.emit("hmp-doors:policy", JSON.stringify(resolution.policy));
         synced.add(Number(player.id));
@@ -50,9 +54,8 @@ function createDoorService<P extends HmpDoorPlayer>(dependencies: DoorDependenci
     }
 
     async function syncAll(): Promise<number> {
-        const players = dependencies.players();
-        await Promise.all(players.map(sync));
-        return players.length;
+        const results = await Promise.all(dependencies.players().map(sync));
+        return results.filter(Boolean).length;
     }
 
     async function grant(player: P, rawName: string): Promise<boolean> {

@@ -13,6 +13,7 @@ const metadata = new Map();
 let activeCharacter = null;
 const player = { id: 1, nickname: "Smoke", emit(name, payload) { serverReplies.push({ name, payload }); }, sendChat() {} };
 const core = {
+    sessions: { isReady: () => true },
     characters: { active: () => activeCharacter },
     groups: { effective: async () => [], has: async () => true },
     metadata: {

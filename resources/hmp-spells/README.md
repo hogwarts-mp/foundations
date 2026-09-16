@@ -131,7 +131,8 @@ remove extra native loadout perks. Count changes do not erase saved slot assignm
 ## Catalog and policy APIs
 
 - `catalog.resolve/get/list` normalize names and raw lock IDs.
-- `policy.resolve/sync/syncAll` inspect or push complete policies.
+- `policy.resolve/sync/syncAll` inspect or push complete policies. `sync` returns `null` and `syncAll`
+  skips a player with no `hmp-core` session yet; `hmp:session:ready` syncs them moments later.
 - `rules.register/unregister/clear/list/refresh` manage runtime rules.
 - `providers.register/unregister/clear/get/list/resolve` manage cast adapters and spell definitions.
 - `grants.list/grant/revoke/clear` manage persistent character grants.

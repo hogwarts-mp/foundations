@@ -123,7 +123,11 @@ function createSpellService<P extends HmpSpellPlayer>(dependencies: SpellDepende
         return { player, character, groups, entitlements, assignments, providers: providerList(), policy };
     }
 
+    // hmp-core creates the session only after an awaited database round-trip, so playerConnect and the
+    // world-readiness events always arrive first. hmp:session:ready re-syncs moments later, so treat a
+    // session-less player as not-yet rather than as the failure it would otherwise be logged as.
     async function sync(player: P) {
+        if (!core.sessions.isReady(player)) return null;
         const resolution = await resolve(player);
         player.emit("hmp-spells:policy", JSON.stringify({
             ...resolution.policy,
@@ -136,9 +140,8 @@ function createSpellService<P extends HmpSpellPlayer>(dependencies: SpellDepende
     }
 
     async function syncAll(): Promise<number> {
-        const players = dependencies.players();
-        await Promise.all(players.map(sync));
-        return players.length;
+        const results = await Promise.all(dependencies.players().map(sync));
+        return results.filter(Boolean).length;
     }
 
     function contextPayload(player: P, spell: string | null, context: { resource?: string; actor?: P; reason?: string } = {}, character = activeCharacter(player)) {

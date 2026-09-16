@@ -103,7 +103,8 @@ export interface HmpSpellCatalogApi {
 
 export interface HmpSpellPolicyApi<P = HmpSpellPlayer> {
     resolve(player: P): Promise<HmpSpellResolution<P>>;
-    sync(player: P): Promise<HmpResolvedSpellPolicy>;
+    // null when the player has no hmp-core session yet; hmp:session:ready syncs them.
+    sync(player: P): Promise<HmpResolvedSpellPolicy | null>;
     syncAll(): Promise<number>;
 }
 
