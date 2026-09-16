@@ -26,6 +26,10 @@ function normalizeGroups(raw: unknown, label: string) {
     return { groups, groupMode: match.groupMode === "all" ? "all" as const : "any" as const };
 }
 
+// Protego/Stupefy are the only Spell_* locks open on a fresh character, and AimMode is opened by the
+// client's freeride boot. The policy owns the whole lock table, so leaving them unstated revokes them.
+const FREERIDE_BASELINE: HmpSpellRule = { id: "freeride-baseline", resource: "hmp-spells", priority: 900, action: "allow", spells: ["Spell_Protego", "Spell_Stupefy", "Spell_AimMode"] };
+
 function normalizeRule(raw: unknown, index: number, defaultResource = "hmp-spells"): HmpSpellRule {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new TypeError(`hmp-spells rule ${index} must be an object`);
     const value = raw as Record<string, unknown>;
@@ -64,11 +68,7 @@ function loadConfig(Hmp: HmpLibServer<HmpSpellPlayer>, options: { env?: NodeJS.P
         command: "spells",
         enableCommands: true,
         adminGroups: [{ key: "admin", minimumGrade: 1 }],
-        // The freeride baseline: Protego/Stupefy are the only Spell_* locks open on a fresh character,
-        // and AimMode is opened by the client's freeride boot. The policy owns the whole lock table, so
-        // an unallowed spell is re-locked — stating them rather than exempting them is what lets an
-        // owner deny one (no Protego for a wandless minigame) like any other spell.
-        rules: [{ id: "freeride-baseline", resource: "hmp-spells", priority: 900, action: "allow", spells: ["Spell_Protego", "Spell_Stupefy", "Spell_AimMode"] }],
+        rules: [FREERIDE_BASELINE],
         maxCastReportsPerSecond: 12,
     };
     const loaded = Hmp.config.load<SpellConfig & Record<string, unknown>>(env.HMP_SPELLS_CONFIG || "data/hmp-spells.json", {
@@ -81,11 +81,16 @@ function loadConfig(Hmp: HmpLibServer<HmpSpellPlayer>, options: { env?: NodeJS.P
         minimumGrade: Number.isSafeInteger(Number(entry?.minimumGrade)) ? Number(entry.minimumGrade) : 0,
     }));
     const maxCastReportsPerSecond = Math.max(1, Math.min(60, Math.floor(Number(loaded.maxCastReportsPerSecond) || 12)));
+    // config.load replaces arrays wholesale, so an owner stating `rules` drops the baseline entirely.
+    // Restore it rather than exempt it: a rule of the same id replaces it, and any deny at priority
+    // 900 or stronger still beats it, so denying Protego for a wandless minigame keeps working.
+    const rules = loaded.rules.map((rule, index) => normalizeRule(rule, index));
+    if (!rules.some((rule) => rule.id === FREERIDE_BASELINE.id)) rules.unshift(normalizeRule(FREERIDE_BASELINE, 0));
     return {
         command: cleanId(env.HMP_SPELLS_COMMAND || loaded.command || "spells", "hmp-spells command").toLowerCase(),
         enableCommands: env.HMP_SPELLS_COMMANDS === undefined ? loaded.enableCommands !== false : Hmp.config.env.boolean(env.HMP_SPELLS_COMMANDS, true),
         adminGroups,
-        rules: loaded.rules.map((rule, index) => normalizeRule(rule, index)),
+        rules,
         maxCastReportsPerSecond,
     };
 }

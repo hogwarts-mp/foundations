@@ -5,6 +5,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+### Fixed
+
+- `hmp-spells` no longer drops the `freeride-baseline` rule when `data/hmp-spells.json` states its own
+  `rules`. Config loading replaces arrays wholesale, so an owner config without the baseline re-locked
+  `Spell_AimMode`, `Spell_Stupefy` and `Spell_Protego`, taking right-click aiming and the basic spell
+  away. The baseline is now restored after the config loads; a `deny` at priority 900 or stronger, or a
+  rule of the same id, still overrides it.
+
 ## [0.4.0] - 2026-09-15
 
 ### Added

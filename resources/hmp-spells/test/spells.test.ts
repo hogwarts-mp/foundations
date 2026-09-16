@@ -1,4 +1,8 @@
 import assert = require("node:assert");
+import fs = require("node:fs");
+import os = require("node:os");
+import path = require("node:path");
+import libConfig = require("../../hmp-lib/server/config");
 import catalogModule = require("../shared/catalog");
 import configModule = require("../server/config");
 import policyModule = require("../server/policy");
@@ -15,6 +19,16 @@ const { createSpellService, ASSIGNMENTS_METADATA_KEY, METADATA_KEY } = serviceMo
 const { createSpellClient } = clientModule;
 const { cloneLoadoutAssignments, normalizeLoadoutAssignments, normalizeSlotSpellId } = loadoutsModule;
 const { normalizeProvider, resolveProvidedSpell } = providersModule;
+
+// Loads an owner config through the real hmp-lib loader. Each case gets its own directory because
+// config.load goes through require(), which would otherwise serve the first file from cache.
+function configOf(root: string, name: string, ...rules: unknown[]) {
+    const cwd = path.join(root, name);
+    fs.mkdirSync(path.join(cwd, "data"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, "data", "hmp-spells.json"), JSON.stringify({ rules }));
+    const config = loadConfig({ config: libConfig } as never, { env: {}, cwd });
+    return evaluateRules(config.rules, [], { spells: [], bonusLoadouts: null });
+}
 
 async function run(): Promise<void> {
     assert.strictEqual(catalog.resolve("incendio"), "Spell_Incendio");
@@ -66,6 +80,24 @@ async function run(): Promise<void> {
     for (const lockId of ["Spell_Protego", "Spell_Stupefy", "Spell_AimMode"]) {
         assert.ok(!baseline.lockSpells.includes(lockId), `default config re-locks ${lockId}`);
     }
+    // ...and neither must an owner's own config file: config.load replaces arrays wholesale, so
+    // stating `rules` drops the baseline and the policy revokes right-click aim and Stupefy.
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), "hmp-spells-config-"));
+    try {
+        const owner = configOf(temp, "starter", { id: "starter", priority: 1000, action: "allow", spells: ["Lumos", "Revelio", "Accio", "Levioso", "Incendio"] });
+        for (const lockId of ["Spell_Protego", "Spell_Stupefy", "Spell_AimMode"]) {
+            assert.ok(!owner.lockSpells.includes(lockId), `an owner config stating its own rules re-locks ${lockId}`);
+        }
+        assert.ok(owner.unlockSpells.includes("Spell_Lumos"), "the owner's own rules still apply");
+        // The baseline is restored, not enforced — a deny at or below priority 900 still takes it away.
+        const wandless = configOf(temp, "wandless", { id: "wandless", priority: 100, action: "deny", spells: ["Protego"] });
+        assert.ok(wandless.lockSpells.includes("Spell_Protego"), "an explicit deny must still beat the restored baseline");
+        assert.ok(!wandless.lockSpells.includes("Spell_AimMode"), "denying one baseline spell must not drop the others");
+    }
+    finally {
+        fs.rmSync(temp, { recursive: true, force: true });
+    }
+
     assert.throws(() => normalizeRule({ id: "bad", resource: "x", priority: 1, action: "allow", spells: ["Typo"] }, 0), /unknown spell/);
     assert.throws(() => normalizeRule({ id: "bad", resource: "x", priority: 1, action: "deny", bonusLoadouts: 1 }, 0), /only valid on allow/);
     assert.strictEqual(normalizeLoadoutAssignments([["Lumos"]]), null);

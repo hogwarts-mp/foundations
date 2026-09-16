@@ -116,9 +116,12 @@ the policy. The resolved policy is authoritative over the whole spell lock table
 the rules don't allow is listed in `lockSpells` and re-locked by the client, immediately and on every
 later sync. `action: "deny"` therefore takes a spell already in hand, which is what a timed
 `rules.register(...)` deny (a duel, a wandless minigame) needs; dispose the rule to hand it back.
-Nothing is exempt. The default config carries a `freeride-baseline` allow rule for `Spell_Protego`,
-`Spell_Stupefy` (the game's fresh-character defaults) and `Spell_AimMode` (opened by the client's
-freeride boot); dropping that rule denies them, which is a supported choice but rarely the intent.
+Nothing is exempt, so a `freeride-baseline` allow rule for `Spell_Protego`, `Spell_Stupefy` (the
+game's fresh-character defaults) and `Spell_AimMode` (opened by the client's freeride boot) is always
+present — `data/hmp-spells.json` replaces the rule array wholesale, and omitting the baseline there
+would silently take right-click aiming and the basic spell away. Denying any of them is still a
+supported choice: a `deny` rule at priority 900 or stronger outranks the baseline, and a rule of your
+own with `"id": "freeride-baseline"` replaces it outright.
 
 Bonus-loadout changes apply immediately. Each active character uses
 its explicit count override, otherwise the applicable rule count, otherwise zero bonus diamonds (one
