@@ -5,6 +5,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-16
+
+### Changed
+
+- Set the pack, all twenty-seven resources, and internal dependency pins to lockstep version `0.4.1`.
+
 ### Fixed
 
 - `hmp-spells` no longer drops the `freeride-baseline` rule when `data/hmp-spells.json` states its own
@@ -289,6 +295,7 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - The initial admin resource focuses on moderation and corrective operations; spectate, noclip, and
   god mode are not included.
 
+[0.4.1]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.4.1
 [0.4.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.4.0
 [0.3.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.3.0
 [0.2.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.2.0
