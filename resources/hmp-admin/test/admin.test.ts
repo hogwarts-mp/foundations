@@ -254,12 +254,13 @@ test("rejects administrative teleports across coordinate spaces", async () => {
 
 test("routes corrective mutations through foundations services with completed audit", async () => {
     const state = setup();
-    await state.service.actions.inventory(state.verifiedAdmin, state.verifiedTarget, "give", "test:wand", 2);
+    await state.service.actions.inventory(state.verifiedAdmin, state.verifiedTarget, "give", "native:back_001_common", 2);
     await state.service.actions.group(state.verifiedAdmin, state.verifiedTarget, "set", "character", "prefect", 1, "promotion");
     await state.service.actions.job(state.verifiedAdmin, state.verifiedTarget, "hire", "auror", 2, "test employment");
     await state.service.actions.banking(state.verifiedAdmin, state.verifiedTarget, "credit", 50, "galleons", "test funds");
     await state.service.actions.reconcile(state.verifiedAdmin, "tx:test", "fail", "closed-test recovery");
     assert.strictEqual(state.inventoryMutations.length, 1);
+    assert.deepStrictEqual(state.inventoryMutations[0], ["add", state.verifiedTarget, "native:back_001_common", 2, { identified: true }]);
     assert.strictEqual(state.groupMutations.length, 1);
     assert.strictEqual(state.jobMutations.length, 1);
     assert.strictEqual(state.bankMutations.length, 2);

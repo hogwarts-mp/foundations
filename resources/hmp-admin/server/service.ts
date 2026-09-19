@@ -204,7 +204,9 @@ function createAdminService(options: {
             const player = targetPlayer(target);
             const quantity = Math.trunc(Number(amount));
             if (!Number.isSafeInteger(quantity) || quantity <= 0) throw new TypeError("amount must be a positive integer");
-            return audited(actor, "admin.inventory", `inventory.${operation}`, player, reason, { item, amount: quantity }, () => inventory.inventory[operation === "give" ? "add" : "remove"](player, item, quantity));
+            return audited(actor, "admin.inventory", `inventory.${operation}`, player, reason, { item, amount: quantity }, () => operation === "give"
+                ? inventory.inventory.add(player, item, quantity, { identified: true })
+                : inventory.inventory.remove(player, item, quantity));
         },
         async spellGrants(actor: Player, target: Player | number) {
             await permissions.require(actor, "admin.spells");

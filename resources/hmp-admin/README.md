@@ -59,7 +59,8 @@ accepts `HMP_ADMIN_COMMAND`, `HMP_ADMIN_REQUIRE_VERIFIED`, and `HMP_ADMIN_CONFIG
   Space/Ctrl vertical movement, Shift boost, collision bypass, and protected landing.
 - Corrections: server-filtered, searchable custom/native inventory items and spell grants,
   account/character groups, employment, and personal bank credits/debits in Galleons or another
-  registered currency. Revoking a personal spell grant does not override a spell allowed by policy rules.
+  registered currency. Native items granted by an administrator are identified by default. Revoking
+  a personal spell grant does not override a spell allowed by policy rules.
 - Recovery: inspect and explicitly complete, compensate, or fail pending bank transactions.
 - Audit: recent pending, completed, and failed actions with actor, target, reason, and error.
 

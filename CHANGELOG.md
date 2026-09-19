@@ -16,6 +16,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 - The admin inventory correction dialog now preselects its best catalog match and treats the audit
   reason as optional, so an exact single-result search can be submitted without reopening the item list.
+- Native items granted through the admin inventory correction now arrive identified by default,
+  matching the intended behavior for staff-issued gear.
 
 ## [0.4.1] - 2026-09-16
 
