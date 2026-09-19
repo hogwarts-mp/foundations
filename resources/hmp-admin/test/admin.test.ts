@@ -8,7 +8,7 @@ import type { AdminConfig, AdminRepository, Player } from "../server/internal";
 
 const { createPermissions } = permissionsModule;
 const { createAdminService } = serviceModule;
-const { inventoryOptions, spellOptions } = uiModule;
+const { inventoryOptions, inventoryItemField, spellOptions } = uiModule;
 
 test("builds searchable administration choices from canonical inventory definitions", () => {
     const inventory = {
@@ -25,6 +25,13 @@ test("builds searchable administration choices from canonical inventory definiti
     assert.deepStrictEqual(inventoryOptions(inventory, "BroomHouse"), [options[0]]);
     assert.deepStrictEqual(inventoryOptions(inventory, "house_broom"), [options[0]]);
     assert.deepStrictEqual(inventoryOptions(inventory, "documents sealed"), [options[1]]);
+    assert.deepStrictEqual(inventoryItemField(inventoryOptions(inventory, "BroomHouse"), "BroomHouse"), {
+        name: "item", label: "Item", type: "select", searchable: true, required: true,
+        default: "native:broomhouse",
+        placeholder: "Filter matching items…",
+        description: "1 match for 'BroomHouse'. Best match selected.",
+        options: [options[0]],
+    });
 });
 
 test("builds spell choices around the character's current personal grants", () => {
@@ -247,7 +254,7 @@ test("rejects administrative teleports across coordinate spaces", async () => {
 
 test("routes corrective mutations through foundations services with completed audit", async () => {
     const state = setup();
-    await state.service.actions.inventory(state.verifiedAdmin, state.verifiedTarget, "give", "test:wand", 2, "test item");
+    await state.service.actions.inventory(state.verifiedAdmin, state.verifiedTarget, "give", "test:wand", 2);
     await state.service.actions.group(state.verifiedAdmin, state.verifiedTarget, "set", "character", "prefect", 1, "promotion");
     await state.service.actions.job(state.verifiedAdmin, state.verifiedTarget, "hire", "auror", 2, "test employment");
     await state.service.actions.banking(state.verifiedAdmin, state.verifiedTarget, "credit", 50, "galleons", "test funds");
@@ -256,6 +263,7 @@ test("routes corrective mutations through foundations services with completed au
     assert.strictEqual(state.groupMutations.length, 1);
     assert.strictEqual(state.jobMutations.length, 1);
     assert.strictEqual(state.bankMutations.length, 2);
+    assert.strictEqual(state.audit[0].reason, "inventory.give");
     assert.ok(state.audit.every((entry) => entry.status === "completed"));
 });
 

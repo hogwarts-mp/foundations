@@ -1,5 +1,5 @@
 import type { HmpBankTransaction } from "../../hmp-banking/types";
-import type { HmpUiContextOption, HmpUiSelectOption } from "../../hmp-ui/types";
+import type { HmpUiContextOption, HmpUiInputField, HmpUiSelectOption } from "../../hmp-ui/types";
 import type { HmpAdmin, HmpAdminBan, HmpAdminCapability, HmpAdminPlayerSummary } from "../types";
 import type { Banking, Inventory, Player, Spells, Ui } from "./internal";
 
@@ -28,6 +28,16 @@ function inventoryOptions(inventory: Inventory, rawQuery = ""): HmpUiSelectOptio
         })
         .sort((left, right) => left.rank - right.rank || left.label.localeCompare(right.label))
         .map(({ rank: _rank, ...option }) => option);
+}
+
+function inventoryItemField(items: HmpUiSelectOption[], query: string): HmpUiInputField {
+    return {
+        name: "item", label: "Item", type: "select", searchable: true, required: true,
+        default: items[0]?.value,
+        placeholder: "Filter matching items…",
+        description: `${items.length} match${items.length === 1 ? "" : "es"} for '${query}'. Best match selected.`,
+        options: items,
+    };
 }
 
 function spellOptions(spells: Spells, rawQuery = "", granted: ReadonlyArray<string> = [], operation: SpellOperation = "grant"): HmpUiSelectOption[] {
@@ -144,14 +154,9 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
                 title: `Inventory · ${target.nickname}`,
                 fields: [
                     { name: "operation", label: "Operation", type: "select", options: [{ label: "Give", value: "give" }, { label: "Remove", value: "remove" }] },
-                    {
-                        name: "item", label: "Item", type: "select", searchable: true, required: true,
-                        placeholder: "Filter matching items…",
-                        description: `${items.length} match${items.length === 1 ? "" : "es"} for '${query}'.`,
-                        options: items,
-                    },
+                    inventoryItemField(items, query),
                     { name: "amount", label: "Amount", type: "number", min: 1, max: 100000, default: 1, required: true },
-                    { name: "reason", label: "Reason", type: "textarea", required: true },
+                    { name: "reason", label: "Reason (optional)", type: "textarea", placeholder: "Add a note for the audit log…" },
                 ],
                 submitLabel: "Apply",
             });
@@ -422,4 +427,4 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
     return Object.freeze({ open, close: (player: Player) => { openMenus.delete(player.id); return ui.close(player, "Admin menu closed"); }, status: () => ({ openMenus: openMenus.size }) });
 }
 
-export = { createAdminUi, inventoryOptions, spellOptions };
+export = { createAdminUi, inventoryOptions, inventoryItemField, spellOptions };

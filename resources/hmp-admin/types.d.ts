@@ -114,7 +114,7 @@ export interface HmpAdminActionsApi<P = HmpAdminPlayer> {
     release(actor: P, target: P | number, reason?: string): Promise<boolean>;
     /** Toggles camera-relative free-flight for the acting administrator. */
     noclip(actor: P, reason?: string): Promise<boolean>;
-    inventory(actor: P, target: P | number, operation: "give" | "remove", item: string, amount: number, reason: string): Promise<number>;
+    inventory(actor: P, target: P | number, operation: "give" | "remove", item: string, amount: number, reason?: string): Promise<number>;
     spellGrants(actor: P, target: P | number): Promise<string[]>;
     spell(actor: P, target: P | number, operation: "grant" | "revoke", spell: string, reason: string): Promise<boolean>;
     group(actor: P, target: P | number, operation: "set" | "remove", scope: "account" | "character", group: string, grade: number, reason: string): Promise<boolean>;

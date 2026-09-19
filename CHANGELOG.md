@@ -12,6 +12,11 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   camera-relative free-flight with collision bypass and protected landing based on the official
   HogwartsMP sample resource.
 
+### Changed
+
+- The admin inventory correction dialog now preselects its best catalog match and treats the audit
+  reason as optional, so an exact single-result search can be submitted without reopening the item list.
+
 ## [0.4.1] - 2026-09-16
 
 ### Changed

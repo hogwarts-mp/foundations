@@ -200,7 +200,7 @@ function createAdminService(options: {
                 return player.release("hmp-admin");
             });
         },
-        async inventory(actor: Player, target: Player | number, operation: "give" | "remove", item: string, amount: number, reason: string) {
+        async inventory(actor: Player, target: Player | number, operation: "give" | "remove", item: string, amount: number, reason = "") {
             const player = targetPlayer(target);
             const quantity = Math.trunc(Number(amount));
             if (!Number.isSafeInteger(quantity) || quantity <= 0) throw new TypeError("amount must be a positive integer");
