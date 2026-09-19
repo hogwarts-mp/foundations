@@ -60,11 +60,15 @@ function setup() {
     const personalSpells = new Map<number, Set<string>>();
     const kicked = new Map<number, string>();
     const holds = new Map<number, Set<string>>();
+    const emitted = new Map<number, Array<{ event: string; payload: unknown }>>();
 
     function player(id: number, nickname: string): Player {
         return {
             id, nickname, connected: true, ping: id * 5, position: { x: id * 100, y: id * 200, z: 300 }, virtualWorld: 0,
-            emit() {},
+            emit(event, payload) {
+                if (!emitted.has(id)) emitted.set(id, []);
+                emitted.get(id)!.push({ event, payload });
+            },
             location() { return { areaId: "Hogwarts", regionId: "LibraryAnnex", destinationId: null, x: this.position.x, y: this.position.y, z: this.position.z, yaw: 0, revision: 1 }; },
             kick(reason = "") { kicked.set(id, reason); },
             teleport() { return nextTeleport++; },
@@ -118,8 +122,9 @@ function setup() {
 
     const config: AdminConfig = {
         command: "admin", requireVerifiedIdentity: true, allowUnsafeAssertedBans: false, teleportTimeoutMs: 5000, auditPageSize: 50,
+        noclip: { speed: 4500, boost: 3, tickMs: 11, movement: { forward: "w", back: "s", left: "a", right: "d", up: "space", down: "ctrl", boost: "shift" } },
         bootstrapSecret: "closed-test-secret", roleRules: [
-            { group: "admin", minimumGrade: 1, capabilities: ["admin.view", "admin.kick", "admin.teleport", "admin.freeze", "admin.warn"] },
+            { group: "admin", minimumGrade: 1, capabilities: ["admin.view", "admin.kick", "admin.teleport", "admin.freeze", "admin.warn", "admin.noclip"] },
             { group: "admin", minimumGrade: 2, capabilities: ["admin.groups", "admin.jobs", "admin.inventory", "admin.spells", "admin.banking", "admin.audit"] },
             { group: "admin", minimumGrade: 3, capabilities: ["admin.ban", "admin.reconcile"] },
         ],
@@ -172,7 +177,7 @@ function setup() {
         config, logger: { debug: () => true, info: () => true, warn: () => true, error: () => true }, migrations: [],
         listPlayers: () => players, getPlayer: (id) => players.find((entry) => entry.id === id) || null,
     });
-    return { service, permissions, config, verifiedAdmin, assertedAdmin, verifiedTarget, assertedTarget, audit, warnings, bans, kicked, holds, inventoryMutations, groupMutations, jobMutations, bankMutations, spellMutations };
+    return { service, permissions, config, verifiedAdmin, assertedAdmin, verifiedTarget, assertedTarget, audit, warnings, bans, kicked, holds, emitted, groupGrades, inventoryMutations, groupMutations, jobMutations, bankMutations, spellMutations };
 }
 
 test("requires verified staff identity but supports session-only closed-test bootstrap", async () => {
@@ -184,7 +189,26 @@ test("requires verified staff identity but supports session-only closed-test boo
     assert.strictEqual(await state.permissions.has(state.assertedAdmin, "admin.ban"), true);
     assert.strictEqual(state.permissions.revoke(state.assertedAdmin), true);
     assert.strictEqual(await state.permissions.has(state.assertedAdmin, "admin.view"), false);
-    assert.deepStrictEqual(await state.permissions.capabilities(state.verifiedAdmin), ["admin.audit", "admin.ban", "admin.banking", "admin.freeze", "admin.groups", "admin.inventory", "admin.jobs", "admin.kick", "admin.reconcile", "admin.spells", "admin.teleport", "admin.view", "admin.warn"]);
+    assert.deepStrictEqual(await state.permissions.capabilities(state.verifiedAdmin), ["admin.audit", "admin.ban", "admin.banking", "admin.freeze", "admin.groups", "admin.inventory", "admin.jobs", "admin.kick", "admin.noclip", "admin.reconcile", "admin.spells", "admin.teleport", "admin.view", "admin.warn"]);
+});
+
+test("toggles and revokes audited administrator no-clip", async () => {
+    const state = setup();
+    assert.strictEqual(await state.service.actions.noclip(state.verifiedAdmin), true);
+    assert.strictEqual(state.service.status().activeNoclip, 1);
+    const enabled = state.emitted.get(state.verifiedAdmin.id)![0];
+    assert.strictEqual(enabled.event, "hmp-admin:noclip");
+    assert.deepStrictEqual(JSON.parse(String(enabled.payload)), { enabled: true, ...state.config.noclip });
+
+    assert.strictEqual(await state.service.actions.noclip(state.verifiedAdmin), false);
+    assert.strictEqual(state.service.status().activeNoclip, 0);
+    assert.deepStrictEqual(state.audit.map((entry) => entry.action), ["player.noclip.enable", "player.noclip.disable"]);
+
+    await state.service.actions.noclip(state.verifiedAdmin);
+    state.groupGrades.delete(state.verifiedAdmin.id);
+    assert.strictEqual(await state.service.revalidateNoclip(), 1);
+    assert.strictEqual(state.service.status().activeNoclip, 0);
+    assert.deepStrictEqual(JSON.parse(String(state.emitted.get(state.verifiedAdmin.id)!.at(-1)!.payload)), { enabled: false });
 });
 
 test("inspects, freezes, warns, kicks, and audits player actions", async () => {

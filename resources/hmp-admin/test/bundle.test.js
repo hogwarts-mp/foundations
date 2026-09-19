@@ -44,6 +44,8 @@ require(path.resolve(__dirname, "..", "dist", "server.js"));
 
 assert.deepStrictEqual([...exportsSeen.keys()], ["permissions", "players", "actions", "moderation", "audit", "status", "ui"]);
 assert.ok(handlers.has("hmp:session:ready"));
+assert.ok(handlers.has("hmp:session:ended"));
+assert.ok(handlers.has("hmp:groups:changed"));
 assert.ok(handlers.has("playerDisconnect"));
 assert.ok(handlers.has("playerTeleportComplete"));
 assert.ok(handlers.has("chatCommand"));
@@ -53,5 +55,6 @@ void (async () => {
     await handlers.get("resourceStart")("hmp-admin");
     assert.strictEqual(exportsSeen.get("status")().state, "ready");
     assert.strictEqual(exportsSeen.get("status")().bootstrapEnabled, false);
+    assert.strictEqual(exportsSeen.get("status")().activeNoclip, 0);
     console.log("hmp-admin bundle contract passed");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

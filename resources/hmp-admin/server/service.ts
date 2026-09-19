@@ -40,6 +40,7 @@ function createAdminService(options: {
 }) {
     const { repository, permissions, core, inventory, banking, jobs, spells, config, logger, migrations, listPlayers, getPlayer } = options;
     const pendingTeleports = new Map<string, TeleportWaiter>();
+    const activeNoclip = new Set<number>();
     const startedAt = Date.now();
     let state: "starting" | "ready" | "degraded" | "stopped" = "starting";
     let lastError = "";
@@ -155,6 +156,14 @@ function createAdminService(options: {
     });
 
     const actions = Object.freeze({
+        async noclip(actor: Player, reason = "Toggle administrator no-clip") {
+            const enabled = !activeNoclip.has(actor.id);
+            return audited(actor, "admin.noclip", `player.noclip.${enabled ? "enable" : "disable"}`, actor, reason, { enabled }, () => {
+                actor.emit("hmp-admin:noclip", JSON.stringify({ enabled, ...config.noclip }));
+                if (enabled) activeNoclip.add(actor.id); else activeNoclip.delete(actor.id);
+                return enabled;
+            });
+        },
         async kick(actor: Player, target: Player | number, reason: string) {
             const player = targetPlayer(target);
             if (player === actor) throw adminError("HMP_ADMIN_SELF_TARGET", "You cannot kick yourself.");
@@ -318,7 +327,24 @@ function createAdminService(options: {
         return true;
     }
 
+    async function revalidateNoclip(): Promise<number> {
+        let revoked = 0;
+        for (const playerId of [...activeNoclip]) {
+            const player = getPlayer(playerId);
+            if (player && await permissions.has(player, "admin.noclip")) continue;
+            activeNoclip.delete(playerId);
+            try { player?.emit("hmp-admin:noclip", JSON.stringify({ enabled: false })); }
+            catch (error) { logger.warn(`Could not notify player #${playerId} that no-clip was revoked: ${error instanceof Error ? error.message : String(error)}`); }
+            revoked++;
+        }
+        return revoked;
+    }
+
     function disconnect(player: Player): void {
+        if (activeNoclip.delete(player.id)) {
+            try { player.emit("hmp-admin:noclip", JSON.stringify({ enabled: false })); }
+            catch (_) { /* the connection may already be gone */ }
+        }
         permissions.revoke(player);
         for (const [key, pending] of pendingTeleports) {
             if (pending.playerId !== player.id) continue;
@@ -330,6 +356,11 @@ function createAdminService(options: {
 
     async function stop(): Promise<void> {
         state = "stopped";
+        for (const playerId of activeNoclip) {
+            try { getPlayer(playerId)?.emit("hmp-admin:noclip", JSON.stringify({ enabled: false })); }
+            catch (_) { /* client cleanup also restores collision during resource stop */ }
+        }
+        activeNoclip.clear();
         for (const [key, pending] of pendingTeleports) {
             clearTimeout(pending.timer);
             pendingTeleports.delete(key);
@@ -346,9 +377,10 @@ function createAdminService(options: {
         ready: () => startPromise,
         onSessionReady,
         onTeleportComplete,
+        revalidateNoclip,
         disconnect,
         stop,
-        status: () => ({ state, lastError, ...permissions.status(), pendingTeleports: pendingTeleports.size, uptimeMs: Date.now() - startedAt }),
+        status: () => ({ state, lastError, ...permissions.status(), pendingTeleports: pendingTeleports.size, activeNoclip: activeNoclip.size, uptimeMs: Date.now() - startedAt }),
     });
 }
 

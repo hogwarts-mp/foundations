@@ -5,6 +5,13 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+### Added
+
+- `hmp-admin` now offers capability-gated no-clip in the main admin menu. The server audits every
+  toggle and revokes active flight on permission loss, disconnect, or shutdown; the client uses
+  camera-relative free-flight with collision bypass and protected landing based on the official
+  HogwartsMP sample resource.
+
 ## [0.4.1] - 2026-09-16
 
 ### Changed

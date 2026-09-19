@@ -425,6 +425,9 @@ declare global {
 
     const LocalPlayer: {
         getPosition(): HogwartsMpVector3 | null;
+        setPosition(x: number, y: number, z: number): boolean;
+        setCollision(enabled: boolean): boolean;
+        clearVelocity(): boolean;
         getRotation(): { pitch: number; yaw: number; roll: number } | null;
         getControlRotation(): { pitch: number; yaw: number; roll: number } | null;
         /** Equippable gear slots from the game's GearSlotTypes table; empty until the GearManager is up. */

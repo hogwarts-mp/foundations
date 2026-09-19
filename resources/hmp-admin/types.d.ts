@@ -5,6 +5,7 @@ export type HmpAdminCapability =
     | "admin.kick"
     | "admin.teleport"
     | "admin.freeze"
+    | "admin.noclip"
     | "admin.warn"
     | "admin.ban"
     | "admin.groups"
@@ -111,6 +112,8 @@ export interface HmpAdminActionsApi<P = HmpAdminPlayer> {
     bring(actor: P, target: P | number, reason?: string): Promise<number>;
     freeze(actor: P, target: P | number, reason?: string): Promise<boolean>;
     release(actor: P, target: P | number, reason?: string): Promise<boolean>;
+    /** Toggles camera-relative free-flight for the acting administrator. */
+    noclip(actor: P, reason?: string): Promise<boolean>;
     inventory(actor: P, target: P | number, operation: "give" | "remove", item: string, amount: number, reason: string): Promise<number>;
     spellGrants(actor: P, target: P | number): Promise<string[]>;
     spell(actor: P, target: P | number, operation: "grant" | "revoke", spell: string, reason: string): Promise<boolean>;
@@ -140,6 +143,7 @@ export interface HmpAdminStatus {
     bootstrapEnabled: boolean;
     bootstrapSessions: number;
     pendingTeleports: number;
+    activeNoclip: number;
     uptimeMs: number;
 }
 

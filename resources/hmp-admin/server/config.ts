@@ -10,8 +10,14 @@ function loadConfig(Hmp: HmpLibServer<Player>, options: { env?: NodeJS.ProcessEn
         teleportTimeoutMs: 120000,
         auditPageSize: 50,
         bootstrapSecret: "",
+        noclip: {
+            speed: 4500,
+            boost: 3,
+            tickMs: 11,
+            movement: { forward: "w", back: "s", left: "a", right: "d", up: "space", down: "ctrl", boost: "shift" },
+        },
         roleRules: [
-            { group: "admin", minimumGrade: 1, capabilities: ["admin.view", "admin.kick", "admin.teleport", "admin.freeze", "admin.warn", "admin.announce"] },
+            { group: "admin", minimumGrade: 1, capabilities: ["admin.view", "admin.kick", "admin.teleport", "admin.freeze", "admin.warn", "admin.announce", "admin.noclip"] },
             { group: "admin", minimumGrade: 2, capabilities: ["admin.groups", "admin.jobs", "admin.inventory", "admin.spells", "admin.banking", "admin.audit", "admin.environment"] },
             { group: "admin", minimumGrade: 3, capabilities: ["admin.ban", "admin.reconcile"] },
         ],
@@ -26,6 +32,22 @@ function loadConfig(Hmp: HmpLibServer<Player>, options: { env?: NodeJS.ProcessEn
     }
     config.teleportTimeoutMs = Math.max(5000, Math.min(300000, Math.trunc(Number(config.teleportTimeoutMs)) || 120000));
     config.auditPageSize = Math.max(10, Math.min(200, Math.trunc(Number(config.auditPageSize)) || 50));
+    const noclip = config.noclip && typeof config.noclip === "object" ? config.noclip : defaults.noclip;
+    const movement = noclip.movement && typeof noclip.movement === "object" ? noclip.movement : defaults.noclip.movement;
+    config.noclip = {
+        speed: Math.max(100, Math.min(50000, Number(noclip.speed) || defaults.noclip.speed)),
+        boost: Math.max(1, Math.min(10, Number(noclip.boost) || defaults.noclip.boost)),
+        tickMs: Math.max(5, Math.min(100, Math.trunc(Number(noclip.tickMs)) || defaults.noclip.tickMs)),
+        movement: {
+            forward: String(movement.forward || defaults.noclip.movement.forward),
+            back: String(movement.back || defaults.noclip.movement.back),
+            left: String(movement.left || defaults.noclip.movement.left),
+            right: String(movement.right || defaults.noclip.movement.right),
+            up: String(movement.up || defaults.noclip.movement.up),
+            down: String(movement.down || defaults.noclip.movement.down),
+            boost: String(movement.boost || defaults.noclip.movement.boost),
+        },
+    };
     if (!Array.isArray(config.roleRules)) throw new TypeError("hmp-admin roleRules must be an array");
     return config;
 }

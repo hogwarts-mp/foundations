@@ -394,12 +394,20 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
             while (openMenus.has(player.id)) {
                 const capabilities = await admin.permissions.capabilities(player);
                 const menu = [{ id: "players", title: "Connected players", description: "Inspect, moderate, and correct a connected account." }];
+                if (allowed(capabilities, "admin.noclip")) menu.push({ id: "noclip", title: "Toggle no-clip", description: "Fly through geometry with WASD, Space/Ctrl, and Shift to boost." });
                 if (allowed(capabilities, "admin.reconcile")) menu.push({ id: "reconcile", title: "Pending banking recovery", description: "Resolve transactions left in a pending state." });
                 if (allowed(capabilities, "admin.ban")) menu.push({ id: "bans", title: "Ban records", description: "Review and revoke identity bans." });
                 if (allowed(capabilities, "admin.audit")) menu.push({ id: "audit", title: "Administrative audit", description: "Review recent successful, failed, and pending actions." });
                 const choice = await ui.context(player, { title: "HMP Administration", description: "Closed-test moderation and recovery tools", options: menu });
                 if (!choice) break;
                 if (choice === "players") await playersMenu(player, capabilities);
+                else if (choice === "noclip") {
+                    try {
+                        const enabled = await admin.actions.noclip(player);
+                        ui.notify(player, { title: `No-clip ${enabled ? "enabled" : "disabled"}`, description: enabled ? "WASD to move, Space/Ctrl for height, Shift to boost. Reopen /admin to turn it off." : "Collision restored; fall protection remains until landing.", tone: enabled ? "success" : "inform", duration: 7000 });
+                        if (enabled) break;
+                    } catch (error) { notifyError(player, error); }
+                }
                 else if (choice === "reconcile") await reconcileMenu(player);
                 else if (choice === "bans") await bansMenu(player);
                 else if (choice === "audit") await auditMenu(player);

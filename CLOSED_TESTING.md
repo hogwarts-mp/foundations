@@ -243,6 +243,8 @@ created test transaction after its state has been inspected.
   and verify both mouse and arrow-key selection return the chosen value.
 - Locate the intended player using nickname, ID, account, character, and identity-trust details.
 - Warn, freeze/release, go to, bring, and kick a consenting test player.
+- Toggle no-clip from the main admin menu, verify camera-relative WASD and Space/Ctrl movement,
+  Shift boost, collision bypass, a safe landing after disabling, and a matching audit entry.
 - Confirm go-to and bring reject players in different game areas rather than applying foreign-map
   coordinates.
 - Correct a custom item, group, job grade, and small Galleon balance, then verify the result.

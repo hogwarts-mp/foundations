@@ -31,7 +31,7 @@ The default `admin` group grants capabilities cumulatively:
 
 | Grade | Capabilities |
 |---:|---|
-| 1 | View players, kick, go to/bring, freeze/release, warn, announce |
+| 1 | View players, kick, go to/bring, freeze/release, warn, announce, no-clip |
 | 2 | Groups, employment, inventory, personal spell grants, banking, audit history, environment controls |
 | 3 | Verified-identity bans and pending bank reconciliation |
 
@@ -55,17 +55,21 @@ accepts `HMP_ADMIN_COMMAND`, `HMP_ADMIN_REQUIRE_VERIFIED`, and `HMP_ADMIN_CONFIG
   and administrative freeze state.
 - Moderation: durable warnings, kick, verified-identity timed or permanent bans, ban review/revoke.
 - Intervention: acknowledged streamed go-to/bring and Framework-authoritative freeze/release.
+- Staff movement: audited, server-authorized no-clip from the main menu, with camera-relative WASD,
+  Space/Ctrl vertical movement, Shift boost, collision bypass, and protected landing.
 - Corrections: server-filtered, searchable custom/native inventory items and spell grants,
   account/character groups, employment, and personal bank credits/debits in Galleons or another
   registered currency. Revoking a personal spell grant does not override a spell allowed by policy rules.
 - Recovery: inspect and explicitly complete, compensate, or fail pending bank transactions.
 - Audit: recent pending, completed, and failed actions with actor, target, reason, and error.
 
-Noclip, god mode, and spectating are intentionally absent. Foundations does not yet have sufficiently
-authoritative Framework contracts for those tools. Inventory corrections are limited to definitions
+Standalone god mode and spectating are intentionally absent. Inventory corrections are limited to definitions
 registered with `hmp-inventory`; native entries are routed through the Framework's authoritative catalog.
 The inventory editor searches that catalog on the server first and sends at most 32 exact choices to the
 client, keeping the dialog below the Framework event-payload limit even with thousands of native items.
+
+No-clip tuning and movement keys can be overridden in the `noclip` object in `data/hmp-admin.json`.
+The defaults are `4500` cm/s, a `3x` Shift boost, and QWERTY WASD movement.
 
 ## Suggested closed-test feedback
 

@@ -41,6 +41,8 @@ Events.on("hmp:session:ready", (session: unknown) => {
     admin.onSessionReady(session as HmpCoreSession<Player>).catch((error: unknown) => logger.error(`Ban check failed: ${messageOf(error)}`));
 });
 Events.on("playerDisconnect", (player: Player) => { adminUi.close(player); admin.disconnect(player); });
+Events.on("hmp:session:ended", (session: unknown) => { const player = (session as HmpCoreSession<Player>)?.player; if (player) { adminUi.close(player); admin.disconnect(player); } });
+Events.on("hmp:groups:changed", () => { admin.revalidateNoclip().catch((error: unknown) => logger.error(`No-clip permission refresh failed: ${messageOf(error)}`)); });
 Events.on("playerTeleportComplete", (player: Player, requestId: number, status: number, completion: HogwartsMpTeleportCompletion) => admin.onTeleportComplete(player, requestId, status, completion));
 
 if (config.command) {

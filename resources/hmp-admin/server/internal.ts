@@ -18,6 +18,21 @@ export type Ui = HmpUiServer<Player>;
 export type Database = HmpMySQL;
 export type Logger = Pick<HmpLogger, "debug" | "info" | "warn" | "error">;
 
+export interface AdminNoclipConfig {
+    speed: number;
+    boost: number;
+    tickMs: number;
+    movement: {
+        forward: string;
+        back: string;
+        left: string;
+        right: string;
+        up: string;
+        down: string;
+        boost: string;
+    };
+}
+
 export interface AdminConfig extends Record<string, unknown> {
     command: string;
     requireVerifiedIdentity: boolean;
@@ -26,6 +41,7 @@ export interface AdminConfig extends Record<string, unknown> {
     auditPageSize: number;
     roleRules: HmpAdminRoleRule[];
     bootstrapSecret: string;
+    noclip: AdminNoclipConfig;
 }
 
 export interface AuditStart {

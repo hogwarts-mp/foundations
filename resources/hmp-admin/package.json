@@ -7,7 +7,7 @@
   "license": "SEE LICENSE IN LICENSE",
   "main": "dist/server.js",
   "scripts": {
-    "build": "esbuild server/main.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/server.js --legal-comments=inline",
+    "build": "esbuild server/main.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/server.js --legal-comments=inline && esbuild client/main.ts --bundle --platform=browser --target=es2022 --format=iife --outfile=dist/client.js --legal-comments=inline",
     "test": "tsx test/admin.test.ts",
     "typecheck": "tsc -p tsconfig.json",
     "smoke": "node test/bundle.test.js"
@@ -19,6 +19,12 @@
   "mafiahub": {
     "serverScripts": [
       "dist/server.js"
+    ],
+    "clientScripts": [
+      "dist/client.js"
+    ],
+    "files": [
+      "dist/client.js"
     ],
     "exports": ["permissions", "players", "actions", "moderation", "audit", "ui", "status"],
     "resourceDependencies": [
