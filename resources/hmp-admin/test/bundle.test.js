@@ -17,6 +17,14 @@ const core = {
 const ui = { notify: () => true, input: async () => null, context: async () => null, close: () => true };
 const banking = { transactions: { pending: async () => [] } };
 const spells = { catalog: { get: () => null, list: () => [] }, grants: { list: async () => [], grant: async () => false, revoke: async () => false } };
+const environmentState = { weather: "Clear", hour: 9, minute: 0, second: 0, day: 1, month: 9, year: 0, season: 2, timeScale: 1, revision: 1 };
+const world = {
+    environment: {
+        baseline: () => ({ weather: "Clear", time: { hour: 9, minute: 0, second: 0, scale: 1 }, date: { day: 1, month: 9, year: 0 }, season: "autumn" }),
+        state: () => ({ ...environmentState }), reset: () => ({ ...environmentState }),
+        setWeather: () => true, setTime: () => true, setDate: () => true, setSeason: () => true, setTimeScale: () => true,
+    },
+};
 
 global.Exports = { register: (name, value) => exportsSeen.set(name, value) };
 global.Imports = {
@@ -28,6 +36,7 @@ global.Imports = {
         if (name === "hmp-banking") return banking;
         if (name === "hmp-jobs") return { employment: {} };
         if (name === "hmp-spells") return spells;
+        if (name === "hmp-world") return world;
         if (name === "hmp-lib") return {
             logger: { create: () => logger },
             config: { load: (_path, options) => ({ ...options.defaults }), env: { boolean: (_value, fallback) => fallback } },

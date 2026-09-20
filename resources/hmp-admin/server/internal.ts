@@ -6,6 +6,7 @@ import type { HmpLogger } from "../../hmp-lib/types";
 import type { HmpMySQL, HmpMySQLMigration } from "../../hmp-mysql/types";
 import type { HmpSpellsServer } from "../../hmp-spells/types";
 import type { HmpUiServer } from "../../hmp-ui/types";
+import type { HmpWorld } from "../../hmp-world/types";
 import type { HmpAdminAuditEntry, HmpAdminBan, HmpAdminCapability, HmpAdminRoleRule, HmpAdminWarning } from "../types";
 
 export type Player = HogwartsMpPlayer;
@@ -15,6 +16,7 @@ export type Banking = HmpBanking<Player>;
 export type Jobs = HmpJobs<Player>;
 export type Spells = HmpSpellsServer<Player>;
 export type Ui = HmpUiServer<Player>;
+export type World = HmpWorld<Player>;
 export type Database = HmpMySQL;
 export type Logger = Pick<HmpLogger, "debug" | "info" | "warn" | "error">;
 

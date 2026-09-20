@@ -35,7 +35,8 @@
       { "name": "hmp-inventory", "version": "0.4.1" },
       { "name": "hmp-banking", "version": "0.4.1" },
       { "name": "hmp-jobs", "version": "0.4.1" },
-      { "name": "hmp-spells", "version": "0.4.1" }
+      { "name": "hmp-spells", "version": "0.4.1" },
+      { "name": "hmp-world", "version": "0.4.1" }
     ],
     "errorBehavior": "stop",
     "priority": -300

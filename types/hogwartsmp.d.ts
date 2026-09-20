@@ -376,6 +376,7 @@ declare global {
         get(name: "hmp-audio"): import("../resources/hmp-audio/types").HmpAudioServer<HogwartsMpPlayer>;
         get(name: "hmp-blips"): import("../resources/hmp-blips/types").HmpBlipsServer<HogwartsMpPlayer>;
         get(name: "hmp-spells"): import("../resources/hmp-spells/types").HmpSpellsServer<HogwartsMpPlayer>;
+        get(name: "hmp-world"): import("../resources/hmp-world/types").HmpWorld<HogwartsMpPlayer>;
         get(name: "hmp-activities"): import("../resources/hmp-activities/types").HmpActivities<HogwartsMpPlayer>;
         get(name: "hmp-pvp"): import("../resources/hmp-pvp/types").HmpPvp<HogwartsMpPlayer>;
         get(name: "hmp-duels"): import("../resources/hmp-duels/types").HmpDuels<HogwartsMpPlayer>;

@@ -11,7 +11,9 @@ import type {
     Logger,
     Player,
     Spells,
+    World,
 } from "./internal";
+import type { HmpWorldSeason } from "../../hmp-world/types";
 
 interface TeleportWaiter {
     playerId: number;
@@ -32,13 +34,14 @@ function createAdminService(options: {
     banking: Banking;
     jobs: Jobs;
     spells: Spells;
+    world: World;
     config: AdminConfig;
     logger: Logger;
     migrations: Parameters<AdminRepository["start"]>[0];
     listPlayers: () => Player[];
     getPlayer: (id: number) => Player | null;
 }) {
-    const { repository, permissions, core, inventory, banking, jobs, spells, config, logger, migrations, listPlayers, getPlayer } = options;
+    const { repository, permissions, core, inventory, banking, jobs, spells, world, config, logger, migrations, listPlayers, getPlayer } = options;
     const pendingTeleports = new Map<string, TeleportWaiter>();
     const activeNoclip = new Set<number>();
     const startedAt = Date.now();
@@ -64,6 +67,34 @@ function createAdminService(options: {
 
     function reasonOf(value: unknown, fallback: string): string {
         return (String(value || "").trim().slice(0, 500) || fallback);
+    }
+
+    function integer(value: unknown, label: string, minimum: number, maximum: number): number {
+        const result = Number(value);
+        if (!Number.isSafeInteger(result) || result < minimum || result > maximum) throw new TypeError(`${label} must be an integer from ${minimum} to ${maximum}`);
+        return result;
+    }
+
+    function decimal(value: unknown, label: string, minimum: number, maximum: number): number {
+        const result = Number(value);
+        if (!Number.isFinite(result) || result < minimum || result > maximum) throw new TypeError(`${label} must be a number from ${minimum} to ${maximum}`);
+        return result;
+    }
+
+    function calendarDate(rawDay: number, rawMonth: number, rawYear: number): { day: number; month: number; year: number } {
+        const month = integer(rawMonth, "month", 1, 12);
+        const year = integer(rawYear, "year", 0, 65535);
+        const maximumDay = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+        const day = integer(rawDay, "day", 1, maximumDay);
+        return { day, month, year };
+    }
+
+    function season(value: unknown): HmpWorldSeason {
+        const names = ["spring", "summer", "autumn", "winter"] as const;
+        if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= 3) return value as 0 | 1 | 2 | 3;
+        const name = String(value || "").trim().toLowerCase();
+        if (names.includes(name as typeof names[number])) return name as typeof names[number];
+        throw new TypeError("season must be spring, summer, autumn, or winter");
     }
 
     function locationOf(player: Player): HogwartsMpPlayerLocation | null {
@@ -155,7 +186,67 @@ function createAdminService(options: {
         },
     });
 
+    const environment = Object.freeze({
+        async state(actor: Player) {
+            await permissions.require(actor, "admin.environment");
+            return world.environment.state();
+        },
+        async baseline(actor: Player) {
+            await permissions.require(actor, "admin.environment");
+            return world.environment.baseline();
+        },
+        async weather(actor: Player, rawWeather: string, reason = "") {
+            const weather = String(rawWeather || "").trim();
+            if (!weather || weather.length > 128) throw new TypeError("weather must be a non-empty string up to 128 characters");
+            const previous = world.environment.state()?.weather ?? null;
+            return audited(actor, "admin.environment", "environment.weather", null, reason, { previous, weather }, () => {
+                if (!world.environment.setWeather(weather)) throw adminError("HMP_ADMIN_ENVIRONMENT_REJECTED", `The Framework rejected weather '${weather}'.`);
+                return true;
+            });
+        },
+        async time(actor: Player, rawHour: number, rawMinute: number, rawSecond = 0, reason = "") {
+            const hour = integer(rawHour, "hour", 0, 23);
+            const minute = integer(rawMinute, "minute", 0, 59);
+            const second = integer(rawSecond, "second", 0, 59);
+            const previous = world.environment.state();
+            return audited(actor, "admin.environment", "environment.time", null, reason, { previous: previous ? { hour: previous.hour, minute: previous.minute, second: previous.second } : null, hour, minute, second }, () => {
+                if (!world.environment.setTime(hour, minute, second)) throw adminError("HMP_ADMIN_ENVIRONMENT_REJECTED", "The Framework rejected that world time.");
+                return true;
+            });
+        },
+        async date(actor: Player, rawDay: number, rawMonth: number, rawYear = 0, reason = "") {
+            const { day, month, year } = calendarDate(rawDay, rawMonth, rawYear);
+            const previous = world.environment.state();
+            return audited(actor, "admin.environment", "environment.date", null, reason, { previous: previous ? { day: previous.day, month: previous.month, year: previous.year } : null, day, month, year }, () => {
+                if (!world.environment.setDate(day, month, year)) throw adminError("HMP_ADMIN_ENVIRONMENT_REJECTED", "The Framework rejected that world date.");
+                return true;
+            });
+        },
+        async season(actor: Player, rawSeason: HmpWorldSeason, reason = "") {
+            const value = season(rawSeason);
+            const previous = world.environment.state()?.season ?? null;
+            return audited(actor, "admin.environment", "environment.season", null, reason, { previous, season: value }, () => {
+                if (!world.environment.setSeason(value)) throw adminError("HMP_ADMIN_ENVIRONMENT_REJECTED", "The Framework rejected that world season.");
+                return true;
+            });
+        },
+        async timeScale(actor: Player, rawScale: number, reason = "") {
+            const scale = decimal(rawScale, "time scale", 0, 600);
+            const previous = world.environment.state()?.timeScale ?? null;
+            return audited(actor, "admin.environment", "environment.time-scale", null, reason, { previous, scale }, () => {
+                if (!world.environment.setTimeScale(scale)) throw adminError("HMP_ADMIN_ENVIRONMENT_REJECTED", "The Framework rejected that clock speed.");
+                return true;
+            });
+        },
+        async reset(actor: Player, reason = "") {
+            const previous = world.environment.state();
+            const baseline = world.environment.baseline();
+            return audited(actor, "admin.environment", "environment.reset", null, reason, { previous, baseline }, () => world.environment.reset());
+        },
+    });
+
     const actions = Object.freeze({
+        environment,
         async noclip(actor: Player, reason = "Toggle administrator no-clip") {
             const enabled = !activeNoclip.has(actor.id);
             return audited(actor, "admin.noclip", `player.noclip.${enabled ? "enable" : "disable"}`, actor, reason, { enabled }, () => {

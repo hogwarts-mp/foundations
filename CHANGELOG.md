@@ -11,6 +11,9 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   toggle and revokes active flight on permission loss, disconnect, or shutdown; the client uses
   camera-relative free-flight with collision bypass and protected landing based on the official
   HogwartsMP sample resource.
+- `hmp-admin` now offers capability-gated global weather, season, date, time, and clock-speed controls backed by
+  `hmp-world`, with a searchable dropdown of 34 known native weather profiles, audit records, and a
+  confirmation-gated reset to the configured baseline.
 
 ### Changed
 

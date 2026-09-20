@@ -8,6 +8,37 @@ type AdminService = Pick<HmpAdmin<Player>, "permissions" | "players" | "actions"
 const MAX_INVENTORY_CHOICES = 32;
 const MAX_SPELL_CHOICES = 32;
 type SpellOperation = "grant" | "revoke";
+const SEASON_NAMES = ["spring", "summer", "autumn", "winter"] as const;
+const SEASON_OPTIONS: HmpUiSelectOption[] = SEASON_NAMES.map((season) => ({ label: `${season[0].toUpperCase()}${season.slice(1)}`, value: season }));
+
+const WEATHER_PROFILES = Object.freeze([
+    "Clear", "Default_PHY", "Announce", "Astronomy", "Intro_01", "MKT_Nov11",
+    "LightClouds_01", "LightRain_01", "Rainy", "Misty_01", "MistyOvercast_01",
+    "Overcast_01", "Overcast_Heavy_01", "Overcast_Windy_01", "Stormy_01",
+    "StormyLarge_01", "FIG_07_Storm", "TestStormShort", "TestWind", "HighAltitudeOnly",
+    "ForbiddenForest_01", "Sanctuary_Bog", "Sanctuary_Coastal", "Sanctuary_Forest",
+    "Sanctuary_Grasslands", "Summer_Overcast_Heavy_01", "Overcast_Heavy_Winter_01",
+    "Winter_Misty_01", "Winter_Overcast_01", "Winter_Overcast_Windy_01", "Snow_01",
+    "Snow_Const", "SnowLight_01", "SnowShort",
+]);
+
+function weatherOptions(current?: string | null, baseline?: string | null): HmpUiSelectOption[] {
+    const extras = [current, baseline]
+        .map((value) => String(value || "").trim())
+        .filter((value, index, values) => Boolean(value) && !WEATHER_PROFILES.includes(value) && values.indexOf(value) === index);
+    return [...extras, ...WEATHER_PROFILES].map((profile) => {
+        const markers = [];
+        if (profile === current) markers.push("Current");
+        if (profile === baseline) markers.push("Configured baseline");
+        return { label: profile, value: profile, description: markers.join(" · ") || "Known native profile" };
+    });
+}
+
+function seasonName(value: string | number): typeof SEASON_NAMES[number] {
+    if (typeof value === "number") return SEASON_NAMES[value] || "spring";
+    const normalized = String(value).toLowerCase();
+    return SEASON_NAMES.includes(normalized as typeof SEASON_NAMES[number]) ? normalized as typeof SEASON_NAMES[number] : "spring";
+}
 
 function inventoryOptions(inventory: Inventory, rawQuery = ""): HmpUiSelectOption[] {
     const query = String(rawQuery || "").trim().toLowerCase();
@@ -362,6 +393,115 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
         await run(player, () => admin.actions.reconcile(player, transaction.reference, text(result.resolution) as "complete" | "compensate" | "fail", text(result.reason)), "Transaction reconciled.");
     }
 
+    async function environmentMenu(player: Player): Promise<void> {
+        while (openMenus.has(player.id)) {
+            let state: Awaited<ReturnType<typeof admin.actions.environment.state>>;
+            let baseline: Awaited<ReturnType<typeof admin.actions.environment.baseline>>;
+            try {
+                [state, baseline] = await Promise.all([
+                    admin.actions.environment.state(player),
+                    admin.actions.environment.baseline(player),
+                ]);
+            } catch (error) { notifyError(player, error); return; }
+
+            const clock = state
+                ? `${String(state.hour).padStart(2, "0")}:${String(state.minute).padStart(2, "0")}:${String(state.second).padStart(2, "0")}`
+                : "Unavailable";
+            const choice = await ui.context(player, {
+                title: "World environment",
+                description: "Changes apply globally until reset or server restart.",
+                options: [
+                    {
+                        id: "current", title: "Current environment", disabled: true,
+                        description: state ? `Revision ${state.revision}` : "The live environment is not available yet.",
+                        metadata: [
+                            { label: "Weather", value: state?.weather || "Unavailable" },
+                            { label: "Time", value: clock },
+                            { label: "Date", value: state ? `${state.day}/${state.month}/${state.year || "Native"}` : "Unavailable" },
+                            { label: "Season", value: state ? SEASON_OPTIONS[state.season]?.label || "Unavailable" : "Unavailable" },
+                            { label: "Clock speed", value: state ? `${state.timeScale}x` : "Unavailable" },
+                        ],
+                    },
+                    { id: "weather", title: "Set weather", description: "Apply a Hogwarts Legacy weather profile globally." },
+                    { id: "time", title: "Set time", description: "Set the global 24-hour world clock." },
+                    { id: "date", title: "Set date", description: "Set the global calendar day, month, and year." },
+                    { id: "season", title: "Set season", description: "Change global seasonal presentation and decorations." },
+                    { id: "time-scale", title: "Set clock speed", description: "Control how quickly world time advances; 0 freezes it." },
+                    { id: "reset", title: "Reset to configured baseline", description: `${baseline.weather} at ${String(baseline.time.hour).padStart(2, "0")}:${String(baseline.time.minute).padStart(2, "0")} (${baseline.time.scale}x).`, tone: "warning" },
+                ],
+            });
+            if (!choice) return;
+
+            if (choice === "weather") {
+                const result = await ui.input(player, {
+                    title: "Set global weather",
+                    fields: [
+                        {
+                            name: "weather", label: "Weather profile", type: "select", searchable: true, required: true,
+                            default: state?.weather || baseline.weather,
+                            description: `${WEATHER_PROFILES.length} known profiles. The current and configured baseline profiles are also included when custom.`,
+                            options: weatherOptions(state?.weather, baseline.weather),
+                        },
+                        { name: "reason", label: "Reason (optional)", type: "textarea", placeholder: "Add a note for the audit log…" },
+                    ],
+                    submitLabel: "Apply weather",
+                });
+                if (result) await run(player, () => admin.actions.environment.weather(player, text(result.weather), text(result.reason)), "Global weather updated.");
+            } else if (choice === "time") {
+                const result = await ui.input(player, {
+                    title: "Set global time",
+                    fields: [
+                        { name: "hour", label: "Hour (0–23)", type: "number", min: 0, max: 23, default: state?.hour ?? baseline.time.hour, required: true },
+                        { name: "minute", label: "Minute (0–59)", type: "number", min: 0, max: 59, default: state?.minute ?? baseline.time.minute, required: true },
+                        { name: "second", label: "Second (0–59)", type: "number", min: 0, max: 59, default: state?.second ?? baseline.time.second, required: true },
+                        { name: "reason", label: "Reason (optional)", type: "textarea", placeholder: "Add a note for the audit log…" },
+                    ],
+                    submitLabel: "Set time",
+                });
+                if (result) await run(player, () => admin.actions.environment.time(player, number(result.hour), number(result.minute), number(result.second), text(result.reason)), "Global time updated.");
+            } else if (choice === "date") {
+                const result = await ui.input(player, {
+                    title: "Set global date",
+                    fields: [
+                        { name: "day", label: "Day", type: "number", min: 1, max: 31, default: state?.day ?? baseline.date.day, required: true },
+                        { name: "month", label: "Month", type: "number", min: 1, max: 12, default: state?.month ?? baseline.date.month, required: true },
+                        { name: "year", label: "Year", type: "number", min: 0, max: 65535, default: state?.year ?? baseline.date.year, required: true, description: "Use 0 to preserve the game's native year (approximately 1891)." },
+                        { name: "reason", label: "Reason (optional)", type: "textarea", placeholder: "Add a note for the audit log…" },
+                    ],
+                    submitLabel: "Set date",
+                });
+                if (result) await run(player, () => admin.actions.environment.date(player, number(result.day), number(result.month), number(result.year), text(result.reason)), "Global date updated.");
+            } else if (choice === "season") {
+                const result = await ui.input(player, {
+                    title: "Set global season",
+                    fields: [
+                        { name: "season", label: "Season", type: "select", required: true, default: state ? seasonName(state.season) : seasonName(baseline.season), options: SEASON_OPTIONS },
+                        { name: "reason", label: "Reason (optional)", type: "textarea", placeholder: "Add a note for the audit log…" },
+                    ],
+                    submitLabel: "Set season",
+                });
+                if (result) await run(player, () => admin.actions.environment.season(player, text(result.season) as typeof SEASON_NAMES[number], text(result.reason)), "Global season updated. Stream the area again if existing decorations do not refresh immediately.");
+            } else if (choice === "time-scale") {
+                const result = await ui.input(player, {
+                    title: "Set global clock speed",
+                    fields: [
+                        { name: "scale", label: "Clock speed", type: "number", min: 0, max: 600, default: state?.timeScale ?? baseline.time.scale, required: true, description: "0 freezes time; 1 advances at normal speed." },
+                        { name: "reason", label: "Reason (optional)", type: "textarea", placeholder: "Add a note for the audit log…" },
+                    ],
+                    submitLabel: "Set clock speed",
+                });
+                if (result) await run(player, () => admin.actions.environment.timeScale(player, number(result.scale), text(result.reason)), "Global clock speed updated.");
+            } else if (choice === "reset") {
+                const confirmation = await ui.alert(player, {
+                    title: "Reset world environment?",
+                    content: `This restores ${baseline.weather} at ${String(baseline.time.hour).padStart(2, "0")}:${String(baseline.time.minute).padStart(2, "0")}, plus the configured date, season, and clock speed.`,
+                    confirmLabel: "Reset environment", cancelLabel: "Keep current", cancel: true,
+                });
+                if (confirmation === "confirm") await run(player, () => admin.actions.environment.reset(player), "World environment reset to its configured baseline.");
+            }
+        }
+    }
+
     async function auditMenu(player: Player): Promise<void> {
         try {
             const entries = await admin.audit.history(player, 32);
@@ -399,6 +539,7 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
             while (openMenus.has(player.id)) {
                 const capabilities = await admin.permissions.capabilities(player);
                 const menu = [{ id: "players", title: "Connected players", description: "Inspect, moderate, and correct a connected account." }];
+                if (allowed(capabilities, "admin.environment")) menu.push({ id: "environment", title: "World environment", description: "Change global weather, season, date, time, and clock speed." });
                 if (allowed(capabilities, "admin.noclip")) menu.push({ id: "noclip", title: "Toggle no-clip", description: "Fly through geometry with WASD, Space/Ctrl, and Shift to boost." });
                 if (allowed(capabilities, "admin.reconcile")) menu.push({ id: "reconcile", title: "Pending banking recovery", description: "Resolve transactions left in a pending state." });
                 if (allowed(capabilities, "admin.ban")) menu.push({ id: "bans", title: "Ban records", description: "Review and revoke identity bans." });
@@ -406,6 +547,7 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
                 const choice = await ui.context(player, { title: "HMP Administration", description: "Closed-test moderation and recovery tools", options: menu });
                 if (!choice) break;
                 if (choice === "players") await playersMenu(player, capabilities);
+                else if (choice === "environment") await environmentMenu(player);
                 else if (choice === "noclip") {
                     try {
                         const enabled = await admin.actions.noclip(player);
@@ -427,4 +569,4 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
     return Object.freeze({ open, close: (player: Player) => { openMenus.delete(player.id); return ui.close(player, "Admin menu closed"); }, status: () => ({ openMenus: openMenus.size }) });
 }
 
-export = { createAdminUi, inventoryOptions, inventoryItemField, spellOptions };
+export = { createAdminUi, inventoryOptions, inventoryItemField, spellOptions, weatherOptions, WEATHER_PROFILES };

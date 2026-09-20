@@ -8,7 +8,21 @@ import type { AdminConfig, AdminRepository, Player } from "../server/internal";
 
 const { createPermissions } = permissionsModule;
 const { createAdminService } = serviceModule;
-const { inventoryOptions, inventoryItemField, spellOptions } = uiModule;
+const { inventoryOptions, inventoryItemField, spellOptions, weatherOptions, WEATHER_PROFILES } = uiModule;
+
+test("offers every known weather profile and preserves custom configured values", () => {
+    assert.strictEqual(WEATHER_PROFILES.length, 34);
+    assert.strictEqual(new Set(WEATHER_PROFILES).size, WEATHER_PROFILES.length);
+    assert.ok(WEATHER_PROFILES.includes("Clear"));
+    assert.ok(WEATHER_PROFILES.includes("LightRain_01"));
+    assert.ok(WEATHER_PROFILES.includes("SnowShort"));
+    const options = weatherOptions("CustomLive", "CustomBaseline");
+    assert.deepStrictEqual(options.slice(0, 2), [
+        { label: "CustomLive", value: "CustomLive", description: "Current" },
+        { label: "CustomBaseline", value: "CustomBaseline", description: "Configured baseline" },
+    ]);
+    assert.strictEqual(options.length, 36);
+});
 
 test("builds searchable administration choices from canonical inventory definitions", () => {
     const inventory = {
@@ -64,6 +78,7 @@ function setup() {
     const jobMutations: unknown[][] = [];
     const bankMutations: unknown[][] = [];
     const spellMutations: unknown[][] = [];
+    const environmentMutations: unknown[][] = [];
     const personalSpells = new Map<number, Set<string>>();
     const kicked = new Map<number, string>();
     const holds = new Map<number, Set<string>>();
@@ -132,7 +147,7 @@ function setup() {
         noclip: { speed: 4500, boost: 3, tickMs: 11, movement: { forward: "w", back: "s", left: "a", right: "d", up: "space", down: "ctrl", boost: "shift" } },
         bootstrapSecret: "closed-test-secret", roleRules: [
             { group: "admin", minimumGrade: 1, capabilities: ["admin.view", "admin.kick", "admin.teleport", "admin.freeze", "admin.warn", "admin.noclip"] },
-            { group: "admin", minimumGrade: 2, capabilities: ["admin.groups", "admin.jobs", "admin.inventory", "admin.spells", "admin.banking", "admin.audit"] },
+            { group: "admin", minimumGrade: 2, capabilities: ["admin.groups", "admin.jobs", "admin.inventory", "admin.spells", "admin.banking", "admin.audit", "admin.environment"] },
             { group: "admin", minimumGrade: 3, capabilities: ["admin.ban", "admin.reconcile"] },
         ],
     };
@@ -175,16 +190,41 @@ function setup() {
             },
         },
     };
+    const environmentBaseline = {
+        weather: "Clear", time: { hour: 9, minute: 0, second: 0, scale: 1 },
+        date: { day: 1, month: 9, year: 0 }, season: "autumn" as const,
+    };
+    let environmentState = {
+        weather: "Clear", hour: 9, minute: 0, second: 0, day: 1, month: 9, year: 0,
+        season: 2 as 0 | 1 | 2 | 3, timeScale: 1, revision: 1,
+    };
+    const world = {
+        environment: {
+            baseline: () => ({ ...environmentBaseline, time: { ...environmentBaseline.time }, date: { ...environmentBaseline.date } }),
+            state: () => ({ ...environmentState }),
+            reset() {
+                environmentMutations.push(["reset"]);
+                environmentState = { weather: "Clear", hour: 9, minute: 0, second: 0, day: 1, month: 9, year: 0, season: 2, timeScale: 1, revision: environmentState.revision + 1 };
+                return { ...environmentState };
+            },
+            setWeather(weather: string) { environmentMutations.push(["weather", weather]); environmentState.weather = weather; environmentState.revision++; return true; },
+            setTime(hour: number, minute: number, second = 0) { environmentMutations.push(["time", hour, minute, second]); Object.assign(environmentState, { hour, minute, second }); environmentState.revision++; return true; },
+            setDate(day: number, month: number, year = 0) { environmentMutations.push(["date", day, month, year]); Object.assign(environmentState, { day, month, year }); environmentState.revision++; return true; },
+            setSeason(season: "spring" | "summer" | "autumn" | "winter" | 0 | 1 | 2 | 3) { environmentMutations.push(["season", season]); environmentState.season = typeof season === "number" ? season : ({ spring: 0, summer: 1, autumn: 2, winter: 3 } as const)[season]; environmentState.revision++; return true; },
+            setTimeScale(scale: number) { environmentMutations.push(["scale", scale]); environmentState.timeScale = scale; environmentState.revision++; return true; },
+        },
+    };
     const service = createAdminService({
         repository, permissions, core: core as never,
         inventory: { inventory: { async add(...args: unknown[]) { inventoryMutations.push(["add", ...args]); return 5; }, async remove(...args: unknown[]) { inventoryMutations.push(["remove", ...args]); return 4; } } } as never,
         banking: banking as never,
         jobs: { employment: { async hire(...args: unknown[]) { jobMutations.push(["hire", ...args]); return {}; }, async fire(...args: unknown[]) { jobMutations.push(["fire", ...args]); return {}; }, async setGrade(...args: unknown[]) { jobMutations.push(["grade", ...args]); return {}; } } } as never,
         spells: spells as never,
+        world: world as never,
         config, logger: { debug: () => true, info: () => true, warn: () => true, error: () => true }, migrations: [],
         listPlayers: () => players, getPlayer: (id) => players.find((entry) => entry.id === id) || null,
     });
-    return { service, permissions, config, verifiedAdmin, assertedAdmin, verifiedTarget, assertedTarget, audit, warnings, bans, kicked, holds, emitted, groupGrades, inventoryMutations, groupMutations, jobMutations, bankMutations, spellMutations };
+    return { service, permissions, config, verifiedAdmin, assertedAdmin, verifiedTarget, assertedTarget, audit, warnings, bans, kicked, holds, emitted, groupGrades, inventoryMutations, groupMutations, jobMutations, bankMutations, spellMutations, environmentMutations };
 }
 
 test("requires verified staff identity but supports session-only closed-test bootstrap", async () => {
@@ -196,7 +236,29 @@ test("requires verified staff identity but supports session-only closed-test boo
     assert.strictEqual(await state.permissions.has(state.assertedAdmin, "admin.ban"), true);
     assert.strictEqual(state.permissions.revoke(state.assertedAdmin), true);
     assert.strictEqual(await state.permissions.has(state.assertedAdmin, "admin.view"), false);
-    assert.deepStrictEqual(await state.permissions.capabilities(state.verifiedAdmin), ["admin.audit", "admin.ban", "admin.banking", "admin.freeze", "admin.groups", "admin.inventory", "admin.jobs", "admin.kick", "admin.noclip", "admin.reconcile", "admin.spells", "admin.teleport", "admin.view", "admin.warn"]);
+    assert.deepStrictEqual(await state.permissions.capabilities(state.verifiedAdmin), ["admin.audit", "admin.ban", "admin.banking", "admin.environment", "admin.freeze", "admin.groups", "admin.inventory", "admin.jobs", "admin.kick", "admin.noclip", "admin.reconcile", "admin.spells", "admin.teleport", "admin.view", "admin.warn"]);
+});
+
+test("changes and resets the global environment with validation and audit", async () => {
+    const state = setup();
+    assert.strictEqual((await state.service.actions.environment.state(state.verifiedAdmin))?.weather, "Clear");
+    assert.strictEqual((await state.service.actions.environment.baseline(state.verifiedAdmin)).time.hour, 9);
+    assert.strictEqual(await state.service.actions.environment.weather(state.verifiedAdmin, "LightRain_01", "rain test"), true);
+    assert.strictEqual(await state.service.actions.environment.time(state.verifiedAdmin, 17, 30, 5), true);
+    assert.strictEqual(await state.service.actions.environment.date(state.verifiedAdmin, 29, 2, 1891, "leap-day test"), true);
+    assert.strictEqual(await state.service.actions.environment.season(state.verifiedAdmin, "winter"), true);
+    assert.strictEqual(await state.service.actions.environment.timeScale(state.verifiedAdmin, 0), true);
+    await assert.rejects(state.service.actions.environment.time(state.verifiedAdmin, 24, 0), /hour must be an integer from 0 to 23/);
+    await assert.rejects(state.service.actions.environment.date(state.verifiedAdmin, 31, 4), /day must be an integer from 1 to 30/);
+    await assert.rejects(state.service.actions.environment.season(state.verifiedAdmin, "monsoon" as never), /season must be spring, summer, autumn, or winter/);
+    assert.strictEqual((await state.service.actions.environment.reset(state.verifiedAdmin))?.weather, "Clear");
+    assert.deepStrictEqual(state.environmentMutations, [
+        ["weather", "LightRain_01"], ["time", 17, 30, 5], ["date", 29, 2, 1891], ["season", "winter"], ["scale", 0], ["reset"],
+    ]);
+    assert.deepStrictEqual(state.audit.map((entry) => entry.action), [
+        "environment.weather", "environment.time", "environment.date", "environment.season", "environment.time-scale", "environment.reset",
+    ]);
+    assert.ok(state.audit.every((entry) => entry.status === "completed"));
 });
 
 test("toggles and revokes audited administrator no-clip", async () => {

@@ -5,7 +5,7 @@ import type { AdminConfig, AdminPermissions, Core, Player } from "./internal";
 const CAPABILITIES: HmpAdminCapability[] = [
     "admin.view", "admin.kick", "admin.teleport", "admin.freeze", "admin.warn", "admin.ban",
     "admin.groups", "admin.jobs", "admin.inventory", "admin.spells", "admin.banking", "admin.reconcile", "admin.audit",
-    "admin.noclip",
+    "admin.environment", "admin.noclip",
 ];
 
 function createPermissions(options: { core: Core; config: AdminConfig }): AdminPermissions {

@@ -23,12 +23,13 @@ const inventory = Imports.get("hmp-inventory");
 const banking = Imports.get("hmp-banking");
 const jobs = Imports.get("hmp-jobs");
 const spells = Imports.get("hmp-spells");
+const world = Imports.get("hmp-world");
 const logger = Hmp.logger.create("hmp-admin");
 const config = loadConfig(Hmp);
 const repository = createRepository(database);
 const permissions = createPermissions({ core, config });
 const admin = createAdminService({
-    repository, permissions, core, inventory, banking, jobs, spells, config, logger, migrations,
+    repository, permissions, core, inventory, banking, jobs, spells, world, config, logger, migrations,
     listPlayers: () => PlayerManager.getAll(),
     getPlayer: (id) => PlayerManager.getById(id) || PlayerManager.getAll().find((player) => player.id === id) || null,
 });

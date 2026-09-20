@@ -247,6 +247,11 @@ created test transaction after its state has been inspected.
 - Warn, freeze/release, go to, bring, and kick a consenting test player.
 - Toggle no-clip from the main admin menu, verify camera-relative WASD and Space/Ctrl movement,
   Shift boost, collision bypass, a safe landing after disabling, and a matching audit entry.
+- Change the global weather from the searchable 34-profile dropdown, then change the season, date,
+  and time from World environment. Confirm seasonal presentation updates, streaming out and back in
+  if already-loaded decorations remain. Set clock speed to `0` and confirm time freezes, restore it to `1`, then reset the
+  environment to its configured baseline. Verify every change reaches all connected players and
+  appears in the administrative audit.
 - Confirm go-to and bring reject players in different game areas rather than applying foreign-map
   coordinates.
 - Correct a custom item, group, job grade, and small Galleon balance, then verify the result.

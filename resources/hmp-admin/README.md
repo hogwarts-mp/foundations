@@ -57,6 +57,11 @@ accepts `HMP_ADMIN_COMMAND`, `HMP_ADMIN_REQUIRE_VERIFIED`, and `HMP_ADMIN_CONFIG
 - Intervention: acknowledged streamed go-to/bring and Framework-authoritative freeze/release.
 - Staff movement: audited, server-authorized no-clip from the main menu, with camera-relative WASD,
   Space/Ctrl vertical movement, Shift boost, collision bypass, and protected landing.
+- World environment: audited global weather, season, calendar date, 24-hour time, and clock-speed controls, including a
+  searchable dropdown of 34 known native weather profiles and a confirmation-gated reset to the
+  configured `hmp-world` baseline. A custom live or baseline profile is added to the dropdown
+  automatically. These runtime changes are not persisted and return to the configured baseline on
+  server restart.
 - Corrections: server-filtered, searchable custom/native inventory items and spell grants,
   account/character groups, employment, and personal bank credits/debits in Galleons or another
   registered currency. Native items granted by an administrator are identified by default. Revoking

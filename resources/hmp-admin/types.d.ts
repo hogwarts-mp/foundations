@@ -1,10 +1,12 @@
 import type { HmpCoreAccount, HmpCoreCharacter, HmpCoreGroup, HmpCorePrincipal } from "../hmp-core/types";
+import type { HmpWorldEnvironmentConfig, HmpWorldEnvironmentState, HmpWorldSeason } from "../hmp-world/types";
 
 export type HmpAdminCapability =
     | "admin.view"
     | "admin.kick"
     | "admin.teleport"
     | "admin.freeze"
+    | "admin.environment"
     | "admin.noclip"
     | "admin.warn"
     | "admin.ban"
@@ -107,6 +109,7 @@ export interface HmpAdminPlayersApi<P = HmpAdminPlayer> {
 }
 
 export interface HmpAdminActionsApi<P = HmpAdminPlayer> {
+    environment: HmpAdminEnvironmentActionsApi<P>;
     kick(actor: P, target: P | number, reason: string): Promise<boolean>;
     goto(actor: P, target: P | number, reason?: string): Promise<number>;
     bring(actor: P, target: P | number, reason?: string): Promise<number>;
@@ -121,6 +124,17 @@ export interface HmpAdminActionsApi<P = HmpAdminPlayer> {
     job(actor: P, target: P | number, operation: "hire" | "fire" | "grade", job: string, grade: number, reason: string): Promise<boolean>;
     banking(actor: P, target: P | number, operation: "credit" | "debit", amount: number, currency: string, reason: string): Promise<boolean>;
     reconcile(actor: P, reference: string, resolution: "complete" | "compensate" | "fail", reason: string): Promise<boolean>;
+}
+
+export interface HmpAdminEnvironmentActionsApi<P = HmpAdminPlayer> {
+    state(actor: P): Promise<HmpWorldEnvironmentState | null>;
+    weather(actor: P, weather: string, reason?: string): Promise<boolean>;
+    time(actor: P, hour: number, minute: number, second?: number, reason?: string): Promise<boolean>;
+    date(actor: P, day: number, month: number, year?: number, reason?: string): Promise<boolean>;
+    season(actor: P, season: HmpWorldSeason, reason?: string): Promise<boolean>;
+    timeScale(actor: P, scale: number, reason?: string): Promise<boolean>;
+    reset(actor: P, reason?: string): Promise<HmpWorldEnvironmentState | null>;
+    baseline(actor: P): Promise<Readonly<HmpWorldEnvironmentConfig>>;
 }
 
 export interface HmpAdminModerationApi<P = HmpAdminPlayer> {
