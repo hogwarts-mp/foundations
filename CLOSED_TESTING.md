@@ -19,6 +19,8 @@ created test transaction after its state has been inspected.
 ### Account, character, and spawn
 
 - Connect for the first time, create a character, reconnect, and select it again.
+- Confirm the new character receives the four identified starter gear pieces, then reconnect and
+  verify all four remain in that character's native inventory.
 - Confirm the saved character portrait matches the live character's face, hair, complexion, and other
   creator features before and after reconnecting.
 - Create multiple characters, switch between them, and confirm inventory/location do not leak.

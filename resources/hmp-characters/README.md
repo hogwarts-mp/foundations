@@ -74,7 +74,8 @@ so would remain as an override and hide face gear acquired later.
 The grant is queued by `hmp:character:created` and applied after `hmp:character:loaded`, once the
 correct character inventory has been restored. The native inventory catalog routes each item to its
 declared holder (`CostumeStorage` for face gear), and the grant waits for native application so a
-holder or item error is reported instead of looking like a silent success.
+holder or item error is reported instead of looking like a silent success. After application, the
+resulting native inventory snapshot is saved immediately so the gear survives reconnects and restarts.
 
 ## Configuration
 

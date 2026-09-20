@@ -10,10 +10,11 @@ const { createStartingGearGrant } = startingGearModule;
 
 const Hmp = Imports.get("hmp-lib");
 const core = Imports.get("hmp-core");
+const inventory = Imports.get("hmp-inventory");
 const logger = Hmp.logger.create("hmp-characters");
 const config = loadConfig(Hmp);
 const flow = createCharacterFlow({ core, events: Events, logger, config });
-const startingGear = createStartingGearGrant(config.startingGear);
+const startingGear = createStartingGearGrant(config.startingGear, inventory.native);
 const actions = Hmp.rateLimit.create<number>({ limit: 8, windowMs: 2000 });
 
 const ui = Object.freeze({ open: flow.open, close: flow.close });

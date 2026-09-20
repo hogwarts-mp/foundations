@@ -19,6 +19,11 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - Native items granted through the admin inventory correction now arrive identified by default,
   matching the intended behavior for staff-issued gear.
 
+### Fixed
+
+- New-character starter gear is now written to the character's durable native-inventory snapshot
+  immediately after the four-item patch applies instead of relying on a later update or autosave.
+
 ## [0.4.1] - 2026-09-16
 
 ### Changed

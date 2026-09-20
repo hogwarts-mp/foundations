@@ -1,8 +1,10 @@
 import type { HmpCore, HmpCoreCharacter, HmpCoreSession } from "../../hmp-core/types";
+import type { HmpInventory } from "../../hmp-inventory/types";
 import type { HmpLogger } from "../../hmp-lib/types";
 
 export type Player = HogwartsMpPlayer;
 export type Core = HmpCore<Player>;
+export type Inventory = HmpInventory<Player>;
 
 export type StartingGearEntry = Omit<Extract<HogwartsMpInventoryPatchOperation, { op: "give" }>, "op">;
 

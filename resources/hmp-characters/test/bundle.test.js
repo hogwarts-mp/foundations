@@ -19,6 +19,7 @@ global.Exports = { register: (name, value) => exportsSeen.set(name, value) };
 global.Imports = {
     get(name) {
         if (name === "hmp-core") return core;
+        if (name === "hmp-inventory") return { native: { save: async () => true } };
         if (name === "hmp-lib") return {
             logger: { create: () => logger },
             config: { load: (_path, options) => ({ ...options.defaults }), env: { boolean: (value) => value === "true" } },

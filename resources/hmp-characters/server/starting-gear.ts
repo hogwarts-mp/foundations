@@ -1,4 +1,4 @@
-import type { CharacterEventPayload, StartingGearEntry } from "./internal";
+import type { CharacterEventPayload, Inventory, StartingGearEntry } from "./internal";
 
 function inventoryError(value: HogwartsMpInventoryOperationError | unknown): Error {
     if (value instanceof Error) return value;
@@ -30,7 +30,7 @@ function patchStartingGear(payload: CharacterEventPayload, entries: StartingGear
     });
 }
 
-function createStartingGearGrant(entries: StartingGearEntry[]) {
+function createStartingGearGrant(entries: StartingGearEntry[], native: Pick<Inventory["native"], "save">) {
     const configured = entries.map((entry) => ({ ...entry }));
     const pending = new Set<number>();
 
@@ -45,6 +45,9 @@ function createStartingGearGrant(entries: StartingGearEntry[]) {
         const characterId = Number(payload?.character?.id);
         if (!pending.has(characterId)) return false;
         await patchStartingGear(payload, configured);
+        if (!await native.save(payload.session.player, payload.character)) {
+            throw Object.assign(new Error("starting gear inventory snapshot was not saved"), { code: "HMP_CHARACTERS_INVENTORY_SAVE_FAILED" });
+        }
         pending.delete(characterId);
         return true;
     }

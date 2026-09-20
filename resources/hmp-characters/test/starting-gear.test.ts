@@ -48,6 +48,15 @@ function payload(characterId: number, calls: Array<{ operations: HogwartsMpInven
     };
 }
 
+function nativePersistence(saves: Array<{ playerId: number; characterId: number }> = []) {
+    return {
+        async save(player: Player, character?: { id: number } | null) {
+            saves.push({ playerId: player.id, characterId: Number(character?.id) });
+            return true;
+        },
+    };
+}
+
 test("defaults to the four vanilla WEK_01 gear grants", () => {
     assert.deepStrictEqual(normalizeStartingGear(undefined), DEFAULT_STARTING_GEAR);
     assert.deepStrictEqual(normalizeStartingGear([]), []);
@@ -55,7 +64,8 @@ test("defaults to the four vanilla WEK_01 gear grants", () => {
 
 test("grants only a newly-created character after its inventory is loaded", async () => {
     const calls: Array<{ operations: HogwartsMpInventoryPatchOperation[] }> = [];
-    const grant = createStartingGearGrant(normalizeStartingGear(undefined));
+    const saves: Array<{ playerId: number; characterId: number }> = [];
+    const grant = createStartingGearGrant(normalizeStartingGear(undefined), nativePersistence(saves));
     const created = payload(12, calls);
     assert.strictEqual(await grant.loaded(created), false);
     assert.strictEqual(grant.created(created), true);
@@ -63,14 +73,25 @@ test("grants only a newly-created character after its inventory is loaded", asyn
     assert.strictEqual(await grant.loaded(created), true);
     assert.strictEqual(grant.pending(12), false);
     assert.deepStrictEqual(calls[0].operations, DEFAULT_STARTING_GEAR.map((entry) => ({ ...entry, op: "give" })));
+    assert.deepStrictEqual(saves, [{ playerId: 7, characterId: 12 }]);
 });
 
 test("keeps a failed grant pending for a later character load", async () => {
     const calls: Array<{ operations: HogwartsMpInventoryPatchOperation[] }> = [];
     const value = payload(12, calls);
     value.session.player.inventory!.waitForRevision = async () => { throw Object.assign(new Error("wrong holder"), { code: "NATIVE_APPLY_FAILED" }); };
-    const grant = createStartingGearGrant(normalizeStartingGear(undefined));
+    const grant = createStartingGearGrant(normalizeStartingGear(undefined), nativePersistence());
     grant.created(value);
     await assert.rejects(() => grant.loaded(value), /wrong holder/);
+    assert.strictEqual(grant.pending(12), true);
+});
+
+test("keeps an applied grant pending when its durable snapshot cannot be saved", async () => {
+    const calls: Array<{ operations: HogwartsMpInventoryPatchOperation[] }> = [];
+    const value = payload(12, calls);
+    const grant = createStartingGearGrant(normalizeStartingGear(undefined), { save: async () => { throw new Error("database unavailable"); } });
+    grant.created(value);
+    await assert.rejects(() => grant.loaded(value), /database unavailable/);
+    assert.strictEqual(calls.length, 1);
     assert.strictEqual(grant.pending(12), true);
 });
