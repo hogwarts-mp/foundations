@@ -14,9 +14,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - `hmp-admin` now offers capability-gated global weather, season, date, time, and clock-speed controls backed by
   `hmp-world`, with a searchable dropdown of 34 known native weather profiles, audit records, and a
   confirmation-gated reset to the configured baseline.
+- Connected-player administration can now set or unset a character's persistent transmog from a searchable
+  dropdown of all 151 human CharacterDefinitions allowed by the Framework, with immediate application,
+  runtime validation, dedicated permissions, and audit records.
 
 ### Changed
 
+- `hmp-ui` searchable select fields now accept up to 192 choices while retaining the existing 16 KB
+  request-size guard, allowing bounded native catalogs such as the transmog registry to fit in one dialog.
 - The admin inventory correction dialog now preselects its best catalog match and treats the audit
   reason as optional, so an exact single-result search can be submitted without reopening the item list.
 - Native items granted through the admin inventory correction now arrive identified by default,

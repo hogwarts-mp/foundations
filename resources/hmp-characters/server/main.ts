@@ -13,12 +13,14 @@ const core = Imports.get("hmp-core");
 const inventory = Imports.get("hmp-inventory");
 const logger = Hmp.logger.create("hmp-characters");
 const config = loadConfig(Hmp);
-const flow = createCharacterFlow({ core, events: Events, logger, config });
+const flow = createCharacterFlow({ core, events: Events, logger, config, isTransmogAllowed: (characterId) => Character.isAllowed(characterId) });
 const startingGear = createStartingGearGrant(config.startingGear, inventory.native);
 const actions = Hmp.rateLimit.create<number>({ limit: 8, windowMs: 2000 });
 
 const ui = Object.freeze({ open: flow.open, close: flow.close });
 Exports.register("ui", ui);
+const appearance = Object.freeze({ getTransmog: flow.getTransmog, listTransmogs: flow.listTransmogs, setTransmog: flow.setTransmog, clearTransmog: flow.clearTransmog });
+Exports.register("appearance", appearance);
 
 function action(handler: (player: Player, payload: Record<string, unknown>) => unknown) {
     return (player: Player, payload: unknown) => {

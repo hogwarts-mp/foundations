@@ -8,7 +8,7 @@ import type { AdminConfig, AdminRepository, Player } from "../server/internal";
 
 const { createPermissions } = permissionsModule;
 const { createAdminService } = serviceModule;
-const { inventoryOptions, inventoryItemField, spellOptions, weatherOptions, WEATHER_PROFILES } = uiModule;
+const { inventoryOptions, inventoryItemField, spellOptions, transmogOptions, weatherOptions, WEATHER_PROFILES } = uiModule;
 
 test("offers every known weather profile and preserves custom configured values", () => {
     assert.strictEqual(WEATHER_PROFILES.length, 34);
@@ -65,6 +65,13 @@ test("builds spell choices around the character's current personal grants", () =
     assert.deepStrictEqual(spellOptions(spells, "acc", ["Spell_Accio"], "grant"), []);
 });
 
+test("builds searchable transmog choices with friendly labels and exact native ids", () => {
+    assert.deepStrictEqual(transmogOptions(["MirabelGarlick", "EleazarFig", "EleazarFig"], "EleazarFig"), [
+        { label: "Eleazar Fig", value: "EleazarFig", description: "EleazarFig · Current" },
+        { label: "Mirabel Garlick", value: "MirabelGarlick", description: "MirabelGarlick" },
+    ]);
+});
+
 function setup() {
     let nextAudit = 1;
     let nextWarning = 1;
@@ -78,8 +85,10 @@ function setup() {
     const jobMutations: unknown[][] = [];
     const bankMutations: unknown[][] = [];
     const spellMutations: unknown[][] = [];
+    const transmogMutations: unknown[][] = [];
     const environmentMutations: unknown[][] = [];
     const personalSpells = new Map<number, Set<string>>();
+    const characterTransmogs = new Map<number, string>();
     const kicked = new Map<number, string>();
     const holds = new Map<number, Set<string>>();
     const emitted = new Map<number, Array<{ event: string; payload: unknown }>>();
@@ -147,7 +156,7 @@ function setup() {
         noclip: { speed: 4500, boost: 3, tickMs: 11, movement: { forward: "w", back: "s", left: "a", right: "d", up: "space", down: "ctrl", boost: "shift" } },
         bootstrapSecret: "closed-test-secret", roleRules: [
             { group: "admin", minimumGrade: 1, capabilities: ["admin.view", "admin.kick", "admin.teleport", "admin.freeze", "admin.warn", "admin.noclip"] },
-            { group: "admin", minimumGrade: 2, capabilities: ["admin.groups", "admin.jobs", "admin.inventory", "admin.spells", "admin.banking", "admin.audit", "admin.environment"] },
+            { group: "admin", minimumGrade: 2, capabilities: ["admin.groups", "admin.jobs", "admin.inventory", "admin.appearance", "admin.spells", "admin.banking", "admin.audit", "admin.environment"] },
             { group: "admin", minimumGrade: 3, capabilities: ["admin.ban", "admin.reconcile"] },
         ],
     };
@@ -214,17 +223,35 @@ function setup() {
             setTimeScale(scale: number) { environmentMutations.push(["scale", scale]); environmentState.timeScale = scale; environmentState.revision++; return true; },
         },
     };
+    const characters = {
+        appearance: {
+            async getTransmog(value: Player) { return characterTransmogs.get(value.id) || ""; },
+            listTransmogs: () => ["EleazarFig", "MirabelGarlick"],
+            async setTransmog(value: Player, transmog: string) {
+                const changed = characterTransmogs.get(value.id) !== transmog;
+                characterTransmogs.set(value.id, transmog);
+                transmogMutations.push(["set", value.id, transmog]);
+                return changed;
+            },
+            async clearTransmog(value: Player) {
+                const changed = characterTransmogs.delete(value.id);
+                transmogMutations.push(["clear", value.id]);
+                return changed;
+            },
+        },
+    };
     const service = createAdminService({
         repository, permissions, core: core as never,
         inventory: { inventory: { async add(...args: unknown[]) { inventoryMutations.push(["add", ...args]); return 5; }, async remove(...args: unknown[]) { inventoryMutations.push(["remove", ...args]); return 4; } } } as never,
         banking: banking as never,
+        characters: characters as never,
         jobs: { employment: { async hire(...args: unknown[]) { jobMutations.push(["hire", ...args]); return {}; }, async fire(...args: unknown[]) { jobMutations.push(["fire", ...args]); return {}; }, async setGrade(...args: unknown[]) { jobMutations.push(["grade", ...args]); return {}; } } } as never,
         spells: spells as never,
         world: world as never,
         config, logger: { debug: () => true, info: () => true, warn: () => true, error: () => true }, migrations: [],
         listPlayers: () => players, getPlayer: (id) => players.find((entry) => entry.id === id) || null,
     });
-    return { service, permissions, config, verifiedAdmin, assertedAdmin, verifiedTarget, assertedTarget, audit, warnings, bans, kicked, holds, emitted, groupGrades, inventoryMutations, groupMutations, jobMutations, bankMutations, spellMutations, environmentMutations };
+    return { service, permissions, config, verifiedAdmin, assertedAdmin, verifiedTarget, assertedTarget, audit, warnings, bans, kicked, holds, emitted, groupGrades, inventoryMutations, groupMutations, jobMutations, bankMutations, spellMutations, transmogMutations, environmentMutations };
 }
 
 test("requires verified staff identity but supports session-only closed-test bootstrap", async () => {
@@ -236,7 +263,7 @@ test("requires verified staff identity but supports session-only closed-test boo
     assert.strictEqual(await state.permissions.has(state.assertedAdmin, "admin.ban"), true);
     assert.strictEqual(state.permissions.revoke(state.assertedAdmin), true);
     assert.strictEqual(await state.permissions.has(state.assertedAdmin, "admin.view"), false);
-    assert.deepStrictEqual(await state.permissions.capabilities(state.verifiedAdmin), ["admin.audit", "admin.ban", "admin.banking", "admin.environment", "admin.freeze", "admin.groups", "admin.inventory", "admin.jobs", "admin.kick", "admin.noclip", "admin.reconcile", "admin.spells", "admin.teleport", "admin.view", "admin.warn"]);
+    assert.deepStrictEqual(await state.permissions.capabilities(state.verifiedAdmin), ["admin.appearance", "admin.audit", "admin.ban", "admin.banking", "admin.environment", "admin.freeze", "admin.groups", "admin.inventory", "admin.jobs", "admin.kick", "admin.noclip", "admin.reconcile", "admin.spells", "admin.teleport", "admin.view", "admin.warn"]);
 });
 
 test("changes and resets the global environment with validation and audit", async () => {
@@ -327,6 +354,26 @@ test("routes corrective mutations through foundations services with completed au
     assert.strictEqual(state.jobMutations.length, 1);
     assert.strictEqual(state.bankMutations.length, 2);
     assert.strictEqual(state.audit[0].reason, "inventory.give");
+    assert.ok(state.audit.every((entry) => entry.status === "completed"));
+});
+
+test("sets and unsets a connected character's persistent transmog with audit", async () => {
+    const state = setup();
+    await assert.rejects(() => state.service.actions.transmog(state.assertedAdmin, state.verifiedTarget, "set", "EleazarFig"), /permission/);
+    assert.strictEqual(state.transmogMutations.length, 0);
+    assert.deepStrictEqual(await state.service.actions.transmogs(state.verifiedAdmin), ["EleazarFig", "MirabelGarlick"]);
+    assert.strictEqual(await state.service.actions.transmogCurrent(state.verifiedAdmin, state.verifiedTarget), "");
+    assert.strictEqual(await state.service.actions.transmog(state.verifiedAdmin, state.verifiedTarget, "set", "EleazarFig", "disguise test"), true);
+    assert.strictEqual(await state.service.actions.transmogCurrent(state.verifiedAdmin, state.verifiedTarget), "EleazarFig");
+    assert.strictEqual(await state.service.actions.transmog(state.verifiedAdmin, state.verifiedTarget, "unset", "", "restore appearance"), true);
+    assert.deepStrictEqual(state.transmogMutations, [
+        ["set", state.verifiedTarget.id, "EleazarFig"],
+        ["clear", state.verifiedTarget.id],
+    ]);
+    assert.deepStrictEqual(state.audit.map((entry) => [entry.action, entry.metadata]), [
+        ["appearance.transmog.set", { previous: "", transmog: "EleazarFig" }],
+        ["appearance.transmog.unset", { previous: "EleazarFig", transmog: "" }],
+    ]);
     assert.ok(state.audit.every((entry) => entry.status === "completed"));
 });
 

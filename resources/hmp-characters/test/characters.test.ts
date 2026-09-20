@@ -1,10 +1,20 @@
 import assert = require("node:assert");
 import { test } from "node:test";
 import charactersModule = require("../server/characters");
+import transmogsModule = require("../server/transmogs");
 import type { HmpCoreCharacter, HmpCoreSession } from "../../hmp-core/types";
 import type { CharacterConfig, Core, Player } from "../server/internal";
 
 const { createCharacterFlow } = charactersModule;
+const { TRANSMOG_IDS } = transmogsModule;
+
+test("mirrors the Framework's 151 unique human transmog ids", () => {
+    assert.strictEqual(TRANSMOG_IDS.length, 151);
+    assert.strictEqual(new Set(TRANSMOG_IDS).size, TRANSMOG_IDS.length);
+    assert.ok(TRANSMOG_IDS.includes("EleazarFig"));
+    assert.ok(TRANSMOG_IDS.includes("MirabelGarlick"));
+    assert.ok(TRANSMOG_IDS.includes("GerboldOllivander"));
+});
 
 function hasCode(error: unknown, code: string): boolean {
     return error instanceof Error && "code" in error && error.code === code;
@@ -53,7 +63,7 @@ function setup(config: TestConfig = {}) {
             return callback ? 21 : 0;
         },
         getTransmog() { return this.transmog; },
-        setTransmog(value: string) { this.appearanceOrder.push("transmog"); this.appliedTransmog = value; },
+        setTransmog(value: string) { this.appearanceOrder.push("transmog"); this.transmog = value; this.appliedTransmog = value; },
     };
     const session: HmpCoreSession<TestPlayer> = {
         player,
@@ -98,6 +108,7 @@ function setup(config: TestConfig = {}) {
             deleteAccount: async (id: number, key: string) => metadata.delete(`account:${id}:${key}`),
             getCharacter: async (id: number, key: string) => metadata.get(`character:${id}:${key}`),
             setCharacter: async (id: number, key: string, value: unknown) => { metadata.set(`character:${id}:${key}`, value); return value; },
+            deleteCharacter: async (id: number, key: string) => metadata.delete(`character:${id}:${key}`),
         },
     } as unknown as Core;
     const events = {
@@ -121,6 +132,7 @@ function setup(config: TestConfig = {}) {
             appearanceTimeoutMs: 500,
             ...config,
         },
+        isTransmogAllowed: (characterId) => characterId === "EleazarFig" || characterId === "MirabelGarlick",
     });
     return { flow, core, player, session, characters, metadata, emitted, clientEvents };
 }
@@ -200,6 +212,26 @@ test("does not restore transmog when native appearance reload fails", async () =
     await assert.rejects(() => flow.applyAppearance({ session, character }), (error: unknown) => hasCode(error, "APPEARANCE_APPLY_FAILED"));
     assert.deepStrictEqual(player.appearanceOrder, ["appearance"]);
     assert.strictEqual(player.appliedTransmog, undefined);
+});
+
+test("validates, applies, persists, and clears transmog for an active character", async () => {
+    const { flow, core, player, metadata } = setup();
+    const character = await core.characters.create(player, { name: "Poppy Sweeting" });
+    await core.characters.select(player, character.id);
+
+    assert.deepStrictEqual(flow.listTransmogs(), ["EleazarFig", "MirabelGarlick"]);
+    assert.strictEqual(await flow.getTransmog(player), "");
+    assert.strictEqual(await flow.setTransmog(player, "EleazarFig"), true);
+    assert.strictEqual(player.appliedTransmog, "EleazarFig");
+    assert.strictEqual(metadata.get(`character:${character.id}:transmog`), "EleazarFig");
+    assert.strictEqual(await flow.getTransmog(player), "EleazarFig");
+    assert.strictEqual(await flow.setTransmog(player, "EleazarFig"), false);
+    await assert.rejects(() => flow.setTransmog(player, "NotACharacter"), /Unknown or disallowed transmog character/);
+
+    assert.strictEqual(await flow.clearTransmog(player), true);
+    assert.strictEqual(player.appliedTransmog, "");
+    assert.strictEqual(metadata.has(`character:${character.id}:transmog`), false);
+    assert.strictEqual(await flow.getTransmog(player), "");
 });
 
 test("honors switch objections and protects the active character from deletion", async () => {

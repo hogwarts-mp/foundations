@@ -40,6 +40,16 @@ function seasonName(value: string | number): typeof SEASON_NAMES[number] {
     return SEASON_NAMES.includes(normalized as typeof SEASON_NAMES[number]) ? normalized as typeof SEASON_NAMES[number] : "spring";
 }
 
+function transmogOptions(ids: ReadonlyArray<string>, current = ""): HmpUiSelectOption[] {
+    return [...new Set(ids.map((id) => String(id || "").trim()).filter(Boolean))]
+        .map((id) => ({
+            label: id.replace(/_/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2"),
+            value: id,
+            description: id === current ? `${id} · Current` : id,
+        }))
+        .sort((left, right) => left.label.localeCompare(right.label));
+}
+
 function inventoryOptions(inventory: Inventory, rawQuery = ""): HmpUiSelectOption[] {
     const query = String(rawQuery || "").trim().toLowerCase();
     const terms = query.split(/\s+/).filter(Boolean);
@@ -197,6 +207,42 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
         }
     }
 
+    async function transmogMenu(player: Player, target: HmpAdminPlayerSummary): Promise<void> {
+        let current: string;
+        let available: string[];
+        try { [current, available] = await Promise.all([admin.actions.transmogCurrent(player, target.playerId), admin.actions.transmogs(player)]); }
+        catch (error) { notifyError(player, error); return; }
+        const choices = transmogOptions(available, current);
+        const choice = await ui.context(player, {
+            title: `Transmog · ${target.nickname}`,
+            description: `${choices.length} Framework-approved native character disguises are available.`,
+            options: [
+                { id: "current", title: current || "No transmog set", description: current ? "Current persistent CharacterDefinition ID" : "The character is using their saved appearance.", disabled: true },
+                { id: "set", title: "Set transmog", description: "Choose a native character disguise to apply immediately and on future loads.", disabled: !choices.length },
+                { id: "unset", title: "Unset transmog", description: "Remove the disguise and restore the saved character appearance.", disabled: !current, tone: current ? "warning" : undefined },
+            ],
+        });
+        if (choice !== "set" && choice !== "unset") return;
+        const result = await ui.input(player, {
+            title: `${choice === "set" ? "Set" : "Unset"} transmog · ${target.nickname}`,
+            fields: [
+                ...(choice === "set" ? [{
+                    name: "transmog", label: "Character", type: "select", searchable: true, required: true,
+                    default: available.includes(current) ? current : choices[0]?.value,
+                    placeholder: "Search characters…", description: "Select a Framework-approved native CharacterDefinition.", options: choices,
+                } as HmpUiInputField] : []),
+                { name: "reason", label: "Reason (optional)", type: "textarea", placeholder: "Add a note for the audit log…" },
+            ],
+            submitLabel: choice === "set" ? "Set transmog" : "Unset transmog",
+        });
+        if (!result) return;
+        await run(
+            player,
+            () => admin.actions.transmog(player, target.playerId, choice, text(result.transmog), text(result.reason)),
+            choice === "set" ? "Transmog set and saved." : "Transmog removed.",
+        );
+    }
+
     async function groupMenu(player: Player, target: HmpAdminPlayerSummary): Promise<void> {
         const result = await ui.input(player, {
             title: `Groups · ${target.nickname}`,
@@ -326,6 +372,7 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
             if (allowed(capabilities, "admin.freeze")) actions.push({ id: target.frozen ? "release" : "freeze", title: target.frozen ? "Release player" : "Freeze player", description: "Uses the Framework's authoritative movement hold." });
             if (allowed(capabilities, "admin.warn")) actions.push({ id: "warn", title: "Issue warning", description: "Record and deliver a staff warning." }, { id: "warnings", title: "Warning history", description: "Review prior warnings." });
             if (allowed(capabilities, "admin.inventory")) actions.push({ id: "inventory", title: "Inventory", description: "Give or remove a registered custom or native item." });
+            if (allowed(capabilities, "admin.appearance")) actions.push({ id: "transmog", title: "Transmog", description: target.character ? "Set or unset this character's persistent native disguise." : "The player has no active character.", disabled: !target.character });
             if (allowed(capabilities, "admin.spells")) actions.push({ id: "spells", title: "Spells", description: "Grant or revoke this character's persistent personal spell entitlements." });
             if (allowed(capabilities, "admin.groups")) actions.push({ id: "groups", title: "Groups", description: "Change account or character roles." });
             if (allowed(capabilities, "admin.jobs")) actions.push({ id: "jobs", title: "Employment", description: "Hire, fire, or change a job grade." });
@@ -341,6 +388,7 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
                 if (choice === "kick") return;
             } else if (choice === "warnings") await warningHistory(player, target);
             else if (choice === "inventory") await inventoryMenu(player, target);
+            else if (choice === "transmog") await transmogMenu(player, target);
             else if (choice === "spells") await spellMenu(player, target);
             else if (choice === "groups") await groupMenu(player, target);
             else if (choice === "jobs") await jobMenu(player, target);
@@ -569,4 +617,4 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
     return Object.freeze({ open, close: (player: Player) => { openMenus.delete(player.id); return ui.close(player, "Admin menu closed"); }, status: () => ({ openMenus: openMenus.size }) });
 }
 
-export = { createAdminUi, inventoryOptions, inventoryItemField, spellOptions, weatherOptions, WEATHER_PROFILES };
+export = { createAdminUi, inventoryOptions, inventoryItemField, spellOptions, transmogOptions, weatherOptions, WEATHER_PROFILES };

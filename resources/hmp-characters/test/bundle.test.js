@@ -16,6 +16,7 @@ const core = {
 };
 
 global.Exports = { register: (name, value) => exportsSeen.set(name, value) };
+global.Character = { isAllowed: () => true };
 global.Imports = {
     get(name) {
         if (name === "hmp-core") return core;
@@ -37,8 +38,9 @@ global.Events = {
 };
 
 require(path.resolve(__dirname, "..", "dist", "server.js"));
-assert.deepStrictEqual([...exportsSeen.keys()], ["ui"]);
+assert.deepStrictEqual([...exportsSeen.keys()], ["ui", "appearance"]);
 assert.strictEqual(typeof exportsSeen.get("ui").open, "function");
+assert.strictEqual(exportsSeen.get("appearance").listTransmogs().length, 151);
 assert.ok(serverHandlers.has("worldReady"));
 assert.ok(serverHandlers.has("playerAppearanceChanged"));
 assert.ok(serverHandlers.has("loadingFinished"));

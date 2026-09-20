@@ -54,7 +54,7 @@ function normalizeAlert(raw: HmpUiAlert): HmpUiAlert {
     };
 }
 
-function normalizeSelectOptions(raw: unknown, limit = 64): HmpUiSelectOption[] {
+function normalizeSelectOptions(raw: unknown, limit = 192): HmpUiSelectOption[] {
     const options: HmpUiSelectOption[] = [];
     for (const entry of Array.isArray(raw) ? raw.slice(0, limit) : []) {
         if (!entry || typeof entry !== "object") continue;
@@ -95,7 +95,7 @@ function normalizeInput(raw: HmpUiInputDialog): HmpUiInputDialog {
         } else if (entry.default !== undefined) field.default = clean(entry.default, 1000);
         if (fieldType === "select") {
             field.searchable = entry.searchable === true;
-            field.options = normalizeSelectOptions(entry.options, 32);
+            field.options = normalizeSelectOptions(entry.options);
             if (!field.options.length) throw new TypeError(`select field '${name}' requires options`);
         }
         fields.push(field);

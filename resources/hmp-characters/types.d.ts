@@ -3,6 +3,11 @@ export interface HmpCharacterUiPlayer {
     emit(eventName: string, payloadJson?: string): void;
 }
 
+export interface HmpCharacterAppearancePlayer extends HmpCharacterUiPlayer {
+    getTransmog?(): string;
+    setTransmog?(transmog: string): void;
+}
+
 export interface HmpCharacterUiOpenOptions {
     mode?: "join" | "create" | "wardrobe" | string;
 }
@@ -37,6 +42,14 @@ export interface HmpCharactersUi<P extends HmpCharacterUiPlayer = HmpCharacterUi
     close(player: P): boolean;
 }
 
-export interface HmpCharacters<P extends HmpCharacterUiPlayer = HmpCharacterUiPlayer> {
+export interface HmpCharactersAppearance<P extends HmpCharacterAppearancePlayer = HmpCharacterAppearancePlayer> {
+    getTransmog(player: P): Promise<string>;
+    listTransmogs(): string[];
+    setTransmog(player: P, transmog: string): Promise<boolean>;
+    clearTransmog(player: P): Promise<boolean>;
+}
+
+export interface HmpCharacters<P extends HmpCharacterAppearancePlayer = HmpCharacterAppearancePlayer> {
     ui: HmpCharactersUi<P>;
+    appearance: HmpCharactersAppearance<P>;
 }

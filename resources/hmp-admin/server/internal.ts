@@ -1,4 +1,5 @@
 import type { HmpBanking } from "../../hmp-banking/types";
+import type { HmpCharacters } from "../../hmp-characters/types";
 import type { HmpCore, HmpCoreSession } from "../../hmp-core/types";
 import type { HmpInventory } from "../../hmp-inventory/types";
 import type { HmpJobs } from "../../hmp-jobs/types";
@@ -13,6 +14,7 @@ export type Player = HogwartsMpPlayer;
 export type Core = HmpCore<Player>;
 export type Inventory = HmpInventory<Player>;
 export type Banking = HmpBanking<Player>;
+export type Characters = HmpCharacters<Player>;
 export type Jobs = HmpJobs<Player>;
 export type Spells = HmpSpellsServer<Player>;
 export type Ui = HmpUiServer<Player>;

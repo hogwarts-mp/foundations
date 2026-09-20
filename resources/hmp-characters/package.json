@@ -29,7 +29,8 @@
       "dist/fonts/**"
     ],
     "exports": [
-      "ui"
+      "ui",
+      "appearance"
     ],
     "resourceDependencies": [
       { "name": "hmp-inventory", "version": "0.4.1" },

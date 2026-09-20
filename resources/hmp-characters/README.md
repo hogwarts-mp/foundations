@@ -35,12 +35,19 @@ Portrait cards call the Framework-provided client `Portrait` API directly. They 
 load the mod repository's standalone `portrait` resource. The supported HogwartsMP client supplies
 the off-screen avatar asset used by that API; unsupported clients degrade to initials.
 
-Use `/characters` to reopen the selector after joining. Other resources can use the server export:
+Use `/characters` to reopen the selector after joining. Other resources can use the server exports:
 
 ```js
 const Characters = Imports.get("hmp-characters");
 await Characters.ui.open(player, { mode: "wardrobe" });
+
+const choices = Characters.appearance.listTransmogs();
+await Characters.appearance.setTransmog(player, choices[0]);
+await Characters.appearance.clearTransmog(player);
 ```
+
+The appearance API validates new transmogs against the Framework's built-in human-character allowlist,
+applies them immediately, and persists them on the active character. Clearing restores the saved look.
 
 ## Switch policy
 

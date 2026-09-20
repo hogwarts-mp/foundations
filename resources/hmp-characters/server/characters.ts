@@ -7,6 +7,9 @@ import type {
     CharacterOpenOptions,
     Player,
 } from "./internal";
+import transmogsModule = require("./transmogs");
+
+const { TRANSMOG_IDS } = transmogsModule;
 
 interface PendingCreation {
     confirming: boolean;
@@ -47,6 +50,7 @@ function createCharacterFlow(options: CharacterFlowOptions) {
     const events = options.events || null;
     const logger = options.logger || console;
     const config = options.config || {};
+    const isTransmogAllowed = options.isTransmogAllowed || (() => false);
     if (!core?.sessions || !core?.characters || !core?.metadata) throw new TypeError("hmp-core API is required");
 
     const worldReady = new Set<number>();
@@ -295,6 +299,52 @@ function createCharacterFlow(options: CharacterFlowOptions) {
         return Boolean(appearance || transmog);
     }
 
+    function activeCharacter(player: Player): HmpCoreCharacter {
+        const session = core.sessions.get(player);
+        const character = session?.character || core.characters.active(player);
+        if (!session || !character) throw new Error("That player has no active character.");
+        return character;
+    }
+
+    async function getTransmog(player: Player): Promise<string> {
+        const character = activeCharacter(player);
+        return String(await core.metadata.getCharacter(character.id, "transmog") || "");
+    }
+
+    function listTransmogs(): string[] {
+        return TRANSMOG_IDS.filter((characterId) => isTransmogAllowed(characterId));
+    }
+
+    async function changeTransmog(player: Player, transmog: string): Promise<boolean> {
+        const character = activeCharacter(player);
+        if (typeof player.setTransmog !== "function") throw new Error("Native player transmog is unavailable.");
+        const previous = String(await core.metadata.getCharacter(character.id, "transmog") || "");
+        let livePrevious = previous;
+        try { livePrevious = String(player.getTransmog?.() || previous); }
+        catch (_) { /* the persisted value is the safest rollback */ }
+        player.setTransmog(transmog);
+        try {
+            if (transmog) await core.metadata.setCharacter(character.id, "transmog", transmog);
+            else await core.metadata.deleteCharacter(character.id, "transmog");
+        } catch (error) {
+            try { player.setTransmog(livePrevious); }
+            catch (_) { /* preserve the original persistence error */ }
+            throw error;
+        }
+        return previous !== transmog;
+    }
+
+    async function setTransmog(player: Player, rawTransmog: string): Promise<boolean> {
+        const transmog = String(rawTransmog || "").trim();
+        if (!transmog) throw new TypeError("transmog character id is required");
+        if (!isTransmogAllowed(transmog)) throw new TypeError(`Unknown or disallowed transmog character '${transmog}'`);
+        return changeTransmog(player, transmog);
+    }
+
+    async function clearTransmog(player: Player): Promise<boolean> {
+        return changeTransmog(player, "");
+    }
+
     function disconnect(player: Player): void {
         const id = playerId(player);
         worldReady.delete(id);
@@ -313,6 +363,10 @@ function createCharacterFlow(options: CharacterFlowOptions) {
         cancelCreate,
         remove,
         applyAppearance,
+        getTransmog,
+        listTransmogs,
+        setTransmog,
+        clearTransmog,
         onWorldReady,
         onLoadingFinished,
         onSessionReady,

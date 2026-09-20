@@ -28,6 +28,7 @@ export interface CharacterFlowOptions {
     events?: CharacterEvents | null;
     logger?: Pick<HmpLogger, "warn" | "error">;
     config?: Partial<CharacterConfig>;
+    isTransmogAllowed?: (characterId: string) => boolean;
 }
 
 export interface CharacterEventPayload {

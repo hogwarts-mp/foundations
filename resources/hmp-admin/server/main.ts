@@ -20,6 +20,7 @@ const database = Imports.get("hmp-mysql");
 const core = Imports.get("hmp-core");
 const ui = Imports.get("hmp-ui");
 const inventory = Imports.get("hmp-inventory");
+const characters = Imports.get("hmp-characters");
 const banking = Imports.get("hmp-banking");
 const jobs = Imports.get("hmp-jobs");
 const spells = Imports.get("hmp-spells");
@@ -29,7 +30,7 @@ const config = loadConfig(Hmp);
 const repository = createRepository(database);
 const permissions = createPermissions({ core, config });
 const admin = createAdminService({
-    repository, permissions, core, inventory, banking, jobs, spells, world, config, logger, migrations,
+    repository, permissions, core, inventory, banking, characters, jobs, spells, world, config, logger, migrations,
     listPlayers: () => PlayerManager.getAll(),
     getPlayer: (id) => PlayerManager.getById(id) || PlayerManager.getAll().find((player) => player.id === id) || null,
 });

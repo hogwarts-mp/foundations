@@ -32,7 +32,7 @@ The default `admin` group grants capabilities cumulatively:
 | Grade | Capabilities |
 |---:|---|
 | 1 | View players, kick, go to/bring, freeze/release, warn, announce, no-clip |
-| 2 | Groups, employment, inventory, personal spell grants, banking, audit history, environment controls |
+| 2 | Groups, employment, inventory, player transmog, personal spell grants, banking, audit history, environment controls |
 | 3 | Verified-identity bans and pending bank reconciliation |
 
 Production access requires a `verified` identity by default. Once identities are live, assign a
@@ -62,7 +62,8 @@ accepts `HMP_ADMIN_COMMAND`, `HMP_ADMIN_REQUIRE_VERIFIED`, and `HMP_ADMIN_CONFIG
   configured `hmp-world` baseline. A custom live or baseline profile is added to the dropdown
   automatically. These runtime changes are not persisted and return to the configured baseline on
   server restart.
-- Corrections: server-filtered, searchable custom/native inventory items and spell grants,
+- Corrections: server-filtered, searchable custom/native inventory items, persistent player transmog from the
+  Framework's 151 allowlisted human CharacterDefinitions, and spell grants,
   account/character groups, employment, and personal bank credits/debits in Galleons or another
   registered currency. Native items granted by an administrator are identified by default. Revoking
   a personal spell grant does not override a spell allowed by policy rules.

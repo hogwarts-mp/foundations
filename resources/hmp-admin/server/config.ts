@@ -18,7 +18,7 @@ function loadConfig(Hmp: HmpLibServer<Player>, options: { env?: NodeJS.ProcessEn
         },
         roleRules: [
             { group: "admin", minimumGrade: 1, capabilities: ["admin.view", "admin.kick", "admin.teleport", "admin.freeze", "admin.warn", "admin.announce", "admin.noclip"] },
-            { group: "admin", minimumGrade: 2, capabilities: ["admin.groups", "admin.jobs", "admin.inventory", "admin.spells", "admin.banking", "admin.audit", "admin.environment"] },
+            { group: "admin", minimumGrade: 2, capabilities: ["admin.groups", "admin.jobs", "admin.inventory", "admin.appearance", "admin.spells", "admin.banking", "admin.audit", "admin.environment"] },
             { group: "admin", minimumGrade: 3, capabilities: ["admin.ban", "admin.reconcile"] },
         ],
     };

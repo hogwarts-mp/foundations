@@ -5,6 +5,7 @@ import type {
     AdminPermissions,
     AdminRepository,
     Banking,
+    Characters,
     Core,
     Inventory,
     Jobs,
@@ -32,6 +33,7 @@ function createAdminService(options: {
     core: Core;
     inventory: Inventory;
     banking: Banking;
+    characters: Characters;
     jobs: Jobs;
     spells: Spells;
     world: World;
@@ -41,7 +43,7 @@ function createAdminService(options: {
     listPlayers: () => Player[];
     getPlayer: (id: number) => Player | null;
 }) {
-    const { repository, permissions, core, inventory, banking, jobs, spells, world, config, logger, migrations, listPlayers, getPlayer } = options;
+    const { repository, permissions, core, inventory, banking, characters, jobs, spells, world, config, logger, migrations, listPlayers, getPlayer } = options;
     const pendingTeleports = new Map<string, TeleportWaiter>();
     const activeNoclip = new Set<number>();
     const startedAt = Date.now();
@@ -298,6 +300,28 @@ function createAdminService(options: {
             return audited(actor, "admin.inventory", `inventory.${operation}`, player, reason, { item, amount: quantity }, () => operation === "give"
                 ? inventory.inventory.add(player, item, quantity, { identified: true })
                 : inventory.inventory.remove(player, item, quantity));
+        },
+        async transmogCurrent(actor: Player, target: Player | number) {
+            await permissions.require(actor, "admin.appearance");
+            const player = targetPlayer(target);
+            if (!session(player).character) throw adminError("HMP_ADMIN_CHARACTER_MISSING", "The target has no active character.");
+            return characters.appearance.getTransmog(player);
+        },
+        async transmogs(actor: Player) {
+            await permissions.require(actor, "admin.appearance");
+            return characters.appearance.listTransmogs();
+        },
+        async transmog(actor: Player, target: Player | number, operation: "set" | "unset", rawTransmog: string, reason = "") {
+            await permissions.require(actor, "admin.appearance");
+            const player = targetPlayer(target);
+            if (!session(player).character) throw adminError("HMP_ADMIN_CHARACTER_MISSING", "The target has no active character.");
+            if (operation !== "set" && operation !== "unset") throw new TypeError("operation must be set or unset");
+            const transmog = String(rawTransmog || "").trim();
+            if (operation === "set" && !transmog) throw new TypeError("transmog character id is required");
+            const previous = await characters.appearance.getTransmog(player);
+            return audited(actor, "admin.appearance", `appearance.transmog.${operation}`, player, reason, { previous, transmog: operation === "set" ? transmog : "" }, () => operation === "set"
+                ? characters.appearance.setTransmog(player, transmog)
+                : characters.appearance.clearTransmog(player));
         },
         async spellGrants(actor: Player, target: Player | number) {
             await permissions.require(actor, "admin.spells");

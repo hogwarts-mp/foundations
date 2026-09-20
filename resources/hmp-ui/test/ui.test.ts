@@ -20,12 +20,12 @@ test("normalizes bounded plain-text UI contracts", () => {
         title: "Catalog",
         fields: [{
             name: "item", label: "Item", type: "select", searchable: true,
-            options: Array.from({ length: 100 }, (_, index) => ({ label: `Item ${index}`, value: `item:${index}`, description: `Catalog row ${index}` })),
+            options: Array.from({ length: 200 }, (_, index) => ({ label: `Item ${index}`, value: `item:${index}`, description: `Catalog row ${index}` })),
         }],
     }).fields[0];
     assert.strictEqual(catalog.searchable, true);
-    assert.strictEqual(catalog.options?.length, 32);
-    assert.strictEqual(catalog.options?.[31].description, "Catalog row 31");
+    assert.strictEqual(catalog.options?.length, 192);
+    assert.strictEqual(catalog.options?.[191].description, "Catalog row 191");
     assert.throws(() => normalizeContext({ title: "Bad", options: [{ id: "spaces are invalid", title: "No" }] }), /invalid/);
     const icons = normalizeContext({ title: "Icons", options: [{ id: "safe", title: "Safe", icon: "fw://resources/items/icon.svg" }, { id: "unsafe", title: "Unsafe", icon: "javascript:alert(1)" }] });
     assert.strictEqual(icons.options[0].icon, "fw://resources/items/icon.svg");

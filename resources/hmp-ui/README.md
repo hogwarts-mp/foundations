@@ -51,7 +51,7 @@ if (values) console.log(values.price, values.note);
 ```
 
 Pre-filtered catalogs can use the same select contract with client-side search. A dialog accepts at most
-32 options per select, and the complete request must remain below the safe event-payload budget. Resources
+192 options per select, and the complete request must remain below the safe event-payload budget. Resources
 with larger catalogs should first collect a server-side search term, then offer the matching subset. The
 submitted value must still be one of the exact options supplied and is revalidated on the server:
 

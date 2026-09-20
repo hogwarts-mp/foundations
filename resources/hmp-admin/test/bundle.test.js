@@ -17,6 +17,7 @@ const core = {
 const ui = { notify: () => true, input: async () => null, context: async () => null, close: () => true };
 const banking = { transactions: { pending: async () => [] } };
 const spells = { catalog: { get: () => null, list: () => [] }, grants: { list: async () => [], grant: async () => false, revoke: async () => false } };
+const characters = { appearance: { getTransmog: async () => "", listTransmogs: () => [], setTransmog: async () => true, clearTransmog: async () => true } };
 const environmentState = { weather: "Clear", hour: 9, minute: 0, second: 0, day: 1, month: 9, year: 0, season: 2, timeScale: 1, revision: 1 };
 const world = {
     environment: {
@@ -33,6 +34,7 @@ global.Imports = {
         if (name === "hmp-core") return core;
         if (name === "hmp-ui") return ui;
         if (name === "hmp-inventory") return { inventory: {} };
+        if (name === "hmp-characters") return characters;
         if (name === "hmp-banking") return banking;
         if (name === "hmp-jobs") return { employment: {} };
         if (name === "hmp-spells") return spells;
