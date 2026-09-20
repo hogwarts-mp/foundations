@@ -313,6 +313,18 @@ test("native snapshots disable identity persistence and restore per character", 
     await bridge.onUpdated(player, inventory.rows);
     await bridge.flush();
     assert.deepStrictEqual(saved.at(-1), { characterId: 9, rows: [{ itemId: "WoundCleaning", holder: "HealthPotionStorage", count: 1, kind: "item" }] });
+
+    const savedBeforeDisconnect = clone(saved);
+    inventory.rows = [];
+    Object.defineProperty(inventory, "revision", { value: 0, writable: true });
+    assert.strictEqual(await bridge.save(player, { id: 9 }), false);
+    await bridge.flush();
+    assert.deepStrictEqual(saved, savedBeforeDisconnect);
+
+    Object.defineProperty(inventory, "revision", { value: 3, writable: true });
+    assert.strictEqual(await bridge.save(player, { id: 9 }), true);
+    await bridge.flush();
+    assert.deepStrictEqual(saved.at(-1), { characterId: 9, rows: [] });
 });
 
 test("inventory UI opens through the public service without relying on flattened methods", async () => {

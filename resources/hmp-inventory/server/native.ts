@@ -105,6 +105,7 @@ function createNativeBridge(options: { repository: Repository; core: Core; logge
     async function save(player: Player, character?: Character | null): Promise<boolean> {
         const characterId = Number(character?.id ?? active.get(player?.id));
         if (!player || !Number.isSafeInteger(characterId) || characterId <= 0) return false;
+        if (player.inventory?.revision === 0) return false;
         await queueSave(characterId, list(player));
         return true;
     }

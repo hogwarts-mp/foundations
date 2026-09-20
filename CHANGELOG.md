@@ -25,7 +25,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 ### Fixed
 
 - New-character starter gear is now written to the character's durable native-inventory snapshot
-  immediately after the four-item patch applies instead of relying on a later update or autosave.
+  immediately after the four-item patch applies instead of relying on a later update or autosave,
+  and disconnect teardown can no longer overwrite that snapshot with an empty inventory.
 
 ## [0.4.1] - 2026-09-16
 
