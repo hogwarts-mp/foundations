@@ -478,6 +478,10 @@ declare global {
         isOpen(): boolean;
     };
     const Camera: {
+        capture(): {
+            position: HogwartsMpVector3;
+            rotation: { pitch: number; yaw: number; roll: number };
+        } | null;
         fade(options: { from: number; to: number; duration: number; hold: boolean; fadeAudio: boolean }): void;
         stopFade(): void;
     };

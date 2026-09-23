@@ -49,6 +49,16 @@ function setProtected(protectedFromDamage: boolean): void {
     catch (_) { /* no local pawn while loading */ }
 }
 
+function getViewYaw(): number {
+    try {
+        const yaw = Number(Camera.capture()?.rotation.yaw);
+        if (Number.isFinite(yaw)) return yaw;
+    } catch (_) { /* camera capture is unavailable on older clients or while loading */ }
+
+    const yaw = Number(LocalPlayer.getControlRotation()?.yaw);
+    return Number.isFinite(yaw) ? yaw : 0;
+}
+
 function stopLandingProtection(): void {
     if (landingTimer) clearInterval(landingTimer);
     landingTimer = null;
@@ -78,8 +88,7 @@ function tick(): void {
         const now = Date.now();
         const elapsed = lastTick ? Math.min(0.05, (now - lastTick) / 1000) : tickMs / 1000;
         lastTick = now;
-        const rotation = LocalPlayer.getControlRotation();
-        const yaw = (rotation?.yaw || 0) * Math.PI / 180;
+        const yaw = getViewYaw() * Math.PI / 180;
         const forward = { x: Math.cos(yaw), y: Math.sin(yaw) };
         const right = { x: -Math.sin(yaw), y: Math.cos(yaw) };
         let x = 0; let y = 0; let z = 0;
