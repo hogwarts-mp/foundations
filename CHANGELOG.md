@@ -5,6 +5,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-23
+
 ### Added
 
 - `hmp-admin` now offers capability-gated no-clip in the main admin menu. The server audits every
@@ -24,6 +26,7 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ### Changed
 
+- Set the pack, all twenty-seven resources, and internal dependency pins to lockstep version `0.5.0`.
 - `hmp-inventory` now restores its MySQL-backed character snapshot directly with
   `player.inventory.replace()` after the Framework removed `inventory.persist()` and made native
   inventory connection-scoped.
@@ -332,6 +335,7 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - The initial admin resource focuses on moderation and corrective operations; spectate, noclip, and
   god mode are not included.
 
+[0.5.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.5.0
 [0.4.1]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.4.1
 [0.4.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.4.0
 [0.3.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.3.0

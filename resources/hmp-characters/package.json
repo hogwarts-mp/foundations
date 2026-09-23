@@ -1,6 +1,6 @@
 {
   "name": "hmp-characters",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "private": true,
   "author": "HogwartsMP",
   "description": "Character creation, selection and appearance flow for hmp-core.",
@@ -33,9 +33,9 @@
       "appearance"
     ],
     "resourceDependencies": [
-      { "name": "hmp-inventory", "version": "0.4.1" },
-      { "name": "hmp-core", "version": "0.4.1" },
-      { "name": "hmp-lib", "version": "0.4.1" }
+      { "name": "hmp-inventory", "version": "0.5.0" },
+      { "name": "hmp-core", "version": "0.5.0" },
+      { "name": "hmp-lib", "version": "0.5.0" }
     ],
     "errorBehavior": "stop",
     "priority": -700

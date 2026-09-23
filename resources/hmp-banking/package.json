@@ -1,6 +1,6 @@
 {
   "name": "hmp-banking",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "private": true,
   "author": "HogwartsMP",
   "description": "Server-authoritative bank accounts, transfers, cash bridges and an auditable ledger for HogwartsMP.",
@@ -37,11 +37,11 @@
       "status"
     ],
     "resourceDependencies": [
-      { "name": "hmp-mysql", "version": "0.4.1" },
-      { "name": "hmp-lib", "version": "0.4.1" },
-      { "name": "hmp-core", "version": "0.4.1" },
-      { "name": "hmp-inventory", "version": "0.4.1" },
-      { "name": "hmp-ui", "version": "0.4.1" }
+      { "name": "hmp-mysql", "version": "0.5.0" },
+      { "name": "hmp-lib", "version": "0.5.0" },
+      { "name": "hmp-core", "version": "0.5.0" },
+      { "name": "hmp-inventory", "version": "0.5.0" },
+      { "name": "hmp-ui", "version": "0.5.0" }
     ],
     "errorBehavior": "stop",
     "priority": -450

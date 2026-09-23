@@ -1,6 +1,6 @@
 {
   "name": "hmp-spells",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "private": true,
   "author": "HogwartsMP",
   "description": "Character-scoped spell entitlements, loadouts, policy rules, and advisory cast events for HogwartsMP.",
@@ -28,8 +28,8 @@
     ],
     "exports": ["catalog", "policy", "rules", "providers", "grants", "loadouts", "status", "clientStatus", "loadout", "setLoadoutSlot", "cast", "importNativeAssignments"],
     "resourceDependencies": [
-      { "name": "hmp-lib", "version": "0.4.1" },
-      { "name": "hmp-core", "version": "0.4.1" }
+      { "name": "hmp-lib", "version": "0.5.0" },
+      { "name": "hmp-core", "version": "0.5.0" }
     ],
     "errorBehavior": "stop",
     "priority": -390
