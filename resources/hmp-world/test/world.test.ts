@@ -26,13 +26,21 @@ let environmentState = {
     season: 0 as 0 | 1 | 2 | 3, timeScale: 1, revision: 0,
 };
 const native = {
-    state: () => ({ ...environmentState }),
+    get weather() { return environmentState.weather; },
+    get hour() { return environmentState.hour; },
+    get minute() { return environmentState.minute; },
+    get second() { return environmentState.second; },
+    get day() { return environmentState.day; },
+    get month() { return environmentState.month; },
+    get year() { return environmentState.year; },
+    get season() { return environmentState.season; },
+    get timeScale() { return environmentState.timeScale; },
+    get revision() { return environmentState.revision; },
     setWeather(value: string) { nativeCalls.push(["weather", value]); environmentState.weather = value; environmentState.revision++; return true; },
     setTime(hour: number, minute: number, second = 0) { nativeCalls.push(["time", hour, minute, second]); Object.assign(environmentState, { hour, minute, second }); environmentState.revision++; return true; },
     setDate(day: number, month: number, year = 0) { nativeCalls.push(["date", day, month, year]); Object.assign(environmentState, { day, month, year }); environmentState.revision++; return true; },
     setSeason(season: number) { nativeCalls.push(["season", season]); environmentState.season = season as 0 | 1 | 2 | 3; environmentState.revision++; return true; },
     setTimeScale(scale: number) { nativeCalls.push(["scale", scale]); environmentState.timeScale = scale; environmentState.revision++; return true; },
-    getTimeScale: () => environmentState.timeScale,
 };
 const players = [{ id: 4, nickname: "Tester", connected: true, emitted: [] as unknown[], emit(name: string, payload?: unknown) { this.emitted.push({ name, payload }); } }];
 const broadcasts: Array<{ name: string; payload: unknown }> = [];

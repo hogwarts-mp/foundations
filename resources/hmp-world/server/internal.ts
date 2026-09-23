@@ -1,7 +1,6 @@
 import type {
     HmpWorldDateConfig,
     HmpWorldEnvironmentConfig,
-    HmpWorldEnvironmentState,
     HmpWorldPlayer,
     HmpWorldPolicy,
     HmpWorldSeason,
@@ -12,14 +11,22 @@ export interface WorldConfig {
     policy: HmpWorldPolicy;
 }
 
-export interface NativeEnvironment {
-    state(): HmpWorldEnvironmentState | null;
+export interface NativeWorld {
+    readonly weather: string;
+    readonly hour: number;
+    readonly minute: number;
+    readonly second: number;
+    readonly day: number;
+    readonly month: number;
+    readonly year: number;
+    readonly season: 0 | 1 | 2 | 3;
+    readonly timeScale: number;
+    readonly revision: number;
     setWeather(name: string): boolean;
     setTime(hour: number, minute: number, second?: number): boolean;
     setDate(day: number, month: number, year?: number): boolean;
     setSeason(season: number): boolean;
     setTimeScale(minutesPerSecond: number): boolean;
-    getTimeScale(): number;
 }
 
 export interface WorldEvents<P extends HmpWorldPlayer> {
@@ -28,7 +35,7 @@ export interface WorldEvents<P extends HmpWorldPlayer> {
 
 export interface WorldServiceOptions<P extends HmpWorldPlayer> {
     config: WorldConfig;
-    native: NativeEnvironment;
+    native: NativeWorld;
     events: WorldEvents<P>;
     players(): P[];
     now?: () => number;

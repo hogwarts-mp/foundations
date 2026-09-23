@@ -54,7 +54,18 @@ function createWorldService<P extends HmpWorldPlayer>(options: WorldServiceOptio
     }
 
     function environmentState(): HmpWorldEnvironmentState | null {
-        return native.state();
+        return {
+            weather: native.weather,
+            hour: native.hour,
+            minute: native.minute,
+            second: native.second,
+            day: native.day,
+            month: native.month,
+            year: native.year,
+            season: native.season,
+            timeScale: native.timeScale,
+            revision: native.revision,
+        };
     }
 
     function applyEnvironment(): HmpWorldEnvironmentState | null {

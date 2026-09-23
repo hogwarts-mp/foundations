@@ -2,9 +2,9 @@ import configModule = require("./config");
 import serviceModule = require("./service");
 import type { HmpLibServer } from "../../hmp-lib/types";
 import type { HmpWorldPlayer } from "../types";
-import type { NativeEnvironment } from "./internal";
+import type { NativeWorld } from "./internal";
 
-declare const Environment: NativeEnvironment;
+declare const World: NativeWorld;
 
 const { loadConfig } = configModule;
 const { createWorldService } = serviceModule;
@@ -13,7 +13,7 @@ const logger = Hmp.logger.create("hmp-world");
 const config = loadConfig(Hmp);
 const world = createWorldService({
     config,
-    native: Environment,
+    native: World,
     events: Events,
     players: () => PlayerManager.getAll() as HmpWorldPlayer[],
 });

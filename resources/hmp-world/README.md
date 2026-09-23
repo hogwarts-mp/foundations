@@ -5,6 +5,10 @@ behavior. It applies starting weather, clock, date and season on resource startu
 configured boundary, population and encounter policy to every client. Policies are re-sent when the
 client resource becomes ready, the world becomes ready, and a character finishes loading.
 
+The resource reads and mutates the Framework's replicated environment through the flat `World.*`
+properties and setters. Its own `world.environment` export remains the stable Foundations API used
+by other resources.
+
 ## Configuration
 
 Copy `examples/config/data/hmp-world.json` to `<server-root>/data/hmp-world.json`. The bundled defaults

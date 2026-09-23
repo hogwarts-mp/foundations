@@ -24,6 +24,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ### Changed
 
+- `hmp-world` now uses the Framework's replicated `World.*` properties and setters after the native
+  `Environment` global was removed, while preserving the existing `world.environment` Foundations API.
 - `hmp-ui` searchable select fields now accept up to 192 choices while retaining the existing 16 KB
   request-size guard, allowing bounded native catalogs such as the transmog registry to fit in one dialog.
 - The admin inventory correction dialog now preselects its best catalog match and treats the audit

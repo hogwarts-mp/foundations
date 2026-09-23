@@ -21,14 +21,22 @@ global.Events = {
     onClient: (name, handler) => serverHandlers.set(`client:${name}`, handler),
     emitAllClients() {},
 };
-global.Environment = {
-    state: () => ({ ...environment }),
+global.World = {
+    get weather() { return environment.weather; },
+    get hour() { return environment.hour; },
+    get minute() { return environment.minute; },
+    get second() { return environment.second; },
+    get day() { return environment.day; },
+    get month() { return environment.month; },
+    get year() { return environment.year; },
+    get season() { return environment.season; },
+    get timeScale() { return environment.timeScale; },
+    get revision() { return environment.revision; },
     setWeather: (weather) => { environment.weather = weather; environment.revision++; return true; },
     setTime: (hour, minute, second = 0) => { Object.assign(environment, { hour, minute, second }); environment.revision++; return true; },
     setDate: (day, month, year = 0) => { Object.assign(environment, { day, month, year }); environment.revision++; return true; },
     setSeason: (season) => { environment.season = season; environment.revision++; return true; },
     setTimeScale: (timeScale) => { environment.timeScale = timeScale; environment.revision++; return true; },
-    getTimeScale: () => environment.timeScale,
 };
 require(path.resolve(__dirname, "..", "dist", "server.js"));
 assert.deepStrictEqual([...serverExports.keys()], ["environment", "policy", "status"]);
