@@ -66,7 +66,7 @@ function createCore(options: CoreOptions) {
     let startedAt = Date.now();
     let startPromise: Promise<boolean> | null = null;
     const sessionsByPlayer = new Map<number, HmpCoreSession<Player>>();
-    const sessionsByAccount = new Map<number, HmpCoreSession<Player>>();
+    const characterClaims = new Map<number, HmpCoreSession<Player>>();
     const attempts = new Map<number, symbol>();
     const providers = new Map<string, ProviderEntry>();
 
@@ -145,6 +145,13 @@ function createCore(options: CoreOptions) {
         return session;
     }
 
+    async function accountAllowsDuplicateSessions(accountId: number): Promise<boolean> {
+        if (config.duplicateSession !== "allow-group") return false;
+        const key = String(config.duplicateSessionGroup || "admin").trim().toLowerCase();
+        const minimumGrade = Number(config.duplicateSessionMinimumGrade ?? 1);
+        return (await repository.listAccountGroups(accountId)).some((group) => group.key === key && group.grade >= minimumGrade);
+    }
+
     async function connect(player: Player): Promise<HmpCoreSession<Player> | null> {
         const id = playerId(player);
         if (startPromise) await startPromise;
@@ -159,12 +166,14 @@ function createCore(options: CoreOptions) {
             const account = await repository.findOrCreateAccount(principal, displayName);
             if (attempts.get(id) !== token) return null;
 
-            const existing = sessionsByAccount.get(account.id);
-            if (existing && existing.playerId !== id) {
+            const existing = [...sessionsByPlayer.values()].filter((session) => session.account.id === account.id && session.playerId !== id);
+            if (existing.length) {
                 if (config.duplicateSession === "replace-old") {
-                    await disconnect(existing.player);
-                    if (config.kickDuplicateSession && typeof existing.player?.kick === "function") existing.player.kick("Your account connected from another session.");
-                } else {
+                    for (const session of existing) {
+                        await disconnect(session.player);
+                        if (config.kickDuplicateSession && typeof session.player?.kick === "function") session.player.kick("Your account connected from another session.");
+                    }
+                } else if (!await accountAllowsDuplicateSessions(account.id)) {
                     if (config.kickDuplicateSession && typeof player.kick === "function") player.kick("This account is already connected.");
                     throw fail("HMP_CORE_DUPLICATE_SESSION", "This account already has an active session");
                 }
@@ -179,7 +188,6 @@ function createCore(options: CoreOptions) {
                 connectedAt: new Date().toISOString(),
             };
             sessionsByPlayer.set(id, session);
-            sessionsByAccount.set(account.id, session);
             await emit("hmp:session:ready", session);
 
             if (config.autoSelectSingleCharacter) {
@@ -198,6 +206,7 @@ function createCore(options: CoreOptions) {
         const character = session.character;
         await emit("hmp:character:unloading", { session, character });
         session.character = null;
+        if (characterClaims.get(character.id) === session) characterClaims.delete(character.id);
         await emit("hmp:character:unloaded", { session, character });
         return character;
     }
@@ -209,7 +218,6 @@ function createCore(options: CoreOptions) {
         if (!session) return false;
         if (session.character) await unloadCharacter(player);
         sessionsByPlayer.delete(id);
-        if (sessionsByAccount.get(session.account.id) === session) sessionsByAccount.delete(session.account.id);
         try { await repository.touchAccount(session.account.id, String(player.nickname || session.account.displayName).slice(0, 80)); }
         catch (error) { logError("[hmp-core] could not update account activity", error); }
         await emit("hmp:session:ended", session);
@@ -244,8 +252,15 @@ function createCore(options: CoreOptions) {
             throw fail("HMP_CORE_CHARACTER_NOT_FOUND", "Character does not belong to this account");
         }
         if (session.character?.id === character.id) return character;
+        const claimed = characterClaims.get(character.id);
+        if (claimed && claimed !== session) throw fail("HMP_CORE_CHARACTER_IN_USE", "Character is active in another session");
         if (session.character) await unloadCharacter(player);
-        await emit("hmp:character:loading", { session, character });
+        characterClaims.set(character.id, session);
+        try { await emit("hmp:character:loading", { session, character }); }
+        catch (error) {
+            if (characterClaims.get(character.id) === session) characterClaims.delete(character.id);
+            throw error;
+        }
         session.character = character;
         await emit("hmp:character:loaded", { session, character });
         await emit("hmp:character:selected", { session, character });
@@ -258,6 +273,8 @@ function createCore(options: CoreOptions) {
         if (!character || character.accountId !== session.account.id || character.status !== "active") {
             throw fail("HMP_CORE_CHARACTER_NOT_FOUND", "Character does not belong to this account");
         }
+        const claimed = characterClaims.get(character.id);
+        if (claimed && claimed !== session) throw fail("HMP_CORE_CHARACTER_IN_USE", "Character is active in another session");
         if (session.character?.id === character.id) await unloadCharacter(player);
         const deleted = await repository.deleteCharacter(character.id);
         if (deleted) await emit("hmp:character:deleted", { session, character });

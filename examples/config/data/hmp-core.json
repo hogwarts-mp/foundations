@@ -2,6 +2,8 @@
   "maxCharacters": 4,
   "autoSelectSingleCharacter": false,
   "duplicateSession": "reject-new",
+  "duplicateSessionGroup": "admin",
+  "duplicateSessionMinimumGrade": 1,
   "kickDuplicateSession": false,
   "identityOrder": [
     "steamId",

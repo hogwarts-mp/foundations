@@ -19,6 +19,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   runtime validation, dedicated permissions, and audit records.
 - `hmp-admin` now exposes a dedicated `admin.treasury` capability and grants it to grade-2 administrators
   in the default and example role rules, separating treasury inspection from ordinary banking access.
+- `hmp-core` can opt into `duplicateSession: "allow-group"` to let accounts in a configured group
+  maintain simultaneous sessions while still preventing the same character from being active twice.
 
 ### Changed
 

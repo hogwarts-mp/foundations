@@ -115,6 +115,8 @@ function setup(overrides: Partial<CoreConfig> = {}) {
             maxCharacters: 2,
             autoSelectSingleCharacter: false,
             duplicateSession: "reject-new",
+            duplicateSessionGroup: "admin",
+            duplicateSessionMinimumGrade: 1,
             kickDuplicateSession: false,
             identityOrder: ["steamId", "discordId", "hardwareId"],
             ...overrides,
@@ -199,6 +201,34 @@ test("prefers verified providers and rejects duplicate sessions and identity the
     );
     assert.strictEqual(await core.disconnect(first), true);
     assert.strictEqual(core.sessions.isReady(first), false);
+});
+
+test("allows duplicate sessions for an account group and keeps characters exclusive", async () => {
+    const { core } = setup({ duplicateSession: "allow-group" });
+    await core.start();
+    const first = player(1, "First", { steamId: "100" });
+    const second = player(2, "Second", { steamId: "100" });
+    const firstSession = await core.connect(first);
+    assert.ok(firstSession);
+    await assert.rejects(() => core.connect(second), (error) => hasCode(error, "HMP_CORE_DUPLICATE_SESSION"));
+
+    await core.groups.setAccount(firstSession.account.id, "admin", 1);
+    const secondSession = await core.connect(second);
+    assert.ok(secondSession);
+    assert.strictEqual(core.sessions.all().length, 2);
+
+    const professor = await core.characters.create(first, { name: "Professor Fig" });
+    const student = await core.characters.create(first, { name: "Natsai Onai" });
+    await core.characters.select(first, professor.id);
+    await assert.rejects(() => core.characters.select(second, professor.id), (error) => hasCode(error, "HMP_CORE_CHARACTER_IN_USE"));
+    await assert.rejects(() => core.characters.delete(second, professor.id), (error) => hasCode(error, "HMP_CORE_CHARACTER_IN_USE"));
+    await core.characters.select(second, student.id);
+
+    assert.strictEqual(core.characters.active(first)?.id, professor.id);
+    assert.strictEqual(core.characters.active(second)?.id, student.id);
+    assert.strictEqual(await core.disconnect(first), true);
+    await core.characters.select(second, professor.id);
+    assert.strictEqual(core.characters.active(second)?.id, professor.id);
 });
 
 test("repository refuses to transfer an existing identity", async () => {

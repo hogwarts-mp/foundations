@@ -60,12 +60,19 @@ Create `data/hmp-core.json` in the server working directory when overrides are n
   "maxCharacters": 4,
   "autoSelectSingleCharacter": false,
   "duplicateSession": "reject-new",
+  "duplicateSessionGroup": "admin",
+  "duplicateSessionMinimumGrade": 1,
   "kickDuplicateSession": false,
   "identityOrder": ["steamId", "discordId", "hardwareId"]
 }
 ```
 
+Set `duplicateSession` to `allow-group` to permit simultaneous sessions only for accounts whose
+configured account-level group meets `duplicateSessionMinimumGrade`. Sessions still select
+characters independently, and one character cannot be active in two sessions at once.
+
 `HMP_CORE_CONFIG`, `HMP_CORE_MAX_CHARACTERS`, `HMP_CORE_AUTO_SELECT_SINGLE`,
+`HMP_CORE_DUPLICATE_SESSION`, `HMP_CORE_DUPLICATE_GROUP`, `HMP_CORE_DUPLICATE_MIN_GRADE`,
 `HMP_CORE_KICK_DUPLICATE` and `HMP_CORE_IDENTITY_ORDER` provide environment overrides.
 
 ## Lifecycle events

@@ -15,7 +15,9 @@ export type Scope = "account" | "character";
 export interface CoreConfig extends Record<string, unknown> {
     maxCharacters: number;
     autoSelectSingleCharacter: boolean;
-    duplicateSession: "reject-new" | "replace-old";
+    duplicateSession: "reject-new" | "replace-old" | "allow-group";
+    duplicateSessionGroup: string;
+    duplicateSessionMinimumGrade: number;
     kickDuplicateSession: boolean;
     identityOrder: string[];
 }
