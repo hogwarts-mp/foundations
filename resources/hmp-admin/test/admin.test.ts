@@ -156,7 +156,7 @@ function setup() {
         noclip: { speed: 4500, boost: 3, tickMs: 11, movement: { forward: "w", back: "s", left: "a", right: "d", up: "space", down: "ctrl", boost: "shift" } },
         bootstrapSecret: "closed-test-secret", roleRules: [
             { group: "admin", minimumGrade: 1, capabilities: ["admin.view", "admin.kick", "admin.teleport", "admin.freeze", "admin.warn", "admin.noclip"] },
-            { group: "admin", minimumGrade: 2, capabilities: ["admin.groups", "admin.jobs", "admin.inventory", "admin.appearance", "admin.spells", "admin.banking", "admin.audit", "admin.environment"] },
+            { group: "admin", minimumGrade: 2, capabilities: ["admin.groups", "admin.jobs", "admin.inventory", "admin.appearance", "admin.spells", "admin.banking", "admin.treasury", "admin.audit", "admin.environment"] },
             { group: "admin", minimumGrade: 3, capabilities: ["admin.ban", "admin.reconcile"] },
         ],
     };
@@ -263,7 +263,7 @@ test("requires verified staff identity but supports session-only closed-test boo
     assert.strictEqual(await state.permissions.has(state.assertedAdmin, "admin.ban"), true);
     assert.strictEqual(state.permissions.revoke(state.assertedAdmin), true);
     assert.strictEqual(await state.permissions.has(state.assertedAdmin, "admin.view"), false);
-    assert.deepStrictEqual(await state.permissions.capabilities(state.verifiedAdmin), ["admin.appearance", "admin.audit", "admin.ban", "admin.banking", "admin.environment", "admin.freeze", "admin.groups", "admin.inventory", "admin.jobs", "admin.kick", "admin.noclip", "admin.reconcile", "admin.spells", "admin.teleport", "admin.view", "admin.warn"]);
+    assert.deepStrictEqual(await state.permissions.capabilities(state.verifiedAdmin), ["admin.appearance", "admin.audit", "admin.ban", "admin.banking", "admin.environment", "admin.freeze", "admin.groups", "admin.inventory", "admin.jobs", "admin.kick", "admin.noclip", "admin.reconcile", "admin.spells", "admin.teleport", "admin.treasury", "admin.view", "admin.warn"]);
 });
 
 test("changes and resets the global environment with validation and audit", async () => {

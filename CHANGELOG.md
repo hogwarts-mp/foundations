@@ -17,6 +17,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - Connected-player administration can now set or unset a character's persistent transmog from a searchable
   dropdown of all 151 human CharacterDefinitions allowed by the Framework, with immediate application,
   runtime validation, dedicated permissions, and audit records.
+- `hmp-admin` now exposes a dedicated `admin.treasury` capability and grants it to grade-2 administrators
+  in the default and example role rules, separating treasury inspection from ordinary banking access.
 
 ### Changed
 

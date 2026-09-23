@@ -27,6 +27,7 @@
         "admin.appearance",
         "admin.spells",
         "admin.banking",
+        "admin.treasury",
         "admin.audit",
         "admin.environment"
       ]

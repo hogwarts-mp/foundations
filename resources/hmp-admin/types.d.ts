@@ -16,6 +16,7 @@ export type HmpAdminCapability =
     | "admin.appearance"
     | "admin.spells"
     | "admin.banking"
+    | "admin.treasury"
     | "admin.reconcile"
     | "admin.audit"
     | string;

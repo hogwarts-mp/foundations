@@ -32,7 +32,7 @@ The default `admin` group grants capabilities cumulatively:
 | Grade | Capabilities |
 |---:|---|
 | 1 | View players, kick, go to/bring, freeze/release, warn, announce, no-clip |
-| 2 | Groups, employment, inventory, player transmog, personal spell grants, banking, audit history, environment controls |
+| 2 | Groups, employment, inventory, player transmog, personal spell grants, banking, treasury inspection, audit history, environment controls |
 | 3 | Verified-identity bans and pending bank reconciliation |
 
 Production access requires a `verified` identity by default. Once identities are live, assign a
