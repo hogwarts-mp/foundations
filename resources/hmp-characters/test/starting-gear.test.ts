@@ -22,7 +22,6 @@ function payload(characterId: number, calls: Array<{ operations: HogwartsMpInven
             clear() {},
             native: () => null,
             waitForRevision: async (revision: number) => ({ items: [], sequence: 1, appliedRevision: revision, applyErrors: [] }),
-            persist() {},
             replace() {},
             give() {},
             remove() {},

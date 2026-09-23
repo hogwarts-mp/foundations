@@ -185,7 +185,13 @@ Unknown native rows are still shown in the UI with a readable fallback name and 
 
 ## Persistence and character switching
 
-On `hmp:character:loading`, the resource disables the Framework's identity-level `storage.json` persistence, loads that character's saved native snapshot from MySQL, and calls `player.inventory.replace()`. Character loading does not continue until the Framework confirms that exact inventory revision reached a terminal native state. Grants and removals use the same revision acknowledgement, while native use retains its exact one-item decrement proof. Every authoritative native update—including accepted potion consumption—is queued back to MySQL. Custom rows are already character-scoped.
+The Framework inventory belongs to the live connection and starts empty on every join. On
+`hmp:character:loading`, Foundations loads that character's saved native snapshot from MySQL and
+calls `player.inventory.replace()`. Character loading does not continue until the Framework confirms
+that exact inventory revision reached a terminal native state. Grants and removals use the same
+revision acknowledgement, while native use retains its exact one-item decrement proof. Every
+authoritative native update—including accepted potion consumption—is queued back to MySQL. Custom
+rows are already character-scoped.
 
 This gives each HMP character an independent inventory today. When MafiaHub supplies server-validatable identities later, the account linkage in `hmp-core` can become verified without changing inventory ownership.
 

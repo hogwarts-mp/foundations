@@ -261,14 +261,13 @@ test("refuses to treat a native definition as a database-container item", async 
     assert.strictEqual(stores.get("stash:test")!.items.length, 0);
 });
 
-test("native snapshots disable identity persistence and restore per character", async () => {
+test("native snapshots restore per character and save through Foundations", async () => {
     const calls: unknown[][] = [];
     const saved: Array<{ characterId: number; rows: HmpNativeInventoryRow[] }> = [];
     interface TestInventory extends HogwartsMpNativeInventory { rows: HmpNativeInventoryRow[] }
     const inventory: TestInventory = {
             rows: [],
             revision: 1,
-            persist(value, callback) { calls.push(["persist", value]); callback?.(null, { revision: this.revision, rows: this.rows.length }); },
             replace(rows, callback) { calls.push(["replace", clone(rows)]); this.rows = clone(rows); Object.defineProperty(this, "revision", { value: 2, writable: true }); callback?.(null, { revision: this.revision, rows: this.rows.length }); },
             list() { return clone(this.rows); },
             count: () => 0,
@@ -305,7 +304,6 @@ test("native snapshots disable identity persistence and restore per character", 
     const bridge = createNativeBridge({ repository, core, logger: { info: () => true, warn: () => true, error: () => true } });
     assert.strictEqual(await bridge.attach(player, { id: 9 }), true);
     assert.deepStrictEqual(calls, [
-        ["persist", false],
         ["replace", [{ itemId: "WoundCleaning", holder: "HealthPotionStorage", count: 2, kind: "item" }]],
         ["waitForRevision", 2],
     ]);

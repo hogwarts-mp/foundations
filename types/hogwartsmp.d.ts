@@ -103,7 +103,6 @@ declare global {
         clear(callback?: HogwartsMpNativeInventoryCallback): void;
         native(): HogwartsMpNativeInventoryState | null;
         waitForRevision(revision: number): Promise<HogwartsMpNativeInventoryState>;
-        persist(slot: string | boolean, callback?: HogwartsMpNativeInventoryCallback): void;
         replace(rows: HogwartsMpNativeInventoryRow[], callback?: HogwartsMpNativeInventoryCallback): void;
         give(itemId: string, amount: number, options?: HogwartsMpNativeItemOptions, callback?: HogwartsMpNativeInventoryCallback): void;
         remove(itemId: string, amount: number, options?: HogwartsMpNativeItemOptions, callback?: HogwartsMpNativeInventoryCallback): void;

@@ -63,7 +63,6 @@ export interface HmpNativeInventory {
     clear(callback?: HmpNativeInventoryCallback): void;
     native(): HmpNativeInventoryState | null;
     waitForRevision(revision: number): Promise<HmpNativeInventoryState>;
-    persist(slot: string | boolean, callback?: HmpNativeInventoryCallback): void;
     replace(rows: HmpNativeInventoryRow[], callback?: HmpNativeInventoryCallback): void;
     give(itemId: string, amount: number, options?: HmpNativeItemOptions, callback?: HmpNativeInventoryCallback): void;
     remove(itemId: string, amount: number, options?: HmpNativeItemOptions, callback?: HmpNativeInventoryCallback): void;

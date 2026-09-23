@@ -24,6 +24,9 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ### Changed
 
+- `hmp-inventory` now restores its MySQL-backed character snapshot directly with
+  `player.inventory.replace()` after the Framework removed `inventory.persist()` and made native
+  inventory connection-scoped.
 - `hmp-world` now uses the Framework's replicated `World.*` properties and setters after the native
   `Environment` global was removed, while preserving the existing `world.environment` Foundations API.
 - `hmp-ui` searchable select fields now accept up to 192 choices while retaining the existing 16 KB

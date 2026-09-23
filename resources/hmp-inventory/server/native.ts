@@ -2,7 +2,7 @@ import type { HmpInventoryItemOptions, HmpItemDefinition, HmpNativeInventoryRow 
 import type { Character, Core, Logger, NativeBridge, Player, Repository } from "./internal";
 
 interface NativeRowInternal extends HmpNativeInventoryRow { unique?: boolean }
-type NativeMethod = "persist" | "replace" | "give" | "remove" | "use";
+type NativeMethod = "replace" | "give" | "remove" | "use";
 
 function sanitizeRows(raw: unknown): NativeRowInternal[] {
     const rows: NativeRowInternal[] = [];
@@ -93,7 +93,6 @@ function createNativeBridge(options: { repository: Repository; core: Core; logge
         if (!player || !character) return false;
         loading.add(player.id);
         try {
-            await callbackCall(player, "persist", false);
             const rows = sanitizeRows(await repository.loadNative(character.id));
             const replaced = await callbackCall(player, "replace", rows);
             await waitForApplied(player, replaced);
