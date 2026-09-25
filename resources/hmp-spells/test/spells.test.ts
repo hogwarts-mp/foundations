@@ -311,6 +311,8 @@ async function run(): Promise<void> {
     assert.strictEqual(JSON.stringify(metadata.get(`42:${ASSIGNMENTS_METADATA_KEY}`)), storedKingsley);
     assert.strictEqual(metadata.has(`43:${ASSIGNMENTS_METADATA_KEY}`), false);
     activeCharacterId = 42;
+    // Only a spell the character is allowed comes back to the bar; a revoked one stays hidden.
+    await service.grants.grant(player, "Expulso", { resource: "test" });
     await service.policy.sync(player);
     client.apply(player.emitted.at(-1)?.payload);
     assert.strictEqual(nativeAssignments[0][0], "Expulso");
@@ -381,6 +383,26 @@ async function run(): Promise<void> {
     assert.deepStrictEqual(policies.at(-1)?.relock, ["Spell_Incendio"], "revoked locks must reach the native enforcer, filtered");
     client.apply({ characterId: 42, assignments: moddedAssignments, providers: [nativeProvider] });
     assert.deepStrictEqual(policies.at(-1)?.relock, [], "a policy with no lockSpells must clear the revoke list, not keep the last one");
+
+    // A revoke empties the spell's quick slots at once but keeps it saved, so lifting it restores them.
+    const slotted: HmpSpellLoadoutAssignments = [
+        ["native:Lumos", "native:Expulso", null, "native:Expulso"], [null, null, null, null],
+        [null, null, null, null], ["native:Expulso", null, null, null],
+    ];
+    const allowExpulso = { characterId: 42, unlockSpells: ["Spell_Lumos", "Spell_Expulso"], assignments: slotted };
+    client.apply(allowExpulso);
+    assert.deepStrictEqual(nativeAssignments[0], ["Lumos", "Expulso", null, "Expulso"]);
+    client.apply({ characterId: 42, unlockSpells: ["Spell_Lumos"], lockSpells: ["Spell_Expulso"], assignments: slotted });
+    assert.deepStrictEqual(nativeAssignments[0], ["Lumos", null, null, null], "a revoked spell must leave every quick slot");
+    assert.strictEqual(nativeAssignments[3][0], null, "a revoke must reach inactive loadouts too");
+    assert.deepStrictEqual(client.loadout(0)?.slots, slotted[0], "the saved bar keeps a revoked spell");
+    assert.strictEqual(client.importNativeAssignments({ source: "native-menu" }), true);
+    assert.deepStrictEqual(client.loadout(0)?.slots, slotted[0], "a hidden cell must not import as a player clear");
+    assert.strictEqual(client.setLoadoutSlot(2, "native:Expulso", 0), false, "a revoked spell cannot be slotted");
+    assert.strictEqual(client.cast(1).accepted, false, "a hidden revoked spell cannot be cast by slot");
+    client.apply(allowExpulso);
+    assert.deepStrictEqual(nativeAssignments[0], ["Lumos", "Expulso", null, "Expulso"], "lifting the revoke restores its slots");
+    assert.strictEqual(nativeAssignments[3][0], "Expulso");
     client.stop();
     assert.deepStrictEqual(policies.at(-1), { ids: [], loadouts: -1, relock: [] });
 }

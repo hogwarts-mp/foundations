@@ -116,6 +116,9 @@ the policy. The resolved policy is authoritative over the whole spell lock table
 the rules don't allow is listed in `lockSpells` and re-locked by the client, immediately and on every
 later sync. `action: "deny"` therefore takes a spell already in hand, which is what a timed
 `rules.register(...)` deny (a duel, a wandless minigame) needs; dispose the rule to hand it back.
+A revoked spell also leaves every quick slot at once. Its saved slot is kept but its native cell is
+cleared, and the client `setLoadoutSlot`/`cast` refuse it, so a re-grant, a disposed deny or a
+regained group puts it back where it was.
 Nothing is exempt, so a `freeride-baseline` allow rule for `Spell_Protego`, `Spell_Stupefy` (the
 game's fresh-character defaults) and `Spell_AimMode` (opened by the client's freeride boot) is always
 present — `data/hmp-spells.json` replaces the rule array wholesale, and omitting the baseline there

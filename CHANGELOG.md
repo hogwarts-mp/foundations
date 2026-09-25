@@ -5,6 +5,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+### Fixed
+
+- `hmp-spells` no longer puts a revoked spell back on the quick spell bar after every policy push.
+  A revoke, deny rule or group change now empties that spell's slots immediately; the saved slot is
+  kept, so lifting the revoke restores it.
+
 ## [0.5.0] - 2026-09-23
 
 ### Added

@@ -1,3 +1,4 @@
+import catalogModule = require("../shared/catalog");
 import loadoutsModule = require("../shared/loadouts");
 import providersModule = require("../shared/providers");
 import type {
@@ -7,6 +8,7 @@ import type {
     HmpSpellProviderInfo,
 } from "../types";
 
+const { catalog } = catalogModule;
 const { cloneLoadoutAssignments, normalizeLoadoutAssignments, normalizeSlotSpellId } = loadoutsModule;
 const { normalizeProviderList, resolveProvidedSpell } = providersModule;
 
@@ -72,6 +74,7 @@ function createSpellClient(dependencies: ClientDependencies) {
     let assignments = EMPTY_ASSIGNMENTS();
     let nativeProjection = EMPTY_ASSIGNMENTS();
     let providers: HmpSpellProviderInfo[] = [];
+    let revokedLocks = new Set<string>();
     let assignmentsDirty = false;
     let internalProjectionDepth = 0;
     let ready = false;
@@ -86,12 +89,17 @@ function createSpellClient(dependencies: ClientDependencies) {
         return spellRef ? resolveProvidedSpell(spellRef, providers) : null;
     }
 
+    function isRevoked(spell: HmpResolvedProvidedSpell | null): boolean {
+        const lockId = spell?.kind === "native" && spell.nativeName ? catalog.resolve(spell.nativeName) : null;
+        return !!lockId && revokedLocks.has(lockId);
+    }
+
     function projectSlot(loadout: number, slot: number, spellRef: string | null, emitAssignmentEvent = false): boolean {
         const spell = resolveSpell(spellRef);
         // Gameplay names include Creator Kit spells registered with the native slot system.
-        // Record-only/unavailable references stay saved, but have no native slot mapping; clear
-        // that cell so it cannot retain another character's spell.
-        const nativeName = spell?.kind === "native" ? spell.nativeName || null : null;
+        // Record-only, unavailable and revoked references stay saved, but have no native slot mapping;
+        // clear that cell so it cannot retain another character's spell or one the policy took away.
+        const nativeName = spell?.kind === "native" && !isRevoked(spell) ? spell.nativeName || null : null;
         internalProjectionDepth++;
         try {
             const accepted = dependencies.spells.setLoadoutSlot(slot, nativeName, loadout, emitAssignmentEvent);
@@ -122,6 +130,7 @@ function createSpellClient(dependencies: ClientDependencies) {
         const payload = parsePayload(raw);
         const next = normalizePolicy(payload);
         dependencies.spells.setPolicy(next.unlockSpells, next.bonusLoadouts === null ? -1 : next.bonusLoadouts, next.lockSpells ?? []);
+        revokedLocks = new Set(next.lockSpells ?? []);
         const previousCharacterId = characterId;
         const rawCharacterId = Number(payload.characterId);
         characterId = Number.isSafeInteger(rawCharacterId) && rawCharacterId > 0 ? rawCharacterId : null;
@@ -161,7 +170,8 @@ function createSpellClient(dependencies: ClientDependencies) {
         if (stopped || characterId === null || !Number.isSafeInteger(slot) || slot < 0 || slot > 3
             || !Number.isSafeInteger(loadoutIndex) || loadoutIndex < 0 || loadoutIndex > 3) return false;
         const spellRef = rawSpellRef === null ? null : normalizeSlotSpellId(rawSpellRef);
-        if (rawSpellRef !== null && (!spellRef || !resolveSpell(spellRef))) return false;
+        const spell = resolveSpell(spellRef);
+        if (rawSpellRef !== null && (!spell || isRevoked(spell))) return false;
         if (assignments[loadoutIndex][slot] === spellRef) return projectSlot(loadoutIndex, slot, spellRef);
         const previous = assignments;
         const next = cloneLoadoutAssignments(assignments);
@@ -182,6 +192,7 @@ function createSpellClient(dependencies: ClientDependencies) {
         if (!spellRef) return { accepted: false, slot, spellName: null, reason: "Foundations spell slot is empty" };
         const spell = resolveSpell(spellRef);
         if (!spell) return { accepted: false, slot, spellName: spellRef, reason: `spell provider for '${spellRef}' is unavailable` };
+        if (isRevoked(spell)) return { accepted: false, slot, spellName: spellRef, reason: `spell '${spellRef}' is revoked` };
         if (spell.kind === "record" && spell.recordPath) {
             const result = dependencies.spells.castRecord(spell.recordPath, 0);
             return { ...result, slot, spellName: spellRef };
@@ -257,6 +268,7 @@ function createSpellClient(dependencies: ClientDependencies) {
         assignments = EMPTY_ASSIGNMENTS();
         nativeProjection = EMPTY_ASSIGNMENTS();
         providers = [];
+        revokedLocks = new Set();
         assignmentsDirty = false;
         ready = false;
     }
