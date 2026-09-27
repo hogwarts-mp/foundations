@@ -5,6 +5,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-27
+
+### Changed
+
+- Set the pack, all twenty-seven resources, and internal dependency pins to lockstep version `0.6.0`.
+
 ### Fixed
 
 - `hmp-spells` no longer puts a revoked spell back on the quick spell bar after every policy push.
@@ -341,6 +347,7 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - The initial admin resource focuses on moderation and corrective operations; spectate, noclip, and
   god mode are not included.
 
+[0.6.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.6.0
 [0.5.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.5.0
 [0.4.1]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.4.1
 [0.4.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.4.0
