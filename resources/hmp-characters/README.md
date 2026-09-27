@@ -9,6 +9,10 @@ selector. Cards appear immediately, then their saved looks are rendered locally 
 a time. Portraits are cached by look for the client session; a missing or failed capture
 falls back to character initials instead of blocking selection.
 
+Hover a saved character card and choose **Export JSON** to copy its formatted look. The New Character
+card offers **Import JSON** for pasted JSON or a chosen `.json` file; after the server approves a new
+character session, the native Creator API validates and applies that look before the player confirms it.
+
 ## Responsibilities
 
 - `hmp-core` owns character IDs, slots, account ownership and lifecycle.

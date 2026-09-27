@@ -71,14 +71,15 @@
       .card:hover .del, .del:focus-visible, .del.armed { opacity: 1; }
       .del:hover, .del.armed { color: var(--danger); border-color: rgba(224, 101, 90, 0.6); }
       .del.armed { letter-spacing: 0.1em; }
-      .export {
+      .export, .import {
         position: absolute; z-index: 3; right: 8px; bottom: 8px; font-family: var(--cinzel); font-size: 9px;
         letter-spacing: 0.12em; text-transform: uppercase; color: var(--body); background: rgba(12, 10, 6, 0.82);
         border: 1px solid var(--hair); border-radius: 3px; padding: 6px 8px; cursor: pointer;
-        opacity: 0; transition: opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+        transition: opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease;
       }
+      .export { opacity: 0; }
       .card:hover .export, .export:focus-visible { opacity: 1; }
-      .export:hover, .export:focus-visible { color: var(--heading); border-color: rgba(201, 162, 90, 0.58); outline: none; }
+      .export:hover, .export:focus-visible, .import:hover, .import:focus-visible { color: var(--heading); border-color: rgba(201, 162, 90, 0.58); outline: none; }
       .export:disabled { cursor: wait; color: #655d4b; border-color: rgba(201, 162, 90, 0.08); }
 
       .card.new { border-style: dashed; border-color: rgba(201, 162, 90, 0.3); background: transparent; }
@@ -93,29 +94,29 @@
       }
       #close:hover, #close:focus-visible { color: var(--heading); outline: none; }
       #error { min-height: 20px; margin-top: 4px; color: var(--danger); font-size: 13px; text-align: center; }
-      #export-modal {
+      #export-modal, #import-modal {
         position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 28px;
         background: rgba(4, 3, 2, 0.82); backdrop-filter: blur(4px);
       }
-      .export-panel {
+      .dialog-panel {
         width: min(700px, 92vw); max-height: 86vh; display: flex; flex-direction: column; gap: 14px;
         padding: 24px; background: var(--window); border: 1px solid rgba(201, 162, 90, 0.32);
         border-radius: 7px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.72);
       }
-      .export-title { font-family: var(--cinzel); font-size: 19px; color: var(--heading); letter-spacing: 0.05em; }
-      .export-help { margin: -8px 0 0; color: var(--muted); font-size: 13px; }
-      #export-json {
+      .dialog-title { font-family: var(--cinzel); font-size: 19px; color: var(--heading); letter-spacing: 0.05em; }
+      .dialog-help { margin: -8px 0 0; color: var(--muted); font-size: 13px; }
+      .json-field {
         width: 100%; min-height: 320px; resize: vertical; padding: 14px; color: #d9cba9; background: #0b0906;
         border: 1px solid var(--hair); border-radius: 4px; outline: none; font: 12px/1.5 ui-monospace, monospace;
       }
-      .export-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
-      .export-actions button {
+      .dialog-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+      .dialog-actions button {
         padding: 9px 13px; color: var(--body); background: #100d08; border: 1px solid var(--hair);
         border-radius: 4px; font-family: var(--cinzel); font-size: 10px; letter-spacing: 0.12em; cursor: pointer;
       }
-      .export-actions button:hover, .export-actions button:focus-visible { color: var(--heading); border-color: rgba(201, 162, 90, 0.55); outline: none; }
-      #copy-export { color: #1a1306; background: var(--bright); border-color: var(--bright); }
-      #export-status { flex: 1; color: var(--muted); font-size: 12px; }
+      .dialog-actions button:hover, .dialog-actions button:focus-visible { color: var(--heading); border-color: rgba(201, 162, 90, 0.55); outline: none; }
+      .dialog-actions .primary { color: #1a1306; background: var(--bright); border-color: var(--bright); }
+      .dialog-status { flex: 1; color: var(--muted); font-size: 12px; }
       [hidden] { display: none !important; }
     </style>
   </head>
@@ -132,16 +133,31 @@
     </main>
 
     <section id="export-modal" hidden role="dialog" aria-modal="true" aria-labelledby="export-title">
-      <div class="export-panel">
+      <div class="dialog-panel">
         <div class="eyebrow">Portable Character Look</div>
-        <div class="export-title" id="export-title">Export JSON</div>
-        <p class="export-help">Copy this look or save it as a file. It can be imported from any page of the character creator.</p>
-        <textarea id="export-json" readonly spellcheck="false"></textarea>
-        <div class="export-actions">
-          <span id="export-status" role="status"></span>
+        <div class="dialog-title" id="export-title">Export JSON</div>
+        <p class="dialog-help">Copy this look, then paste it into Import JSON on the New Character card.</p>
+        <textarea class="json-field" id="export-json" readonly spellcheck="false"></textarea>
+        <div class="dialog-actions">
+          <span class="dialog-status" id="export-status" role="status"></span>
           <button id="close-export" type="button">Close</button>
-          <button id="download-export" type="button">Download</button>
-          <button id="copy-export" type="button">Copy JSON</button>
+          <button class="primary" id="copy-export" type="button">Copy JSON</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="import-modal" hidden role="dialog" aria-modal="true" aria-labelledby="import-title">
+      <div class="dialog-panel">
+        <div class="eyebrow">Begin From a Shared Look</div>
+        <div class="dialog-title" id="import-title">Import JSON</div>
+        <p class="dialog-help">Paste an exported character look or choose a JSON file. You can review and edit it in the creator before confirming.</p>
+        <textarea class="json-field" id="import-json" spellcheck="false" placeholder="Paste character look JSON here..."></textarea>
+        <input id="import-file" type="file" accept=".json,application/json" hidden />
+        <div class="dialog-actions">
+          <span class="dialog-status" id="import-status" role="status"></span>
+          <button id="choose-import" type="button">Choose File</button>
+          <button id="close-import" type="button">Close</button>
+          <button class="primary" id="submit-import" type="button">Import &amp; Create</button>
         </div>
       </div>
     </section>
@@ -156,7 +172,10 @@
       const exportTitle = document.getElementById("export-title");
       const exportJson = document.getElementById("export-json");
       const exportStatus = document.getElementById("export-status");
-      let exportName = "character-look";
+      const importModal = document.getElementById("import-modal");
+      const importJson = document.getElementById("import-json");
+      const importFile = document.getElementById("import-file");
+      const importStatus = document.getElementById("import-status");
       let model = { characters: [], activeCharacterId: null, lastCharacterId: null, limit: 4 };
 
       const initials = (name) => String(name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0].toUpperCase()).join("") || "?";
@@ -230,9 +249,19 @@
         card.className = "card new";
         card.tabIndex = 0;
         card.innerHTML = '<div class="shot"><div class="plus">+</div></div><div class="name">New Character</div>';
+        const importButton = document.createElement("button");
+        importButton.type = "button";
+        importButton.className = "import";
+        importButton.textContent = "Import JSON";
+        importButton.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openImport();
+        });
+        card.querySelector(".shot").appendChild(importButton);
         const create = () => send("create");
         card.addEventListener("click", create);
         card.addEventListener("keydown", (event) => {
+          if (event.target !== card) return;
           if (event.key === "Enter" || event.key === " ") { event.preventDefault(); create(); }
         });
         return card;
@@ -279,10 +308,6 @@
         button.title = available ? "Export this character's JSON look" : "No JSON look is available";
       }
 
-      function safeFileName(name) {
-        return String(name || "character-look").normalize("NFKD").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "character-look";
-      }
-
       function closeExport() {
         exportModal.hidden = true;
         exportStatus.textContent = "";
@@ -301,14 +326,40 @@
         exportStatus.textContent = copied ? "Copied to clipboard." : "Select the text and copy it manually.";
       }
 
-      function downloadExport() {
-        const url = URL.createObjectURL(new Blob([exportJson.value], { type: "application/json" }));
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `${safeFileName(exportName)}.json`;
-        link.click();
-        setTimeout(() => URL.revokeObjectURL(url), 0);
-        exportStatus.textContent = "Download started.";
+      function openImport() {
+        importJson.value = "";
+        importFile.value = "";
+        importStatus.textContent = "";
+        importModal.hidden = false;
+        importJson.focus();
+      }
+
+      function closeImport() {
+        importModal.hidden = true;
+        importStatus.textContent = "";
+      }
+
+      function submitImport() {
+        const text = importJson.value.trim();
+        if (!text) {
+          importStatus.textContent = "Paste a character look or choose a JSON file.";
+          importJson.focus();
+          return;
+        }
+        let look;
+        try { look = JSON.parse(text); }
+        catch (_) {
+          importStatus.textContent = "This is not valid JSON.";
+          importJson.focus();
+          return;
+        }
+        if (!look || typeof look !== "object" || Array.isArray(look)) {
+          importStatus.textContent = "The JSON must contain one character look object.";
+          importJson.focus();
+          return;
+        }
+        send("import", { look });
+        closeImport();
       }
 
       window.addEventListener("hmp-characters:model", (event) => {
@@ -325,8 +376,7 @@
       });
       window.addEventListener("hmp-characters:export", (event) => {
         const detail = event.detail || {};
-        exportName = detail.name || "character-look";
-        exportTitle.textContent = `Export ${exportName}`;
+        exportTitle.textContent = `Export ${detail.name || "Character"}`;
         exportJson.value = detail.json || "";
         exportStatus.textContent = "";
         exportModal.hidden = false;
@@ -339,10 +389,24 @@
       close.addEventListener("click", () => send("close"));
       document.getElementById("close-export").addEventListener("click", closeExport);
       document.getElementById("copy-export").addEventListener("click", copyExport);
-      document.getElementById("download-export").addEventListener("click", downloadExport);
+      document.getElementById("close-import").addEventListener("click", closeImport);
+      document.getElementById("submit-import").addEventListener("click", submitImport);
+      document.getElementById("choose-import").addEventListener("click", () => importFile.click());
+      importFile.addEventListener("change", async () => {
+        const file = importFile.files && importFile.files[0];
+        if (!file) return;
+        try {
+          importJson.value = await file.text();
+          importStatus.textContent = `Loaded ${file.name}.`;
+        } catch (_) {
+          importStatus.textContent = "That file could not be read.";
+        }
+      });
       exportModal.addEventListener("click", (event) => { if (event.target === exportModal) closeExport(); });
+      importModal.addEventListener("click", (event) => { if (event.target === importModal) closeImport(); });
       window.addEventListener("keydown", (event) => {
         if (event.key === "Escape" && !exportModal.hidden) { closeExport(); return; }
+        if (event.key === "Escape" && !importModal.hidden) { closeImport(); return; }
         if (event.key === "Escape" && model.canClose) send("close");
       });
       send("ready");

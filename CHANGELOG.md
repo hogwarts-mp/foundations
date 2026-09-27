@@ -7,8 +7,9 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ### Added
 
-- Character cards in `hmp-characters` can export their saved look as formatted JSON, with clipboard
-  and download actions suitable for the creator's JSON import flow.
+- `hmp-characters` can copy a saved character's formatted JSON look and start a new character from
+  pasted JSON or a chosen `.json` file; the native Creator API validates and applies the imported
+  look after the creation session opens.
 
 ### Changed
 

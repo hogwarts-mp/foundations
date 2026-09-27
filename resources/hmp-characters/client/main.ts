@@ -27,6 +27,7 @@ let controlLease: HmpControlLease | null = null;
 let model: ClientModel | null = null;
 let readyTimer: ReturnType<typeof setTimeout> | null = null;
 let creationRequested = false;
+let pendingImportLook: HogwartsMpLook | null = null;
 
 const portraits = new Map<string, string>();
 const portraitQueue: ClientCharacter[] = [];
@@ -95,19 +96,38 @@ function hide(unlock = true): void {
     if (unlock) lockControls(false);
 }
 
-function requestCreate(): void {
+function requestCreate(importedLook: HogwartsMpLook | null = null): void {
     if (creationRequested) return;
     creationRequested = true;
+    pendingImportLook = importedLook;
     Events.emitServer("hmp-characters:create", "{}");
 }
 
 function openCreator(): void {
     hide(true);
+    const importedLook = pendingImportLook;
+    pendingImportLook = null;
+    let importRejected = false;
     try { Creator.open(); }
     catch (_) {
         creationRequested = false;
         Events.emitServer("hmp-characters:cancelled", "{}");
         return;
+    }
+    if (importedLook) {
+        try { importRejected = !Creator.importLook(importedLook); }
+        catch (_) { importRejected = true; }
+        if (importRejected) {
+            try { Creator.close(); }
+            catch (_) { /* the creator may already be closing */ }
+            creationRequested = false;
+            Events.emitServer("hmp-characters:cancelled", "{}");
+            if (model) show();
+            if (view >= 0 && pageReady) {
+                Web.emit(view, "hmp-characters:error", { message: "That JSON is not a valid character look." });
+            }
+            return;
+        }
     }
     setTimeout(() => {
         try { if (Creator.isOpen()) return; }
@@ -251,6 +271,20 @@ function exportLook(characterId: unknown): void {
     });
 }
 
+function importLook(payload: unknown): void {
+    const source = payload && typeof payload === "object" && "look" in payload ? payload.look : null;
+    let look: unknown = source;
+    if (typeof source === "string") {
+        try { look = JSON.parse(source); }
+        catch (_) { look = null; }
+    }
+    if (!look || typeof look !== "object" || Array.isArray(look)) {
+        if (view >= 0) Web.emit(view, "hmp-characters:error", { message: "Paste a valid JSON character look." });
+        return;
+    }
+    requestCreate(look as HogwartsMpLook);
+}
+
 function normalizeModel(payload: unknown): ClientModel {
     const source = payload && typeof payload === "object" ? payload as Partial<HmpCharacterUiModel> : {};
     return {
@@ -279,6 +313,7 @@ function wire(): void {
     });
     Web.on(view, "select", (payload) => Events.emitServer("hmp-characters:select", JSON.stringify(payload || {})));
     Web.on(view, "create", () => requestCreate());
+    Web.on(view, "import", (payload) => importLook(payload));
     Web.on(view, "export", (payload) => exportLook(payload && typeof payload === "object" && "characterId" in payload ? payload.characterId : null));
     Web.on(view, "delete", (payload) => Events.emitServer("hmp-characters:delete", JSON.stringify(payload || {})));
     Web.on(view, "close", () => Events.emitServer("hmp-characters:close", "{}"));
@@ -287,6 +322,7 @@ function wire(): void {
 Events.on("hmp-characters:open", (payload) => {
     model = normalizeModel(payload);
     creationRequested = false;
+    pendingImportLook = null;
     if (model.mode === "create") requestCreate();
     else show();
     const early = pendingLooks.splice(0);
@@ -300,6 +336,7 @@ Events.on("hmp-characters:close", () => hide(true));
 Events.on("hmp-characters:create", () => openCreator());
 Events.on("hmp-characters:error", (payload) => {
     creationRequested = false;
+    pendingImportLook = null;
     const message = payload && typeof payload === "object" && "message" in payload ? payload.message : undefined;
     Game.notify(`[characters] ${String(message || "The action could not be completed.")}`);
     if (!visible && model) show();
@@ -313,6 +350,7 @@ Events.on("hmp-characters:saved", (payload) => {
 
 Events.on("creatorConfirmed", (payload) => {
     if (!creationRequested) return;
+    pendingImportLook = null;
     lockControls(true);
     Events.emitServer("hmp-characters:confirmed", JSON.stringify({
         first: String(payload && typeof payload === "object" && "first" in payload ? payload.first || "" : ""),
@@ -323,6 +361,7 @@ Events.on("creatorConfirmed", (payload) => {
 Events.on("creatorCancelled", () => {
     if (!creationRequested) return;
     creationRequested = false;
+    pendingImportLook = null;
     Events.emitServer("hmp-characters:cancelled", "{}");
 });
 
