@@ -132,6 +132,33 @@ declare global {
         readonly hood?: boolean;
         readonly wandStyle?: string;
     }
+    interface HogwartsMpCreatorCapabilities {
+        readonly version: number;
+        readonly session: boolean;
+        readonly sessionHolder: "none" | "overlay" | "script" | string;
+        readonly schema: boolean;
+        readonly state: boolean;
+        readonly patch: boolean;
+        readonly preview: boolean;
+        readonly look: boolean;
+    }
+    interface HogwartsMpCreatorCategory {
+        readonly options: readonly string[];
+        readonly count: number;
+    }
+    interface HogwartsMpCreatorSchema {
+        readonly version: number;
+        readonly gender: number;
+        readonly categories: Readonly<Record<string, HogwartsMpCreatorCategory>>;
+    }
+    interface HogwartsMpCreatorState {
+        readonly gender: number;
+        readonly selections: Readonly<Record<string, string>>;
+        readonly faceGear: string;
+        readonly voice?: { readonly tone: number; readonly pitch: number };
+        readonly name?: { readonly first: string; readonly last: string };
+        readonly change?: { readonly category: string; readonly id: string; readonly ok: boolean };
+    }
     interface HogwartsMpAppearanceOperationResult { readonly revision: number }
     interface HogwartsMpAppearanceOperationError { readonly code: string; readonly message: string }
     type HogwartsMpAppearanceCallback = (error: HogwartsMpAppearanceOperationError | null, result: HogwartsMpAppearanceOperationResult | null) => void;
@@ -494,11 +521,31 @@ declare global {
         isAllowed(characterId: string): boolean;
     };
     const Creator: {
+        /** @deprecated Use the headless session API with a resource-owned UI. */
         open(): void;
+        /** @deprecated Use `commit` or `cancel` and hide the resource-owned UI. */
         close(): void;
+        /** @deprecated Use `isActive` and `getCapabilities`. */
         isOpen(): boolean;
+        getCapabilities(): HogwartsMpCreatorCapabilities;
+        begin(options?: { preserveCurrent?: boolean }): boolean;
+        commit(): boolean;
+        cancel(): boolean;
+        getSchema(): HogwartsMpCreatorSchema | null;
+        getState(): HogwartsMpCreatorState | null;
+        applyPatch(patch: Record<string, string>): number;
+        setVoice(voice: { tone?: number; pitch?: number }): boolean;
+        setName(first: string, last?: string): boolean;
         exportLook(): HogwartsMpLook | null;
         importLook(look: HogwartsMpLook | string): boolean;
+        isActive(): boolean;
+    };
+    const CreatorPreview: {
+        setCamera(frame: { dist?: number; height?: number; pitch?: number; fov?: number; shift?: number }): void;
+        restoreCamera(): void;
+        rotate(deltaYaw: number): void;
+        freeze(frozen?: boolean): void;
+        playIdle(abilityClassPath: string, channel?: "FullBody" | "PartialBody"): boolean;
     };
     const Camera: {
         capture(): {

@@ -1,8 +1,10 @@
 # hmp-characters
 
 `hmp-characters` is the creation and selection experience for `hmp-core`. It presents a focused
-character-card UI when a player's world and account session are both ready, opens Hogwarts Legacy's
-native character creator, and persists its exported JSON look against the selected character.
+character-card UI when a player's world and account session are both ready, hosts its own character
+creator over the live avatar, and persists the resulting JSON look against the selected character.
+The creator is driven by the Framework's headless `Creator` and `CreatorPreview` APIs and does not
+depend on the Framework's built-in creator overlay or a remotely hosted page.
 
 The bundled renderer uses the same portrait-card presentation as HogwartsMP's original wardrobe
 selector. Cards appear immediately, then their saved looks are rendered locally and filled in one at
@@ -12,11 +14,13 @@ falls back to character initials instead of blocking selection.
 Hover a saved character card and choose **Export JSON** to copy its formatted look. The New Character
 card offers **Import JSON** for pasted JSON or a chosen `.json` file; after the server approves a new
 character session, the native Creator API validates and applies that look before the player confirms it.
+Import remains available from every creator page. The final page also offers **Copy Look JSON**, so a
+player can design and share an appearance and then cancel without creating a character.
 
 ## Responsibilities
 
 - `hmp-core` owns character IDs, slots, account ownership and lifecycle.
-- `hmp-characters` owns the selection UI and the `look`/`transmog` character metadata keys.
+- `hmp-characters` owns the selection and creator UIs plus the `look`/`transmog` character metadata keys.
 - `hmp-inventory` owns character-keyed inventory data; this resource asks it to restore the vanilla starting gear when a character is created.
 - Future housing, progression and location resources own their own character-keyed data.
 
