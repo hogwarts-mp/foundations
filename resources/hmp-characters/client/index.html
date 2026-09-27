@@ -71,6 +71,15 @@
       .card:hover .del, .del:focus-visible, .del.armed { opacity: 1; }
       .del:hover, .del.armed { color: var(--danger); border-color: rgba(224, 101, 90, 0.6); }
       .del.armed { letter-spacing: 0.1em; }
+      .export {
+        position: absolute; z-index: 3; right: 8px; bottom: 8px; font-family: var(--cinzel); font-size: 9px;
+        letter-spacing: 0.12em; text-transform: uppercase; color: var(--body); background: rgba(12, 10, 6, 0.82);
+        border: 1px solid var(--hair); border-radius: 3px; padding: 6px 8px; cursor: pointer;
+        opacity: 0; transition: opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+      }
+      .card:hover .export, .export:focus-visible { opacity: 1; }
+      .export:hover, .export:focus-visible { color: var(--heading); border-color: rgba(201, 162, 90, 0.58); outline: none; }
+      .export:disabled { cursor: wait; color: #655d4b; border-color: rgba(201, 162, 90, 0.08); }
 
       .card.new { border-style: dashed; border-color: rgba(201, 162, 90, 0.3); background: transparent; }
       .card.new .shot { background: rgba(201, 162, 90, 0.03); }
@@ -84,6 +93,29 @@
       }
       #close:hover, #close:focus-visible { color: var(--heading); outline: none; }
       #error { min-height: 20px; margin-top: 4px; color: var(--danger); font-size: 13px; text-align: center; }
+      #export-modal {
+        position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 28px;
+        background: rgba(4, 3, 2, 0.82); backdrop-filter: blur(4px);
+      }
+      .export-panel {
+        width: min(700px, 92vw); max-height: 86vh; display: flex; flex-direction: column; gap: 14px;
+        padding: 24px; background: var(--window); border: 1px solid rgba(201, 162, 90, 0.32);
+        border-radius: 7px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.72);
+      }
+      .export-title { font-family: var(--cinzel); font-size: 19px; color: var(--heading); letter-spacing: 0.05em; }
+      .export-help { margin: -8px 0 0; color: var(--muted); font-size: 13px; }
+      #export-json {
+        width: 100%; min-height: 320px; resize: vertical; padding: 14px; color: #d9cba9; background: #0b0906;
+        border: 1px solid var(--hair); border-radius: 4px; outline: none; font: 12px/1.5 ui-monospace, monospace;
+      }
+      .export-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+      .export-actions button {
+        padding: 9px 13px; color: var(--body); background: #100d08; border: 1px solid var(--hair);
+        border-radius: 4px; font-family: var(--cinzel); font-size: 10px; letter-spacing: 0.12em; cursor: pointer;
+      }
+      .export-actions button:hover, .export-actions button:focus-visible { color: var(--heading); border-color: rgba(201, 162, 90, 0.55); outline: none; }
+      #copy-export { color: #1a1306; background: var(--bright); border-color: var(--bright); }
+      #export-status { flex: 1; color: var(--muted); font-size: 12px; }
       [hidden] { display: none !important; }
     </style>
   </head>
@@ -99,12 +131,32 @@
       <div id="error" role="status"></div>
     </main>
 
+    <section id="export-modal" hidden role="dialog" aria-modal="true" aria-labelledby="export-title">
+      <div class="export-panel">
+        <div class="eyebrow">Portable Character Look</div>
+        <div class="export-title" id="export-title">Export JSON</div>
+        <p class="export-help">Copy this look or save it as a file. It can be imported from any page of the character creator.</p>
+        <textarea id="export-json" readonly spellcheck="false"></textarea>
+        <div class="export-actions">
+          <span id="export-status" role="status"></span>
+          <button id="close-export" type="button">Close</button>
+          <button id="download-export" type="button">Download</button>
+          <button id="copy-export" type="button">Copy JSON</button>
+        </div>
+      </div>
+    </section>
+
     <script>
       const send = (event, payload) => callEvent(event, JSON.stringify(payload || {}));
       const grid = document.getElementById("grid");
       const empty = document.getElementById("empty");
       const close = document.getElementById("close");
       const error = document.getElementById("error");
+      const exportModal = document.getElementById("export-modal");
+      const exportTitle = document.getElementById("export-title");
+      const exportJson = document.getElementById("export-json");
+      const exportStatus = document.getElementById("export-status");
+      let exportName = "character-look";
       let model = { characters: [], activeCharacterId: null, lastCharacterId: null, limit: 4 };
 
       const initials = (name) => String(name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0].toUpperCase()).join("") || "?";
@@ -137,9 +189,23 @@
         slot.textContent = `Character slot ${character.slot}`;
         card.append(shot, name, slot);
 
+        const exportButton = document.createElement("button");
+        exportButton.type = "button";
+        exportButton.className = "export";
+        exportButton.dataset.characterId = String(character.id);
+        exportButton.textContent = "Export JSON";
+        exportButton.title = "Look is still loading";
+        exportButton.disabled = true;
+        exportButton.addEventListener("click", (event) => {
+          event.stopPropagation();
+          send("export", { characterId: character.id });
+        });
+        shot.appendChild(exportButton);
+
         const choose = () => send("select", { characterId: character.id });
         card.addEventListener("click", choose);
         card.addEventListener("keydown", (event) => {
+          if (event.target !== card) return;
           if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(); }
         });
 
@@ -206,6 +272,45 @@
         }
       }
 
+      function setExportState(characterId, available) {
+        const button = grid.querySelector(`.export[data-character-id="${Number(characterId)}"]`);
+        if (!button) return;
+        button.disabled = !available;
+        button.title = available ? "Export this character's JSON look" : "No JSON look is available";
+      }
+
+      function safeFileName(name) {
+        return String(name || "character-look").normalize("NFKD").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "character-look";
+      }
+
+      function closeExport() {
+        exportModal.hidden = true;
+        exportStatus.textContent = "";
+      }
+
+      async function copyExport() {
+        let copied = false;
+        try {
+          await navigator.clipboard.writeText(exportJson.value);
+          copied = true;
+        } catch (_) {
+          exportJson.focus();
+          exportJson.select();
+          try { copied = document.execCommand("copy"); } catch (_) { copied = false; }
+        }
+        exportStatus.textContent = copied ? "Copied to clipboard." : "Select the text and copy it manually.";
+      }
+
+      function downloadExport() {
+        const url = URL.createObjectURL(new Blob([exportJson.value], { type: "application/json" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `${safeFileName(exportName)}.json`;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+        exportStatus.textContent = "Download started.";
+      }
+
       window.addEventListener("hmp-characters:model", (event) => {
         model = event.detail || model;
         render();
@@ -214,12 +319,30 @@
         const detail = event.detail || {};
         applyPortrait(detail.characterId, detail.src);
       });
+      window.addEventListener("hmp-characters:export-state", (event) => {
+        const detail = event.detail || {};
+        setExportState(detail.characterId, detail.available === true);
+      });
+      window.addEventListener("hmp-characters:export", (event) => {
+        const detail = event.detail || {};
+        exportName = detail.name || "character-look";
+        exportTitle.textContent = `Export ${exportName}`;
+        exportJson.value = detail.json || "";
+        exportStatus.textContent = "";
+        exportModal.hidden = false;
+        exportJson.focus();
+      });
       window.addEventListener("hmp-characters:error", (event) => {
         error.textContent = event.detail?.message || "The action could not be completed.";
       });
 
       close.addEventListener("click", () => send("close"));
+      document.getElementById("close-export").addEventListener("click", closeExport);
+      document.getElementById("copy-export").addEventListener("click", copyExport);
+      document.getElementById("download-export").addEventListener("click", downloadExport);
+      exportModal.addEventListener("click", (event) => { if (event.target === exportModal) closeExport(); });
       window.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !exportModal.hidden) { closeExport(); return; }
         if (event.key === "Escape" && model.canClose) send("close");
       });
       send("ready");

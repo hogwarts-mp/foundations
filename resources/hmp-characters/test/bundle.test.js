@@ -72,8 +72,15 @@ assert.ok(clientHandlers.has("hmp-characters:open"));
 assert.ok(clientHandlers.has("hmp-characters:look"));
 assert.ok(clientHandlers.has("creatorConfirmed"));
 assert.ok(webHandlers.has("select"));
+assert.ok(webHandlers.has("export"));
 assert.ok(fs.existsSync(path.resolve(__dirname, "..", "dist", "index.html")));
-assert.match(fs.readFileSync(path.resolve(__dirname, "..", "dist", "index.html"), "utf8"), /hmp-characters:portrait/);
+const page = fs.readFileSync(path.resolve(__dirname, "..", "dist", "index.html"), "utf8");
+assert.match(page, /hmp-characters:portrait/);
+assert.match(page, /hmp-characters:export/);
+assert.match(page, /id="copy-export"/);
+const inlineScript = page.match(/<script>([\s\S]*?)<\/script>/);
+assert.ok(inlineScript);
+assert.doesNotThrow(() => new Function(inlineScript[1]));
 assert.ok(fs.existsSync(path.resolve(__dirname, "..", "dist", "fonts", "Cinzel-Variable.ttf")));
 assert.ok(fs.existsSync(path.resolve(__dirname, "..", "dist", "fonts", "Spectral-Regular.ttf")));
 
@@ -95,6 +102,10 @@ clientHandlers.get("hmp-characters:look")({
     look: { format: "hogwartsmp-look", version: 2, gender: "female", presets: { hairStyle: "saved-look" }, gear: [] },
     transmog: "",
 });
+webHandlers.get("export")({ characterId: 4 });
+const exported = emittedToWeb.find((event) => event.name === "hmp-characters:export");
+assert.strictEqual(exported?.payload.name, "Natsai Onai");
+assert.strictEqual(JSON.parse(exported?.payload.json).presets.hairStyle, "saved-look");
 setTimeout(() => {
     assert.ok(emittedToWeb.some((event) => event.name === "hmp-characters:portrait" && event.payload.characterId === 4 && event.payload.src.startsWith("data:image/png")));
     console.log("hmp-characters bundle contract passed");

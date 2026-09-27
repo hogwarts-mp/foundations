@@ -58,6 +58,7 @@ function push(): void {
     if (view < 0 || !pageReady || !model) return;
     Web.emit(view, "hmp-characters:model", browserModel());
     for (const character of model.characters) {
+        Web.emit(view, "hmp-characters:export-state", { characterId: character.id, available: Boolean(character.look) });
         if (character.portrait !== undefined) {
             Web.emit(view, "hmp-characters:portrait", { characterId: character.id, src: character.portrait });
         }
@@ -231,7 +232,23 @@ function applyLook(look: HmpCharacterLook): void {
     }
     character.look = look.look && typeof look.look === "object" ? look.look : null;
     character.transmog = String(look.transmog || "");
+    if (visible && pageReady && view >= 0) {
+        Web.emit(view, "hmp-characters:export-state", { characterId: character.id, available: Boolean(character.look) });
+    }
     enqueuePortrait(character);
+}
+
+function exportLook(characterId: unknown): void {
+    const character = model?.characters.find((candidate) => candidate.id === Number(characterId));
+    if (!character?.look) {
+        if (view >= 0) Web.emit(view, "hmp-characters:error", { message: "That character's JSON look is not available." });
+        return;
+    }
+    Web.emit(view, "hmp-characters:export", {
+        characterId: character.id,
+        name: character.name,
+        json: JSON.stringify(character.look, null, 2),
+    });
 }
 
 function normalizeModel(payload: unknown): ClientModel {
@@ -262,6 +279,7 @@ function wire(): void {
     });
     Web.on(view, "select", (payload) => Events.emitServer("hmp-characters:select", JSON.stringify(payload || {})));
     Web.on(view, "create", () => requestCreate());
+    Web.on(view, "export", (payload) => exportLook(payload && typeof payload === "object" && "characterId" in payload ? payload.characterId : null));
     Web.on(view, "delete", (payload) => Events.emitServer("hmp-characters:delete", JSON.stringify(payload || {})));
     Web.on(view, "close", () => Events.emitServer("hmp-characters:close", "{}"));
 }

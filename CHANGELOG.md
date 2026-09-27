@@ -5,6 +5,11 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+### Added
+
+- Character cards in `hmp-characters` can export their saved look as formatted JSON, with clipboard
+  and download actions suitable for the creator's JSON import flow.
+
 ### Changed
 
 - `hmp-characters` now persists and streams the Framework's JSON-native look objects through
