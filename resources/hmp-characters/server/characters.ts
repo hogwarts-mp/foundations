@@ -150,7 +150,10 @@ function createCharacterFlow(options: CharacterFlowOptions) {
         if (!characters.length && openOptions.autoCreate !== false) mode = "create";
         const payload = await model(player, mode);
         send(player, "hmp-characters:open", payload);
-        await sendLooks(player, payload.characters);
+        // Avoid portrait capture during the initial join flow. Capturing portraits applies
+        // appearance/transmog while the local pawn has only just finished loading and can
+        // crash the game. Portraits remain available when opening the wardrobe manually.
+        if (mode !== "join") await sendLooks(player, payload.characters);
         return payload;
     }
 
