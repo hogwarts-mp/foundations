@@ -21,12 +21,12 @@ function hasCode(error: unknown, code: string): boolean {
 }
 
 interface TestPlayer extends Player {
-    appearance: string;
+    look: HogwartsMpLook;
     transmog: string;
-    appliedAppearance?: string;
+    appliedLook?: HogwartsMpLook | string;
     appliedTransmog?: string;
-    appearanceError?: HogwartsMpAppearanceOperationError;
-    appearanceOrder: string[];
+    lookError?: HogwartsMpAppearanceOperationError;
+    applyOrder: string[];
 }
 
 interface TestConfig extends Partial<CharacterConfig> { denySwitch?: boolean }
@@ -35,6 +35,16 @@ interface ClientEvent { name: string; payload: Record<string, unknown> }
 
 function makeCharacter(id: number, slot: number, name: string): HmpCoreCharacter {
     return { id, accountId: 10, slot, name, status: "active", createdAt: "now", updatedAt: "now", deletedAt: null };
+}
+
+function makeLook(tag: string): HogwartsMpLook {
+    return {
+        format: "hogwartsmp-look",
+        version: 2,
+        gender: "female",
+        presets: { hairStyle: tag },
+        gear: [],
+    };
 }
 
 function setup(config: TestConfig = {}) {
@@ -48,22 +58,22 @@ function setup(config: TestConfig = {}) {
         id: 7,
         nickname: "Poppy Sweeting",
         position: { x: 0, y: 0, z: 0 },
-        appearance: "before",
+        look: makeLook("before"),
         appearanceRevision: 2,
         transmog: "",
-        appearanceOrder: [],
+        applyOrder: [],
         emit(name: string, payload?: unknown) { clientEvents.push({ name, payload: JSON.parse(typeof payload === "string" ? payload : "{}") as Record<string, unknown> }); },
         teleport: () => 0,
-        getAppearanceBlob() { return this.appearance; },
-        setAppearanceBlob(value: string, callback?: HogwartsMpAppearanceCallback) {
-            this.appearanceOrder.push("appearance");
-            this.appliedAppearance = value;
-            if (this.appearanceError) callback?.(this.appearanceError, null);
+        getLook() { return this.look; },
+        setLook(value: HogwartsMpLook | string, callback?: HogwartsMpAppearanceCallback) {
+            this.applyOrder.push("look");
+            this.appliedLook = value;
+            if (this.lookError) callback?.(this.lookError, null);
             else callback?.(null, { revision: 2 });
             return callback ? 21 : 0;
         },
         getTransmog() { return this.transmog; },
-        setTransmog(value: string) { this.appearanceOrder.push("transmog"); this.transmog = value; this.appliedTransmog = value; },
+        setTransmog(value: string) { this.applyOrder.push("transmog"); this.transmog = value; this.appliedTransmog = value; },
     };
     const session: HmpCoreSession<TestPlayer> = {
         player,
@@ -152,9 +162,10 @@ test("streams saved looks separately after the lightweight card model", async ()
     const { flow, core, player, metadata, clientEvents } = setup();
     const first = await core.characters.create(player, { name: "Poppy Sweeting" });
     const second = await core.characters.create(player, { name: "Garreth Weasley" });
-    metadata.set(`character:${first.id}:appearance`, "saved-look");
+    const savedLook = makeLook("saved-look");
+    metadata.set(`character:${first.id}:look`, savedLook);
     metadata.set(`character:${first.id}:transmog`, "ProfessorGarlick");
-    metadata.set(`character:${second.id}:appearance`, "x".repeat(60_001));
+    metadata.set(`character:${second.id}:look`, makeLook("x".repeat(60_001)));
 
     await flow.open(player, { mode: "wardrobe", autoCreate: false });
 
@@ -165,9 +176,23 @@ test("streams saved looks separately after the lightweight card model", async ()
     ]);
     const looks = clientEvents.filter((event) => event.name === "hmp-characters:look").map((event) => event.payload);
     assert.deepStrictEqual(looks, [
-        { characterId: first.id, appearance: "saved-look", transmog: "ProfessorGarlick" },
-        { characterId: second.id, appearance: "", transmog: "" },
+        { characterId: first.id, look: savedLook, transmog: "ProfessorGarlick" },
+        { characterId: second.id, look: null, transmog: "" },
     ]);
+});
+
+test("migrates JSON looks stored under the transitional appearance key", async () => {
+    const { flow, core, player, metadata, clientEvents } = setup();
+    const character = await core.characters.create(player, { name: "Amit Thakkar" });
+    const savedLook = makeLook("transitional-look");
+    metadata.set(`character:${character.id}:appearance`, JSON.stringify(savedLook));
+
+    await flow.open(player, { mode: "wardrobe", autoCreate: false });
+
+    const published = clientEvents.find((event) => event.name === "hmp-characters:look");
+    assert.deepStrictEqual(published?.payload, { characterId: character.id, look: savedLook, transmog: "" });
+    assert.deepStrictEqual(metadata.get(`character:${character.id}:look`), savedLook);
+    assert.strictEqual(metadata.has(`character:${character.id}:appearance`), false);
 });
 
 test("creates a character with the post-creator appearance and selects it", async () => {
@@ -176,16 +201,17 @@ test("creates a character with the post-creator appearance and selects it", asyn
     assert.strictEqual(flow.pending(player), true);
     assert.ok(clientEvents.some((event) => event.name === "hmp-characters:create"));
 
-    player.appearance = "intermediate";
+    player.look = makeLook("intermediate");
     assert.strictEqual(await flow.confirmCreate(player, { first: " Poppy ", last: " Sweeting<script> " }), true);
-    assert.strictEqual(await flow.onAppearanceChanged(player, "intermediate", 2), null);
+    assert.strictEqual(await flow.onAppearanceChanged(player, makeLook("intermediate"), 2), null);
     assert.strictEqual(characters.length, 0);
 
-    const character = await flow.onAppearanceChanged(player, "after", 3);
+    const after = makeLook("after");
+    const character = await flow.onAppearanceChanged(player, after, 3);
     assert.ok(character);
     assert.strictEqual(character.name, "Poppy Sweetingscript");
     assert.strictEqual(characters.length, 1);
-    assert.strictEqual(metadata.get(`character:${character.id}:appearance`), "after");
+    assert.deepStrictEqual(metadata.get(`character:${character.id}:look`), after);
     assert.strictEqual(metadata.get("account:10:hmp-characters:last"), character.id);
     assert.ok(clientEvents.some((event) => event.name === "hmp-characters:close"));
     assert.ok(clientEvents.some((event) => event.name === "hmp-characters:saved"));
@@ -195,22 +221,23 @@ test("creates a character with the post-creator appearance and selects it", asyn
 test("applies stored appearance during the loading lifecycle", async () => {
     const { flow, player, session, metadata } = setup();
     const character = makeCharacter(3, 1, "Natsai Onai");
-    metadata.set("character:3:appearance", "saved-look");
+    const savedLook = makeLook("saved-look");
+    metadata.set("character:3:look", savedLook);
     metadata.set("character:3:transmog", "EleazarFig");
     assert.strictEqual(await flow.applyAppearance({ session, character }), true);
-    assert.strictEqual(player.appliedAppearance, "saved-look");
+    assert.deepStrictEqual(player.appliedLook, savedLook);
     assert.strictEqual(player.appliedTransmog, "EleazarFig");
-    assert.deepStrictEqual(player.appearanceOrder, ["appearance", "transmog"]);
+    assert.deepStrictEqual(player.applyOrder, ["look", "transmog"]);
 });
 
 test("does not restore transmog when native appearance reload fails", async () => {
     const { flow, player, session, metadata } = setup();
     const character = makeCharacter(4, 1, "Sebastian Sallow");
-    metadata.set("character:4:appearance", "saved-look");
+    metadata.set("character:4:look", makeLook("saved-look"));
     metadata.set("character:4:transmog", "EleazarFig");
-    player.appearanceError = { code: "APPEARANCE_APPLY_FAILED", message: "reload failed" };
+    player.lookError = { code: "APPEARANCE_APPLY_FAILED", message: "reload failed" };
     await assert.rejects(() => flow.applyAppearance({ session, character }), (error: unknown) => hasCode(error, "APPEARANCE_APPLY_FAILED"));
-    assert.deepStrictEqual(player.appearanceOrder, ["appearance"]);
+    assert.deepStrictEqual(player.applyOrder, ["look"]);
     assert.strictEqual(player.appliedTransmog, undefined);
 });
 

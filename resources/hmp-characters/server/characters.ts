@@ -19,6 +19,8 @@ interface PendingCreation {
 }
 
 const MAX_LOOK_BYTES = 60_000;
+const LOOK_KEY = "look";
+const LEGACY_APPEARANCE_KEY = "appearance";
 
 function appearanceError(value: HogwartsMpAppearanceOperationError | unknown): Error {
     if (value instanceof Error) return value;
@@ -26,9 +28,24 @@ function appearanceError(value: HogwartsMpAppearanceOperationError | unknown): E
     return Object.assign(new Error(message), value && typeof value === "object" ? value : {});
 }
 
-function applyAppearanceBlob(player: Player, blob: string): Promise<HogwartsMpAppearanceOperationResult> {
+function parseLook(value: unknown): HogwartsMpLook | null {
+    let look = value;
+    if (typeof look === "string") {
+        try { look = JSON.parse(look); }
+        catch (_) { return null; }
+    }
+    if (!look || typeof look !== "object" || Array.isArray(look)) return null;
+    const candidate = look as Partial<HogwartsMpLook>;
+    if (candidate.format !== "hogwartsmp-look" || !Number.isSafeInteger(candidate.version) || Number(candidate.version) < 1) return null;
+    if (candidate.gender !== "male" && candidate.gender !== "female") return null;
+    if (!candidate.presets || typeof candidate.presets !== "object" || Array.isArray(candidate.presets)) return null;
+    if (!Array.isArray(candidate.gear)) return null;
+    return candidate as HogwartsMpLook;
+}
+
+function applyLook(player: Player, look: HogwartsMpLook): Promise<HogwartsMpAppearanceOperationResult> {
     return new Promise((resolve, reject) => {
-        if (typeof player?.setAppearanceBlob !== "function") {
+        if (typeof player?.setLook !== "function") {
             reject(Object.assign(new Error("native appearance application is unavailable"), { code: "HMP_CHARACTERS_APPEARANCE_UNAVAILABLE" }));
             return;
         }
@@ -40,7 +57,7 @@ function applyAppearanceBlob(player: Player, blob: string): Promise<HogwartsMpAp
             else if (result) resolve(result);
             else reject(Object.assign(new Error("native appearance application returned no result"), { code: "HMP_CHARACTERS_APPEARANCE_INVALID_RESULT" }));
         };
-        try { player.setAppearanceBlob(blob, done); }
+        try { player.setLook(look, done); }
         catch (error) { settled = true; reject(error); }
     });
 }
@@ -57,6 +74,7 @@ function createCharacterFlow(options: CharacterFlowOptions) {
     const loadingDone = new Set<number>();
     const initialOpened = new Set<number>();
     const pendingCreation = new Map<number, PendingCreation>();
+    const legacyBlobWarnings = new Set<number>();
 
     const playerId = (player: Player) => Number(player?.id);
     const connected = (player: Player) => Boolean(core.sessions.get(player));
@@ -79,6 +97,34 @@ function createCharacterFlow(options: CharacterFlowOptions) {
         if (pending?.timer) clearTimeout(pending.timer);
         pendingCreation.delete(id);
         return pending;
+    }
+
+    async function storedLook(characterId: number): Promise<HogwartsMpLook | null> {
+        const current = parseLook(await core.metadata.getCharacter(characterId, LOOK_KEY));
+        if (current) return current;
+
+        const legacyValue = await core.metadata.getCharacter(characterId, LEGACY_APPEARANCE_KEY);
+        if (legacyValue === undefined || legacyValue === null || legacyValue === "") return null;
+        const legacyLook = parseLook(legacyValue);
+        if (!legacyLook) {
+            if (!legacyBlobWarnings.has(characterId) && logger && typeof logger.warn === "function") {
+                legacyBlobWarnings.add(characterId);
+                logger.warn(`Character ${characterId} has a legacy appearance blob that the JSON-only look API cannot import`);
+            }
+            return null;
+        }
+
+        // A short-lived Foundation build stored JSON text under the old key. Migrate that form
+        // lazily; opaque blobs deliberately remain untouched because the converter no longer exists.
+        try {
+            await core.metadata.setCharacter(characterId, LOOK_KEY, legacyLook);
+            await core.metadata.deleteCharacter(characterId, LEGACY_APPEARANCE_KEY);
+        } catch (error) {
+            if (logger && typeof logger.warn === "function") {
+                logger.warn(`Could not migrate the stored JSON look for character ${characterId}: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
+        return legacyLook;
     }
 
     async function askMaySwitch(player: Player, character: HmpCoreCharacter): Promise<void> {
@@ -122,10 +168,10 @@ function createCharacterFlow(options: CharacterFlowOptions) {
 
     async function sendLooks(player: Player, characters: HmpCharacterUiModel["characters"]): Promise<void> {
         for (const character of characters) {
-            let appearance = "";
+            let look: HogwartsMpLook | null = null;
             let transmog = "";
             try {
-                appearance = String(await core.metadata.getCharacter(character.id, "appearance") || "");
+                look = await storedLook(character.id);
                 transmog = String(await core.metadata.getCharacter(character.id, "transmog") || "");
             } catch (error) {
                 if (logger && typeof logger.warn === "function") {
@@ -133,14 +179,14 @@ function createCharacterFlow(options: CharacterFlowOptions) {
                 }
             }
             if (!connected(player)) return;
-            if (Buffer.byteLength(appearance, "utf8") > MAX_LOOK_BYTES) {
+            if (look && Buffer.byteLength(JSON.stringify(look), "utf8") > MAX_LOOK_BYTES) {
                 if (logger && typeof logger.warn === "function") {
-                    logger.warn(`Character ${character.id} appearance exceeds the portrait event limit; using the initials fallback`);
+                    logger.warn(`Character ${character.id} look exceeds the portrait event limit; using the initials fallback`);
                 }
-                appearance = "";
+                look = null;
                 transmog = "";
             }
-            send(player, "hmp-characters:look", { characterId: character.id, appearance, transmog });
+            send(player, "hmp-characters:look", { characterId: character.id, look, transmog });
         }
     }
 
@@ -245,17 +291,17 @@ function createCharacterFlow(options: CharacterFlowOptions) {
         return true;
     }
 
-    async function onAppearanceChanged(player: Player, blob: unknown, revision: unknown): Promise<HmpCoreCharacter | null> {
+    async function onAppearanceChanged(player: Player, look: unknown, revision: unknown): Promise<HmpCoreCharacter | null> {
         const pending = pendingCreation.get(playerId(player));
         const publishedRevision = Math.max(0, Math.trunc(Number(revision)) || 0);
         if (!pending?.confirming || !pending.name || publishedRevision <= Number(pending.revision || 0)) return null;
-        const appearance = String(blob || "");
-        if (!appearance) return null;
+        const publishedLook = parseLook(look);
+        if (!publishedLook) return null;
         clearPending(player);
         try {
             if (!connected(player)) return null;
             const character = await core.characters.create(player, { name: pending.name });
-            await core.metadata.setCharacter(character.id, "appearance", appearance);
+            await core.metadata.setCharacter(character.id, LOOK_KEY, publishedLook);
             let transmog = "";
             try { transmog = String(player.getTransmog?.() || ""); }
             catch (_) { transmog = ""; }
@@ -292,11 +338,11 @@ function createCharacterFlow(options: CharacterFlowOptions) {
         const player = payload?.session?.player;
         const character = payload?.character;
         if (!player || !character) return false;
-        const appearance = await core.metadata.getCharacter(character.id, "appearance");
+        const look = await storedLook(character.id);
         const transmog = await core.metadata.getCharacter(character.id, "transmog");
-        if (appearance) await applyAppearanceBlob(player, String(appearance));
+        if (look) await applyLook(player, look);
         if (typeof player.setTransmog === "function") player.setTransmog(transmog ? String(transmog) : "");
-        return Boolean(appearance || transmog);
+        return Boolean(look || transmog);
     }
 
     function activeCharacter(player: Player): HmpCoreCharacter {

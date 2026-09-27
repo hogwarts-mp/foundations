@@ -90,7 +90,11 @@ clientHandlers.get("hmp-characters:open")({
     allowDelete: true,
     canClose: true,
 });
-clientHandlers.get("hmp-characters:look")({ characterId: 4, appearance: "saved-look", transmog: "" });
+clientHandlers.get("hmp-characters:look")({
+    characterId: 4,
+    look: { format: "hogwartsmp-look", version: 2, gender: "female", presets: { hairStyle: "saved-look" }, gear: [] },
+    transmog: "",
+});
 setTimeout(() => {
     assert.ok(emittedToWeb.some((event) => event.name === "hmp-characters:portrait" && event.payload.characterId === 4 && event.payload.src.startsWith("data:image/png")));
     console.log("hmp-characters bundle contract passed");

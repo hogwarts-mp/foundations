@@ -12,7 +12,7 @@ const PORTRAIT_POSE = "/Game/Animation/Human/PhotoMode/Hu_PhotoMode_Stand3_01_po
 const Input = Imports.get<HmpLibClient>("hmp-lib").input;
 
 interface ClientCharacter extends HmpCharacterCard {
-    appearance?: string;
+    look?: HogwartsMpLook | null;
     transmog?: string;
     portrait?: string;
     portraitQueuedAt?: number;
@@ -118,14 +118,14 @@ function openCreator(): void {
 }
 
 function lookKey(character: ClientCharacter): string {
-    return `${character.appearance || ""}|${character.transmog || ""}`;
+    return `${JSON.stringify(character.look || null)}|${character.transmog || ""}`;
 }
 
 function publishPortrait(key: string, src: string): void {
     portraits.set(key, src);
     if (!model) return;
     for (const character of model.characters) {
-        if (!character.appearance || lookKey(character) !== key) continue;
+        if (!character.look || lookKey(character) !== key) continue;
         character.portrait = src;
         if (visible && pageReady && view >= 0) {
             Web.emit(view, "hmp-characters:portrait", { characterId: character.id, src });
@@ -143,15 +143,16 @@ function pumpPortraits(): void {
     if (portraitInFlight || !portraitQueue.length) return;
     const character = portraitQueue[0];
     const key = lookKey(character);
+    const look = character.look;
     let accepted = false;
     try {
-        if (typeof Portrait !== "object" || typeof Portrait.capture !== "function") {
+        if (!look || typeof Portrait !== "object" || typeof Portrait.capture !== "function") {
             portraitQueue.shift();
             finishPortrait(key, "");
             return;
         }
         accepted = Portrait.capture({
-            ccd: character.appearance,
+            look,
             transmog: character.transmog || "",
             framing: "face",
             pose: PORTRAIT_POSE,
@@ -203,7 +204,7 @@ function pollPortrait(character: ClientCharacter, startedAt: number): void {
 }
 
 function enqueuePortrait(character: ClientCharacter): void {
-    if (!character.appearance) {
+    if (!character.look) {
         character.portrait = "";
         if (visible && pageReady && view >= 0) {
             Web.emit(view, "hmp-characters:portrait", { characterId: character.id, src: "" });
@@ -228,7 +229,7 @@ function applyLook(look: HmpCharacterLook): void {
         if (pendingLooks.length < 32) pendingLooks.push(look);
         return;
     }
-    character.appearance = String(look.appearance || "");
+    character.look = look.look && typeof look.look === "object" ? look.look : null;
     character.transmog = String(look.transmog || "");
     enqueuePortrait(character);
 }

@@ -20,7 +20,7 @@ export interface HmpCharacterCard {
 
 export interface HmpCharacterLook {
     characterId: number;
-    appearance: string;
+    look: HogwartsMpLook | null;
     transmog: string;
 }
 

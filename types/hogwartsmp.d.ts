@@ -112,6 +112,26 @@ declare global {
         use(itemId: string, options?: Pick<HogwartsMpNativeItemOptions, "variation">, callback?: HogwartsMpNativeInventoryCallback): number;
     }
 
+    /**
+     * A look as plain ids: the only appearance form exposed to scripts. This is what
+     * `Creator.exportLook`, `player.getLook`, and `playerAppearanceChanged` return, and what the
+     * matching import APIs accept. It never carries a transmog.
+     */
+    interface HogwartsMpLook {
+        readonly format: "hogwartsmp-look";
+        readonly version: number;
+        readonly gender: "male" | "female";
+        readonly presets: Readonly<Record<string, string>>;
+        readonly gear: readonly string[];
+        readonly faceGear?: string;
+        readonly house?: string;
+        readonly scale?: number;
+        readonly boneScales?: Readonly<Record<string, number>>;
+        readonly voice?: { readonly tone: number; readonly pitch: number };
+        readonly name?: { readonly first: string; readonly last: string };
+        readonly hood?: boolean;
+        readonly wandStyle?: string;
+    }
     interface HogwartsMpAppearanceOperationResult { readonly revision: number }
     interface HogwartsMpAppearanceOperationError { readonly code: string; readonly message: string }
     type HogwartsMpAppearanceCallback = (error: HogwartsMpAppearanceOperationError | null, result: HogwartsMpAppearanceOperationResult | null) => void;
@@ -199,8 +219,8 @@ declare global {
         inventory?: HogwartsMpNativeInventory;
         gear?: HogwartsMpPlayerGear;
         readonly appearanceRevision?: number;
-        getAppearanceBlob?(): string;
-        setAppearanceBlob?(appearance: string, callback?: HogwartsMpAppearanceCallback): number;
+        getLook?(): HogwartsMpLook | null;
+        setLook?(look: HogwartsMpLook | string, callback?: HogwartsMpAppearanceCallback): number;
         getTransmog?(): string;
         setTransmog?(transmog: string): void;
         emit(eventName: string, payload?: unknown): void;
@@ -250,6 +270,7 @@ declare global {
         on(eventName: "playerConnect" | "playerDisconnect" | "worldReady", listener: (player: HogwartsMpPlayer) => unknown): void;
         on(eventName: "playerInventoryUpdated", listener: (player: HogwartsMpPlayer, rows: unknown) => unknown): void;
         on(eventName: "playerGearChanged", listener: (player: HogwartsMpPlayer) => unknown): void;
+        on(eventName: "playerAppearanceChanged", listener: (player: HogwartsMpPlayer, look: HogwartsMpLook, revision: number) => unknown): void;
         on(eventName: "playerTeleportComplete", listener: (player: HogwartsMpPlayer, requestId: number, status: number, completion: HogwartsMpTeleportCompletion) => unknown): void;
         on(eventName: "playerLocationChanged", listener: (player: HogwartsMpPlayer, current: HogwartsMpPlayerLocation | null, previous: HogwartsMpPlayerLocation | null) => unknown): void;
         on(eventName: "resourceStop", listener: (name?: string) => unknown): void;
@@ -341,7 +362,7 @@ declare global {
     const InventoryCatalog: HogwartsMpInventoryCatalog;
     interface HogwartsMpPortraitCaptureOptions {
         subjectId?: number;
-        ccd?: string;
+        look?: HogwartsMpLook | string;
         transmog?: string;
         framing?: "face" | "bust" | "waist" | "body";
         pose?: string;
@@ -474,7 +495,10 @@ declare global {
     };
     const Creator: {
         open(): void;
+        close(): void;
         isOpen(): boolean;
+        exportLook(): HogwartsMpLook | null;
+        importLook(look: HogwartsMpLook | string): boolean;
     };
     const Camera: {
         capture(): {

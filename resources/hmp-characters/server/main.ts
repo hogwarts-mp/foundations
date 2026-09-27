@@ -46,8 +46,8 @@ Events.on("hmp:character:loaded", async (payload: unknown) => {
     }
 });
 Events.on("hmp:character:deleted", (payload: unknown) => startingGear.deleted(payload as CharacterEventPayload));
-Events.on("playerAppearanceChanged", (player: unknown, blob: unknown, revision: unknown) => {
-    flow.onAppearanceChanged(player as Player, blob, revision).catch((error: unknown) => flow.notifyError(player as Player, error));
+Events.on("playerAppearanceChanged", (player: unknown, look: HogwartsMpLook, revision: unknown) => {
+    flow.onAppearanceChanged(player as Player, look, revision).catch((error: unknown) => flow.notifyError(player as Player, error));
 });
 Events.on("worldReady", (player: unknown) => flow.onWorldReady(player as Player).catch((error: unknown) => flow.notifyError(player as Player, error)));
 Events.on("playerDisconnect", (player: unknown) => flow.disconnect(player as Player));
