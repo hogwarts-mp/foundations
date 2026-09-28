@@ -26,6 +26,8 @@ export interface AdminNoclipConfig {
     speed: number;
     boost: number;
     tickMs: number;
+    /** Hide the admin from every other player while flying (player.setVisible). Default true. */
+    hide?: boolean;
     movement: {
         forward: string;
         back: string;

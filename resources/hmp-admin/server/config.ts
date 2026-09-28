@@ -14,6 +14,7 @@ function loadConfig(Hmp: HmpLibServer<Player>, options: { env?: NodeJS.ProcessEn
             speed: 4500,
             boost: 3,
             tickMs: 11,
+            hide: true,
             movement: { forward: "w", back: "s", left: "a", right: "d", up: "space", down: "ctrl", boost: "shift" },
         },
         roleRules: [
@@ -38,6 +39,7 @@ function loadConfig(Hmp: HmpLibServer<Player>, options: { env?: NodeJS.ProcessEn
         speed: Math.max(100, Math.min(50000, Number(noclip.speed) || defaults.noclip.speed)),
         boost: Math.max(1, Math.min(10, Number(noclip.boost) || defaults.noclip.boost)),
         tickMs: Math.max(5, Math.min(100, Math.trunc(Number(noclip.tickMs)) || defaults.noclip.tickMs)),
+        hide: noclip.hide !== false,
         movement: {
             forward: String(movement.forward || defaults.noclip.movement.forward),
             back: String(movement.back || defaults.noclip.movement.back),

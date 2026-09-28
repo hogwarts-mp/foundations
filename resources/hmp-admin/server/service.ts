@@ -247,12 +247,21 @@ function createAdminService(options: {
         },
     });
 
+    // Server-owned, so the admin's own client cannot undo it; a server without setVisible just leaves
+    // the admin visible.
+    function setNoclipHidden(player: Player | null | undefined, hidden: boolean): void {
+        if (config.noclip.hide === false) return;
+        try { (player as { setVisible?: (visible: boolean) => void } | null | undefined)?.setVisible?.(!hidden); }
+        catch (error) { logger.warn(`Could not ${hidden ? "hide" : "reveal"} player #${player?.id}: ${error instanceof Error ? error.message : String(error)}`); }
+    }
+
     const actions = Object.freeze({
         environment,
         async noclip(actor: Player, reason = "Toggle administrator no-clip") {
             const enabled = !activeNoclip.has(actor.id);
             return audited(actor, "admin.noclip", `player.noclip.${enabled ? "enable" : "disable"}`, actor, reason, { enabled }, () => {
                 actor.emit("hmp-admin:noclip", JSON.stringify({ enabled, ...config.noclip }));
+                setNoclipHidden(actor, enabled);
                 if (enabled) activeNoclip.add(actor.id); else activeNoclip.delete(actor.id);
                 return enabled;
             });
@@ -450,6 +459,7 @@ function createAdminService(options: {
             const player = getPlayer(playerId);
             if (player && await permissions.has(player, "admin.noclip")) continue;
             activeNoclip.delete(playerId);
+            setNoclipHidden(player, false);
             try { player?.emit("hmp-admin:noclip", JSON.stringify({ enabled: false })); }
             catch (error) { logger.warn(`Could not notify player #${playerId} that no-clip was revoked: ${error instanceof Error ? error.message : String(error)}`); }
             revoked++;
@@ -474,6 +484,7 @@ function createAdminService(options: {
     async function stop(): Promise<void> {
         state = "stopped";
         for (const playerId of activeNoclip) {
+            setNoclipHidden(getPlayer(playerId), false);
             try { getPlayer(playerId)?.emit("hmp-admin:noclip", JSON.stringify({ enabled: false })); }
             catch (_) { /* client cleanup also restores collision during resource stop */ }
         }

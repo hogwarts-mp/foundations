@@ -92,6 +92,7 @@ function setup() {
     const kicked = new Map<number, string>();
     const holds = new Map<number, Set<string>>();
     const emitted = new Map<number, Array<{ event: string; payload: unknown }>>();
+    const visibility = new Map<number, boolean>();
 
     function player(id: number, nickname: string): Player {
         return {
@@ -106,6 +107,7 @@ function setup() {
             hold(input) { if (!holds.has(id)) holds.set(id, new Set()); holds.get(id)!.add(input.owner); return true; },
             release(owner) { return holds.get(id)?.delete(owner) || false; },
             holds() { return [...holds.get(id) || []].map((owner) => ({ owner })); },
+            setVisible(visible: boolean) { visibility.set(id, visible); },
         } as Player;
     }
 
@@ -251,7 +253,7 @@ function setup() {
         config, logger: { debug: () => true, info: () => true, warn: () => true, error: () => true }, migrations: [],
         listPlayers: () => players, getPlayer: (id) => players.find((entry) => entry.id === id) || null,
     });
-    return { service, permissions, config, verifiedAdmin, assertedAdmin, verifiedTarget, assertedTarget, audit, warnings, bans, kicked, holds, emitted, groupGrades, inventoryMutations, groupMutations, jobMutations, bankMutations, spellMutations, transmogMutations, environmentMutations };
+    return { service, permissions, config, verifiedAdmin, assertedAdmin, verifiedTarget, assertedTarget, audit, warnings, bans, kicked, holds, emitted, visibility, groupGrades, inventoryMutations, groupMutations, jobMutations, bankMutations, spellMutations, transmogMutations, environmentMutations };
 }
 
 test("requires verified staff identity but supports session-only closed-test bootstrap", async () => {
@@ -295,15 +297,18 @@ test("toggles and revokes audited administrator no-clip", async () => {
     const enabled = state.emitted.get(state.verifiedAdmin.id)![0];
     assert.strictEqual(enabled.event, "hmp-admin:noclip");
     assert.deepStrictEqual(JSON.parse(String(enabled.payload)), { enabled: true, ...state.config.noclip });
+    assert.strictEqual(state.visibility.get(state.verifiedAdmin.id), false);
 
     assert.strictEqual(await state.service.actions.noclip(state.verifiedAdmin), false);
     assert.strictEqual(state.service.status().activeNoclip, 0);
+    assert.strictEqual(state.visibility.get(state.verifiedAdmin.id), true);
     assert.deepStrictEqual(state.audit.map((entry) => entry.action), ["player.noclip.enable", "player.noclip.disable"]);
 
     await state.service.actions.noclip(state.verifiedAdmin);
     state.groupGrades.delete(state.verifiedAdmin.id);
     assert.strictEqual(await state.service.revalidateNoclip(), 1);
     assert.strictEqual(state.service.status().activeNoclip, 0);
+    assert.strictEqual(state.visibility.get(state.verifiedAdmin.id), true);
     assert.deepStrictEqual(JSON.parse(String(state.emitted.get(state.verifiedAdmin.id)!.at(-1)!.payload)), { enabled: false });
 });
 

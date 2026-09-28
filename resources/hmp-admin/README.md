@@ -56,7 +56,8 @@ accepts `HMP_ADMIN_COMMAND`, `HMP_ADMIN_REQUIRE_VERIFIED`, and `HMP_ADMIN_CONFIG
 - Moderation: durable warnings, kick, verified-identity timed or permanent bans, ban review/revoke.
 - Intervention: acknowledged streamed go-to/bring and Framework-authoritative freeze/release.
 - Staff movement: audited, server-authorized no-clip from the main menu, with camera-relative WASD,
-  Space/Ctrl vertical movement, Shift boost, collision bypass, and protected landing.
+  Space/Ctrl vertical movement, Shift boost, collision bypass, and protected landing. While flying
+  the admin is hidden from every other player (body, nametag, minimap blip) by the server.
 - World environment: audited global weather, season, calendar date, 24-hour time, and clock-speed controls, including a
   searchable dropdown of 34 known native weather profiles and a confirmation-gated reset to the
   configured `hmp-world` baseline. A custom live or baseline profile is added to the dropdown
@@ -76,7 +77,8 @@ The inventory editor searches that catalog on the server first and sends at most
 client, keeping the dialog below the Framework event-payload limit even with thousands of native items.
 
 No-clip tuning and movement keys can be overridden in the `noclip` object in `data/hmp-admin.json`.
-The defaults are `4500` cm/s, a `3x` Shift boost, and QWERTY WASD movement.
+The defaults are `4500` cm/s, a `3x` Shift boost, and QWERTY WASD movement. Set `"hide": false`
+to keep the admin visible while flying; a server without `player.setVisible` always does.
 
 ## Suggested closed-test feedback
 
