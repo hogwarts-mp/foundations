@@ -36,7 +36,6 @@ interface PreviewState {
 
 declare const LocalPlayer: {
     stopEmote(): boolean;
-    photoPose(path?: string): boolean;
     playClip(path?: string, options?: { loop?: boolean; hold?: boolean; rate?: number }): boolean;
     playAbility(path: string, channel?: string): boolean;
     stopPlayerInput(): boolean | null;
@@ -253,10 +252,6 @@ Events.on("hmp-emotes:aliases", (raw: unknown) => {
         ...(typeof value.allowAll === "boolean" ? { allowAll: value.allowAll } : {}),
         ...(typeof value.browseUnaliased === "boolean" ? { browseUnaliased: value.browseUnaliased } : {}),
     });
-});
-Events.on("hmp-emotes:photo-pose", (raw: unknown) => {
-    const path = String(parse(raw).path || "");
-    reply(LocalPlayer.photoPose(path) ? path ? `pose ok: ${path}` : "pose cleared" : `pose failed: ${path}`);
 });
 Events.on("hmp-emotes:play-ability", (raw: unknown) => {
     const value = parse(raw);

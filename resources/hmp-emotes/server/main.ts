@@ -128,9 +128,6 @@ const editorGuard = async ({ player }: { player: HmpEmotePlayer }) => {
     return (await Promise.all(groups.map((group) => core.groups.has(player, group.key, group.minimumGrade || 0)))).some(Boolean)
         || "You do not have permission to use emote diagnostics.";
 };
-router.register("photopose", { usage: "/photopose [asset]", guard: editorGuard }, (context) => {
-    context.player.emit("hmp-emotes:photo-pose", JSON.stringify({ path: context.args[0] || "" }));
-});
 router.register("playability", { usage: "/playability <classPath> [FullBody|PartialBody]", guard: editorGuard }, (context) => {
     context.player.emit("hmp-emotes:play-ability", JSON.stringify({ path: context.args[0] || "", channel: context.args[1] || "FullBody" }));
 });

@@ -72,7 +72,7 @@ global.Imports = { get: (name) => {
     throw new Error(`Unexpected client import ${name}`);
 } };
 global.LocalPlayer = {
-    stopEmote: () => true, photoPose: () => true, playClip: () => true, playAbility: () => true,
+    stopEmote: () => true, playClip: () => true, playAbility: () => true,
     stopPlayerInput: () => true, restorePlayerInput: () => true,
     emotePreview: () => ({ ok: true, visible: false, ready: true, placeable: false, committed: false, anchored: false, status: "" }),
 };

@@ -70,7 +70,7 @@ configuration property remain accepted as compatibility names for `allowAll`.
 - `/e m`, `/emote menu`, or `/emotemenu` opens the picker.
 - `/e c`, `/emote stop` releases the current emote and any placement anchor.
 - `/emotes` lists server-curated names.
-- `/photopose` and `/playability` are editor-only diagnostics.
+- `/playability` is an editor-only diagnostic.
 
 ## Server API
 
