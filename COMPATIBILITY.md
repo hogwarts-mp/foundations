@@ -1,13 +1,12 @@
 # HMP Foundations compatibility
 
-This matrix describes Foundations `0.6.0`. “Supported” means the combination is an intended release
-target. “Closed-test” means it is the current validation baseline but has not yet earned a stable
-upstream release identifier.
+This matrix describes Foundations `0.7.0`. “Supported” means the combination is an intended release
+target.
 
 | Component | Supported baseline | Status | Notes |
 |---|---|---|---|
-| HMP Foundations | `0.6.0` pack and resources | Supported | All twenty-seven resources must use the same version. |
-| HogwartsMP scripting host | Mod commit `b85eecf409c59179ef836d613b3a3766f01ed593` or newer | Closed-test | Requires the matching Framework support for script-role manifests and resource containers. Pin the eventual upstream release tag before a public Foundations release. |
+| HMP Foundations | `0.7.0` pack and resources | Supported | All twenty-seven resources must use the same version. |
+| HogwartsMP scripting host | `1.6.0` or newer | Supported | Provides the scripting capabilities listed below. |
 | MafiaHub Framework | `16.2.0` or newer | Supported | Required for the `fw://` local resource scheme. On `16.1.x` and older every resource-served page, font, and icon fails to load. |
 | Hogwarts Legacy client data | Steam build ID `20773316` | Supported baseline | The native inventory catalog declares this game-data build. Other builds require revalidation. |
 | Dedicated-server JavaScript | Embedded Node.js 22 runtime | Supported | Release resources contain bundled dependencies. |
@@ -20,8 +19,8 @@ upstream release identifier.
 
 ## Required scripting capabilities
 
-Until HogwartsMP publishes a stable version that covers Foundations, compatibility is capability-based.
-The host must provide:
+HogwartsMP `1.6.0` provides the required scripting capabilities below. Compatible newer releases must
+preserve them:
 
 - manifest resource dependencies, priorities, exports, and `Imports.get()`;
 - ordered `serverScripts`, `clientScripts`, and `sharedScripts` manifest roles, explicit `files`
@@ -33,7 +32,7 @@ The host must provide:
 - player appearance capture/apply completion for character switching;
 - client `Portrait` capture/result/image access and the packaged off-screen avatar proxy used by the
   default character-card renderer;
-- server-owned hold/release primitives used by administration;
+- server-owned hold/release and player visibility primitives used by administration;
 - `InventoryCatalog` schema version 1 and the server-authoritative player inventory surface, including
   replace, grant/remove, use, persistence control, and revision acknowledgement;
 - the current native Galleons definition (with `native:knuts` retained only as a Foundations alias);
@@ -62,13 +61,13 @@ victim-side green-bolt cosmetic, and target/team writes require the remote proxy
 re-fans complete snapshots for late joiners and exposes `/pvp sync` for recovery; neither caveat weakens
 server arbitration or the duel health floor.
 
-Asynchronous resource lifecycle is not a requirement for Foundations `0.6.0`. The current pack still
+Asynchronous resource lifecycle is not a requirement for Foundations `0.7.0`. The current pack still
 uses the existing synchronous lifecycle and will adopt the asynchronous contract after upstream
 support lands.
 
 ## Identity compatibility
 
-The closed-test baseline uses asserted client identifiers because a server-validatable MafiaHub
+The current identity baseline uses asserted client identifiers because a server-validatable MafiaHub
 identity provider is not available yet. Do not treat those identifiers as proof of identity. The
 default admin policy requires verified identity for durable bans and keeps unsafe asserted-identity
 bans disabled. A later provider should change the trust source without changing Foundations account or

@@ -5,14 +5,21 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-30
+
 ### Added
 
 - `hmp-characters` now owns the complete character-creator UI using the Framework's headless
   `Creator` and `CreatorPreview` APIs. It supports JSON import throughout the flow, Copy JSON on the
   final page without creating a character, and saved-card JSON export from the selector.
+- `hmp-admin` now hides no-clipping administrators from other players by default through the
+  server-owned visibility API, then reveals them when no-clip is disabled, revoked, or stopped.
+  Set `noclip.hide` to `false` to keep administrators visible while flying.
 
 ### Changed
 
+- Set the pack, all twenty-seven resources, and internal dependency pins to lockstep version `0.7.0`.
+- Set the supported HogwartsMP scripting-host baseline to version `1.6.0` or newer.
 - `hmp-characters` now persists and streams the Framework's JSON-native look objects through
   `playerAppearanceChanged`, `player.setLook()` and `Portrait.capture({ look })`. New records use the
   `look` metadata key; transitional JSON text under `appearance` is migrated lazily, while opaque
@@ -21,6 +28,11 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   portrait and appearance-event APIs; the removed blob and `ccd` interfaces are no longer exposed.
 - Character creation no longer opens the Framework's built-in creator overlay; Foundations claims,
   commits, or cancels its own editing session and hosts both selector and creator pages locally.
+
+### Removed
+
+- `hmp-emotes` no longer offers the `photoPose` emote because the host does not synchronize it to
+  other players.
 
 ## [0.6.0] - 2026-09-27
 
@@ -364,6 +376,7 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - The initial admin resource focuses on moderation and corrective operations; spectate, noclip, and
   god mode are not included.
 
+[0.7.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.7.0
 [0.6.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.6.0
 [0.5.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.5.0
 [0.4.1]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.4.1
