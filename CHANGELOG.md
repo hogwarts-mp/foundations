@@ -5,6 +5,23 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+### Added
+
+- `hmp-characters` now owns the complete character-creator UI using the Framework's headless
+  `Creator` and `CreatorPreview` APIs. It supports JSON import throughout the flow, Copy JSON on the
+  final page without creating a character, and saved-card JSON export from the selector.
+
+### Changed
+
+- `hmp-characters` now persists and streams the Framework's JSON-native look objects through
+  `playerAppearanceChanged`, `player.setLook()` and `Portrait.capture({ look })`. New records use the
+  `look` metadata key; transitional JSON text under `appearance` is migrated lazily, while opaque
+  legacy blobs are left untouched because the Framework no longer exposes a blob converter.
+- HogwartsMP ambient types now describe the JSON look schema and the matching player, creator,
+  portrait and appearance-event APIs; the removed blob and `ccd` interfaces are no longer exposed.
+- Character creation no longer opens the Framework's built-in creator overlay; Foundations claims,
+  commits, or cancels its own editing session and hosts both selector and creator pages locally.
+
 ## [0.6.0] - 2026-09-27
 
 ### Changed

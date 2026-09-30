@@ -1,18 +1,26 @@
 # hmp-characters
 
 `hmp-characters` is the creation and selection experience for `hmp-core`. It presents a focused
-character-card UI when a player's world and account session are both ready, opens Hogwarts Legacy's
-native character creator, and persists the resulting appearance against the selected character.
+character-card UI when a player's world and account session are both ready, hosts its own character
+creator over the live avatar, and persists the resulting JSON look against the selected character.
+The creator is driven by the Framework's headless `Creator` and `CreatorPreview` APIs and does not
+depend on the Framework's built-in creator overlay or a remotely hosted page.
 
 The bundled renderer uses the same portrait-card presentation as HogwartsMP's original wardrobe
-selector. Cards appear immediately, then their saved appearances are rendered locally and filled in
-one at a time. Portraits are cached by appearance for the client session; a missing or failed capture
+selector. Cards appear immediately, then their saved looks are rendered locally and filled in one at
+a time. Portraits are cached by look for the client session; a missing or failed capture
 falls back to character initials instead of blocking selection.
+
+Hover a saved character card and choose **Export JSON** to copy its formatted look. The New Character
+card offers **Import JSON** for pasted JSON or a chosen `.json` file; after the server approves a new
+character session, the native Creator API validates and applies that look before the player confirms it.
+Import remains available from every creator page. The final page also offers **Copy Look JSON**, so a
+player can design and share an appearance and then cancel without creating a character.
 
 ## Responsibilities
 
 - `hmp-core` owns character IDs, slots, account ownership and lifecycle.
-- `hmp-characters` owns the selection UI and the `appearance`/`transmog` character metadata keys.
+- `hmp-characters` owns the selection and creator UIs plus the `look`/`transmog` character metadata keys.
 - `hmp-inventory` owns character-keyed inventory data; this resource asks it to restore the vanilla starting gear when a character is created.
 - Future housing, progression and location resources own their own character-keyed data.
 
@@ -22,14 +30,17 @@ There is no second character database and no nickname-as-identity fallback.
 
 1. The server waits for `hmp:session:ready`, client UI readiness and `worldReady`.
 2. Existing characters are sent as small card records. A new account enters creation automatically.
-   Appearance blobs follow as one bounded message per character so the selector never waits for every
-   portrait before becoming usable.
+   Saved looks (stored as JSON objects) follow as one bounded message per character so the
+   selector never waits for every portrait before becoming usable.
 3. Selection calls `hmp-core.characters.select` and remembers the last character on the account.
-4. During `hmp:character:loading`, the stored appearance is applied and its native reload acknowledgement is awaited before transmog is restored and the core emits `loaded`.
+4. During `hmp:character:loading`, the stored look is applied and its native reload acknowledgement is awaited before transmog is restored and the core emits `loaded`.
 
 After creator confirmation, the server records the current appearance revision and waits for a newer
 `playerAppearanceChanged` publication. That publication is emitted only after the game's native
 normalization has settled, so character cards receive the same complete look used by live players.
+
+JSON looks written under the transitional `appearance` key are migrated lazily. Older opaque blobs
+cannot be converted by the JSON-only mod API; those characters use initials until a new look is saved.
 
 Portrait cards call the Framework-provided client `Portrait` API directly. They do not require or
 load the mod repository's standalone `portrait` resource. The supported HogwartsMP client supplies
