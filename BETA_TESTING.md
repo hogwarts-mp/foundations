@@ -1,4 +1,4 @@
-# HMP Foundations closed testing
+# HMP Foundations Beta testing
 
 This pass should answer two questions: can players complete the normal Foundations flows without
 staff intervention, and can staff understand and safely use the intervention tools when something
