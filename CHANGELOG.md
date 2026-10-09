@@ -5,6 +5,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+### Added
+
+- New `hmp-loot` resource: chests, moonstone deposits and foragables placed from `data/hmp-loot.json`
+  through the Framework's `Lootables` builtin, each taken once per `hmp-core` character or once in total,
+  with respawn timers and takes persisted in `hmp_loot_takes`. `suppressGameLoot` switches the game's own
+  loot families off through `World.suppressLoot`, and `/loot` (gated by configured groups) lists loot and
+  resets takes. Requires a HogwartsMP build with the `Lootables` builtin.
+
 ## [0.7.0] - 2026-09-30
 
 ### Added

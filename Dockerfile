@@ -32,6 +32,7 @@ COPY resources/hmp-ui/package.json resources/hmp-ui/package.json
 COPY resources/hmp-webhooks/package.json resources/hmp-webhooks/package.json
 COPY resources/hmp-world/package.json resources/hmp-world/package.json
 COPY resources/hmp-worldstate/package.json resources/hmp-worldstate/package.json
+COPY resources/hmp-loot/package.json resources/hmp-loot/package.json
 RUN npm ci
 
 COPY . .

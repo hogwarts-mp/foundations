@@ -32,6 +32,7 @@ The dedicated server may run on Windows x64 or Linux x86-64; Hogwarts Legacy cli
 | [`hmp-doors`](resources/hmp-doors) | Group-aware physical door and logical lock access with character-scoped grants. |
 | [`hmp-world`](resources/hmp-world) | Server-wide weather, time, season, mount-boundary, ambient-population and native-encounter defaults. |
 | [`hmp-worldstate`](resources/hmp-worldstate) | Persisted world state players change: repairable objects (Reparo) shared by everyone, plus a keyed store for further systems. |
+| [`hmp-loot`](resources/hmp-loot) | Server-placed chests, moonstones and foragables with per-character or shared takes and respawns, replacing the game's own world loot. |
 | [`hmp-npcs`](resources/hmp-npcs) | Verified enemy catalog plus resource-scoped NPC spawning, ownership and cleanup. |
 | [`hmp-emotes`](resources/hmp-emotes) | Curated synchronized emotes, account favorites, live alias editing and replaceable picker UI. |
 | [`hmp-spells`](resources/hmp-spells) | Character-scoped spell grants, group-aware policy rules, bonus loadouts and advisory cast events. |
@@ -94,7 +95,7 @@ server owners normally use that server image or the downloadable ZIP instead of 
 ## Versioning
 
 Foundations uses one lockstep version for the pack and every first-party resource it contains. Install,
-upgrade, and roll back the twenty-seven resources as one unit. Before `1.0.0`, minor releases may contain
+upgrade, and roll back the twenty-eight resources as one unit. Before `1.0.0`, minor releases may contain
 breaking API, configuration, or schema changes; patch releases are intended to remain compatible
 within their minor line. See the [full version policy](COMPATIBILITY.md#version-policy) and
 [changelog](CHANGELOG.md).

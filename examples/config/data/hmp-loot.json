@@ -1,0 +1,55 @@
+{
+  "command": "loot",
+  "enableCommands": true,
+  "adminGroups": [
+    {
+      "key": "admin",
+      "minimumGrade": 1
+    }
+  ],
+  "suppressGameLoot": {
+    "chests": true,
+    "moonstones": true,
+    "foragables": true
+  },
+  "lootables": [
+    {
+      "key": "courtyard-chest",
+      "kind": "chest",
+      "position": {
+        "x": 366934,
+        "y": -461327,
+        "z": -82700
+      },
+      "yaw": 180,
+      "items": [
+        {
+          "itemId": "Moonstone",
+          "count": 5
+        },
+        {
+          "itemId": "Back_002_Common"
+        }
+      ],
+      "scope": "shared",
+      "respawnSeconds": 3600
+    },
+    {
+      "key": "courtyard-eggs",
+      "kind": "foragable",
+      "position": {
+        "x": 366934,
+        "y": -461527,
+        "z": -82700
+      },
+      "items": [
+        {
+          "itemId": "AshwinderEggs",
+          "count": 3
+        }
+      ],
+      "scope": "character",
+      "respawnSeconds": 1800
+    }
+  ]
+}
