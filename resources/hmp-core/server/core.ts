@@ -216,11 +216,22 @@ function createCore(options: CoreOptions) {
         attempts.delete(id);
         const session = sessionsByPlayer.get(id);
         if (!session) return false;
-        if (session.character) await unloadCharacter(player);
+        // The player entity is gone once this handler yields, and a payload naming it can no longer be
+        // copied to other resources (their handlers never ran). So every teardown event is raised up front.
+        const teardown: Promise<void>[] = [];
+        const character = session.character;
+        if (character) {
+            teardown.push(emit("hmp:character:unloading", { session, character }));
+            session.character = null;
+            if (characterClaims.get(character.id) === session) characterClaims.delete(character.id);
+            teardown.push(emit("hmp:character:unloaded", { session, character }));
+        }
         sessionsByPlayer.delete(id);
-        try { await repository.touchAccount(session.account.id, String(player.nickname || session.account.displayName).slice(0, 80)); }
+        teardown.push(emit("hmp:session:ended", session));
+        const displayName = String(player.nickname || session.account.displayName).slice(0, 80);
+        await Promise.all(teardown);
+        try { await repository.touchAccount(session.account.id, displayName); }
         catch (error) { logError("[hmp-core] could not update account activity", error); }
-        await emit("hmp:session:ended", session);
         return true;
     }
 

@@ -203,6 +203,26 @@ test("prefers verified providers and rejects duplicate sessions and identity the
     assert.strictEqual(core.sessions.isReady(first), false);
 });
 
+test("raises every disconnect teardown event before yielding", async () => {
+    const { core, emitted } = setup();
+    await core.start();
+    const leaving = player(1, "Leaving", { steamId: "100" });
+    await core.connect(leaving);
+    const character = await core.characters.create(leaving, { name: "Ominis Gaunt" });
+    await core.characters.select(leaving, character.id);
+    emitted.length = 0;
+
+    // The engine destroys the player once the disconnect handler yields; events raised later can't carry it.
+    const closing = core.disconnect(leaving);
+    assert.deepStrictEqual(emitted.map((event) => event.name), ["hmp:character:unloading", "hmp:character:unloaded", "hmp:session:ended"]);
+    assert.strictEqual(core.sessions.isReady(leaving), false);
+    assert.strictEqual(await closing, true);
+
+    const back = player(2, "Back", { steamId: "100" });
+    await core.connect(back);
+    assert.strictEqual((await core.characters.select(back, character.id)).id, character.id, "the character's claim was not released");
+});
+
 test("allows duplicate sessions for an account group and keeps characters exclusive", async () => {
     const { core } = setup({ duplicateSession: "allow-group" });
     await core.start();
