@@ -5,13 +5,29 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-09
+
 ### Added
 
 - New `hmp-loot` resource: chests, moonstone deposits and foragables placed from `data/hmp-loot.json`
   through the Framework's `Lootables` builtin, each taken once per `hmp-core` character or once in total,
   with respawn timers and takes persisted in `hmp_loot_takes`. `suppressGameLoot` switches the game's own
   loot families off through `World.suppressLoot`, and `/loot` (gated by configured groups) lists loot and
-  resets takes. Requires a HogwartsMP build with the `Lootables` builtin.
+  resets takes. Requires HogwartsMP `1.8.0` or newer.
+
+### Changed
+
+- Set the pack, all twenty-eight resources, and internal dependency pins to lockstep version `0.8.0`.
+- Set the supported HogwartsMP scripting-host baseline to version `1.8.0` or newer.
+
+### Fixed
+
+- `hmp-core` now raises `hmp:character:unloading`, `hmp:character:unloaded` and `hmp:session:ended`
+  before the disconnecting player is destroyed. Previously only the first event reached other
+  resources, so their per-player cleanup never ran.
+- `hmp-inventory` logs the engine's error code and message, plus the rows of a failed native apply,
+  instead of `[object Object]` when restoring an inventory, granting starting items, or reporting status
+  fails.
 
 ## [0.7.0] - 2026-09-30
 
@@ -384,6 +400,7 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - The initial admin resource focuses on moderation and corrective operations; spectate, noclip, and
   god mode are not included.
 
+[0.8.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.8.0
 [0.7.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.7.0
 [0.6.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.6.0
 [0.5.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.5.0

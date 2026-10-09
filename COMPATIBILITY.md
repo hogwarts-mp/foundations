@@ -1,12 +1,12 @@
 # HMP Foundations compatibility
 
-This matrix describes Foundations `0.7.0`. “Supported” means the combination is an intended release
+This matrix describes Foundations `0.8.0`. “Supported” means the combination is an intended release
 target.
 
 | Component | Supported baseline | Status | Notes |
 |---|---|---|---|
-| HMP Foundations | `0.7.0` pack and resources | Supported | All twenty-eight resources must use the same version. |
-| HogwartsMP scripting host | `1.6.0` or newer | Supported | Provides the scripting capabilities listed below. |
+| HMP Foundations | `0.8.0` pack and resources | Supported | All twenty-eight resources must use the same version. |
+| HogwartsMP scripting host | `1.8.0` or newer | Supported | Provides the scripting capabilities listed below. |
 | MafiaHub Framework | `16.2.0` or newer | Supported | Required for the `fw://` local resource scheme. On `16.1.x` and older every resource-served page, font, and icon fails to load. |
 | Hogwarts Legacy client data | Steam build ID `20773316` | Supported baseline | The native inventory catalog declares this game-data build. Other builds require revalidation. |
 | Dedicated-server JavaScript | Embedded Node.js 22 runtime | Supported | Release resources contain bundled dependencies. |
@@ -19,7 +19,7 @@ target.
 
 ## Required scripting capabilities
 
-HogwartsMP `1.6.0` provides the required scripting capabilities below. Compatible newer releases must
+HogwartsMP `1.8.0` provides the required scripting capabilities below. Compatible newer releases must
 preserve them:
 
 - manifest resource dependencies, priorities, exports, and `Imports.get()`;
@@ -56,7 +56,7 @@ preserve them:
 - server `NPC.create`, NPC mutation/destruction, `NPCManager`, and `npcDied` events using the verified
   enemy identifiers documented by `hmp-npcs`.
 - server `Lootables` placement, contents, per-player views and the `lootableTaken` event, and
-  `World.suppressLoot` (mod branch `lootables` or newer), used by `hmp-loot`; a build without them leaves
+  `World.suppressLoot`, used by `hmp-loot`; a build without them leaves
   `hmp-loot` degraded with nothing placed.
 
 The current PvP host has two presentation caveats: relayed Killing Curse hits do not reproduce the
@@ -64,7 +64,7 @@ victim-side green-bolt cosmetic, and target/team writes require the remote proxy
 re-fans complete snapshots for late joiners and exposes `/pvp sync` for recovery; neither caveat weakens
 server arbitration or the duel health floor.
 
-Asynchronous resource lifecycle is not a requirement for Foundations `0.7.0`. The current pack still
+Asynchronous resource lifecycle is not a requirement for Foundations `0.8.0`. The current pack still
 uses the existing synchronous lifecycle and will adopt the asynchronous contract after upstream
 support lands.
 
