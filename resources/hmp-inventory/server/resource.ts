@@ -1,6 +1,9 @@
 const CONTAINER_KEY = /^[a-z0-9][a-z0-9:_.-]{0,190}$/;
+import errorsModule = require("./errors");
 import type { HmpInventoryStatus, HmpInventoryView, HmpItemDefinition, HmpNativeItemOptions } from "../types";
 import type { CharacterPayload, InventoryResourceOptions, Player } from "./internal";
+
+const { messageOf } = errorsModule;
 
 function createInventoryResource(options: InventoryResourceOptions) {
     const { database, repository, registry, inventory, transfers, native, core, events, config, migrations, logger, listPlayers } = options;
@@ -17,7 +20,7 @@ function createInventoryResource(options: InventoryResourceOptions) {
         .then(() => { state = "ready"; return true; })
         .catch((error: unknown) => {
             state = "degraded";
-            lastError = error instanceof Error ? error.message : String(error);
+            lastError = messageOf(error);
             throw error;
         });
 

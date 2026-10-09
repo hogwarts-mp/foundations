@@ -1,4 +1,7 @@
+import errorsModule = require("./errors");
 import type { CharacterPayload, InventoryService, Logger, StartingItemEntry } from "./internal";
+
+const { messageOf } = errorsModule;
 
 interface StartingItemsDeps {
     inventory: InventoryService;
@@ -34,8 +37,7 @@ function createStartingItemsGrant(entries: StartingItemEntry[], deps: StartingIt
                     ...(entry.metadata ? { metadata: entry.metadata } : {}),
                 });
             } catch (error: unknown) {
-                const message = error instanceof Error ? error.message : String(error);
-                deps.logger.warn(`Could not grant starting item '${entry.name}' to character #${characterId}: ${message}`);
+                deps.logger.warn(`Could not grant starting item '${entry.name}' to character #${characterId}: ${messageOf(error)}`);
             }
         }
         return true;

@@ -8,6 +8,7 @@ import transfersModule = require("./transfers");
 import resourceModule = require("./resource");
 import catalogModule = require("./native-catalog");
 import startingItemsModule = require("./starting-items");
+import errorsModule = require("./errors");
 import type { HmpCoreSession } from "../../hmp-core/types";
 import type { HmpInventoryUseTarget } from "../types";
 import type { CharacterPayload, Player } from "./internal";
@@ -22,8 +23,7 @@ const { createTransferService } = transfersModule;
 const { createInventoryResource } = resourceModule;
 const { createNativeItems } = catalogModule;
 const { createStartingItemsGrant } = startingItemsModule;
-
-const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);
+const { messageOf } = errorsModule;
 
 const Hmp = Imports.get("hmp-lib");
 const database = Imports.get("hmp-mysql");
