@@ -5,6 +5,22 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-10
+
+### Changed
+
+- Set the pack, all twenty-eight resources, and internal dependency pins to lockstep version `0.8.1`.
+- The closed testing guide is now the beta testing guide, `BETA_TESTING.md`, and ships in the release
+  pack under that name.
+
+### Fixed
+
+- `hmp-progression` no longer lets a failing listener on its events become its own runtime error. A
+  native report that finished after its player disconnected made a listener throw on the stale player;
+  the server then stopped sending `hmp-progression` to joining clients, so every join was refused.
+  Listener failures are now logged, payloads look the player up again after waiting, and
+  `hmp:progression:synchronized` is skipped once the player has left.
+
 ## [0.8.0] - 2026-10-09
 
 ### Added
@@ -400,6 +416,7 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - The initial admin resource focuses on moderation and corrective operations; spectate, noclip, and
   god mode are not included.
 
+[0.8.1]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.8.1
 [0.8.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.8.0
 [0.7.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.7.0
 [0.6.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.6.0
