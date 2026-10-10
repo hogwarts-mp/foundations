@@ -56,14 +56,22 @@ const repository: ProgressionRepository = {
 };
 
 const emitted: Array<{ name: string; args: unknown[] }> = [];
+const warnings: string[] = [];
+let online = true;
+let rejectEmits = false;
 const service = createProgressionService({
     repository,
     core: {
         characters: { active: (candidate: Player) => candidate === player ? character as never : null },
-        sessions: { all: () => [{ player, character }] as never },
+        sessions: { all: () => (online ? [{ player, character }] : []) as never },
     } as never,
-    events: { emit: (name, ...args) => emitted.push({ name, args }) },
-    logger: { info() {}, warn() {}, error() {} } as never,
+    events: {
+        emit: (name, ...args) => {
+            emitted.push({ name, args });
+            return rejectEmits ? Promise.reject(new AggregateError([new Error("Entity handle '7' is not valid!")], "One or more event handlers failed")) : undefined;
+        },
+    },
+    logger: { info() {}, warn(message: string) { warnings.push(message); }, error() {} } as never,
     config: { enableCommands: true, command: "progression", adminGroups: [], maximumExperience: 1000, maximumTalentPoints: 10, nativeRequestTimeoutMs: 1000 },
     migrations: [],
 });
@@ -84,6 +92,27 @@ async function run(): Promise<void> {
     await service.nativeReport(player, { characterId: 42, revision: 1, experiencePoints: 100, level: 3, talentPoints: 2 });
     assert.deepEqual(await service.progression.get(player), { ...getProfile(42) });
     assert.equal((await service.progression.get(player)).level, 3);
+
+    // A player who disconnects while the report awaits the database is not handed to listeners.
+    const acknowledge = repository.acknowledge;
+    repository.acknowledge = async (...args: Parameters<typeof acknowledge>) => { online = false; return acknowledge(...args); };
+    const before = emitted.length;
+    await service.nativeReport(player, { characterId: 42, revision: 1, experiencePoints: 100, level: 3, talentPoints: 2 });
+    assert.equal(emitted.slice(before).some((entry) => entry.name === "hmp:progression:synchronized"), false);
+    repository.acknowledge = acknowledge;
+    online = true;
+
+    // A listener that throws is logged here, not left as an unhandled rejection charged to this resource.
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => { unhandled.push(reason); };
+    process.on("unhandledRejection", onUnhandled);
+    rejectEmits = true;
+    await service.nativeReport(player, { characterId: 42, revision: 1, experiencePoints: 100, level: 3, talentPoints: 2 });
+    await new Promise((resolve) => setImmediate(resolve));
+    rejectEmits = false;
+    process.off("unhandledRejection", onUnhandled);
+    assert.deepEqual(unhandled, []);
+    assert.ok(warnings.some((message) => message.includes("hmp:progression:synchronized") && message.includes("Entity handle '7' is not valid!")));
 
     const talent = await service.talents.grant(player, "Talent_Spell_Accio", 2, { resource: "test" });
     assert.equal(talent.level, 2);

@@ -74,6 +74,21 @@ function createProgressionService(dependencies: ProgressionDependencies): Progre
     function onlinePlayer(id: number): Player | null {
         return core.sessions.all().find((session) => session.character?.id === id)?.player || null;
     }
+    // Resolved again after the sync: a player who left during it can't be copied into listeners' payloads.
+    async function syncOnline(id: number): Promise<Player | null> {
+        const player = onlinePlayer(id);
+        if (!player) return null;
+        await sync(player);
+        return onlinePlayer(id);
+    }
+    // Events.emit rejects when any listener throws. Unhandled, that rejection is charged to this resource
+    // as a runtime error, and the server stops sending progression to joining clients.
+    function emit(eventName: string, payload: Record<string, unknown>): void {
+        void Promise.resolve(events.emit(eventName, payload)).catch((error: unknown) => {
+            const errors = error && typeof error === "object" && Array.isArray((error as { errors?: unknown }).errors) ? (error as { errors: unknown[] }).errors : [error];
+            logger.warn(`A ${eventName} listener failed: ${errors.map(messageOf).join("; ")}`);
+        });
+    }
     function resource(value: unknown): string { return clean(value, "source resource", 64); }
     function reason(value: unknown): string { return String(value || "").trim().slice(0, 191); }
 
@@ -125,9 +140,10 @@ function createProgressionService(dependencies: ProgressionDependencies): Progre
             throw error;
         }
         pendingTransactions = (await repository.pendingRewards(200)).length;
-        const player = onlinePlayer(expected.characterId);
-        const profile = player ? await sync(player) : await repository.profile(expected.characterId);
-        if (shouldEmit) events.emit("hmp:progression:changed", { player, character: player ? core.characters.active(player) : null, profile, transaction });
+        const synced = onlinePlayer(expected.characterId);
+        const profile = synced ? await sync(synced) : await repository.profile(expected.characterId);
+        const player = synced && onlinePlayer(expected.characterId);
+        if (shouldEmit) emit("hmp:progression:changed", { player, character: player ? core.characters.active(player) : null, profile, transaction });
         return transaction;
     }
 
@@ -158,6 +174,7 @@ function createProgressionService(dependencies: ProgressionDependencies): Progre
         const payload = payloadObject(rawPayload);
         if (!payload) return;
         const character = activeCharacter(player);
+        const id = playerId(player);
         if (Number(payload.characterId) !== character.id) return;
         const revision = nonNegative(payload.revision, "native revision");
         const points = nonNegative(payload.experiencePoints, "native experience", config.maximumExperience);
@@ -167,7 +184,10 @@ function createProgressionService(dependencies: ProgressionDependencies): Progre
         const current = await repository.profile(character.id);
         if (revision !== current.revision || points !== current.experiencePoints) return;
         const profile = await repository.acknowledge(character.id, revision, level, talentPoints);
-        events.emit("hmp:progression:synchronized", { player, character, profile });
+        // Nothing to report if the player disconnected while the database answered.
+        const online = onlinePlayer(character.id);
+        if (!online || Number(online.id) !== id) return;
+        emit("hmp:progression:synchronized", { player: online, character, profile });
     }
 
     function talentMutation(target: Player | number, rawTalentId: string, rawLevel: number | undefined, status: "owned" | "revoked", acquisition: "grant" | "purchase", options: HmpTalentMutationOptions<Player>): TalentMutation {
@@ -193,9 +213,8 @@ function createProgressionService(dependencies: ProgressionDependencies): Progre
         await start();
         const mutation = talentMutation(target, rawTalentId, rawLevel, "owned", "grant", options);
         const result = await repository.mutateTalent(mutation);
-        const player = onlinePlayer(mutation.characterId);
-        if (player) await sync(player);
-        events.emit("hmp:progression:talentChanged", { player, talent: result });
+        const player = await syncOnline(mutation.characterId);
+        emit("hmp:progression:talentChanged", { player, talent: result });
         return result;
     }
 
@@ -211,7 +230,7 @@ function createProgressionService(dependencies: ProgressionDependencies): Progre
         try {
             const result = await repository.purchaseTalent(mutation);
             await sync(player);
-            events.emit("hmp:progression:talentChanged", { player, talent: result, purchased: true });
+            emit("hmp:progression:talentChanged", { player: onlinePlayer(mutation.characterId), talent: result, purchased: true });
             return result;
         } catch (error) {
             player.emit!("hmp-progression:request", JSON.stringify({ requestId: "rollback", operation: "remove", talentId: mutation.talentId }));
@@ -223,9 +242,8 @@ function createProgressionService(dependencies: ProgressionDependencies): Progre
         await start();
         const mutation = talentMutation(target, rawTalentId, 1, "revoked", "grant", options);
         const result = await repository.mutateTalent(mutation);
-        const player = onlinePlayer(mutation.characterId);
-        if (player) await sync(player);
-        events.emit("hmp:progression:talentChanged", { player, talent: result });
+        const player = await syncOnline(mutation.characterId);
+        emit("hmp:progression:talentChanged", { player, talent: result });
         return result;
     }
 
@@ -234,9 +252,8 @@ function createProgressionService(dependencies: ProgressionDependencies): Progre
         if (!options) throw new TypeError("talent mutation options are required");
         const id = characterId(target);
         const changed = await repository.resetTalents(id, { actorCharacterId: actorCharacterId(options.actor), resource: resource(options.resource), reason: reason(options.reason) });
-        const player = onlinePlayer(id);
-        if (player) await sync(player);
-        if (changed) events.emit("hmp:progression:talentsReset", { player, characterId: id, count: changed });
+        const player = await syncOnline(id);
+        if (changed) emit("hmp:progression:talentsReset", { player, characterId: id, count: changed });
         return changed;
     }
 
@@ -247,9 +264,8 @@ function createProgressionService(dependencies: ProgressionDependencies): Progre
         actorCharacterId(options.actor);
         const id = characterId(target);
         const profile = await repository.setTalentPoints(id, nonNegative(rawPoints, "talent points", config.maximumTalentPoints));
-        const player = onlinePlayer(id);
-        if (player) await sync(player);
-        events.emit("hmp:progression:changed", { player, character: player ? core.characters.active(player) : null, profile });
+        const player = await syncOnline(id);
+        emit("hmp:progression:changed", { player, character: player ? core.characters.active(player) : null, profile });
         return profile;
     }
 
