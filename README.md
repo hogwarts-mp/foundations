@@ -86,7 +86,7 @@ artifacts contain bundled dependencies: server owners do not run npm inside the 
 For deployment, use the [installation and start-order guide](INSTALL.md) and [database guide](DATABASE.md).
 A copy-ready configuration set ships in [`examples/config`](examples/config), and supported runtime combinations are recorded in
 the [compatibility matrix](COMPATIBILITY.md). For structured playtest coverage and issue reports, use
-the [closed testing guide](CLOSED_TESTING.md).
+the [beta testing guide](BETA_TESTING.md).
 
 The repository also publishes `ghcr.io/<owner>/<repository>:edge` from `main` and versioned tags
 from releases. This resource-pack image is build input for the runnable Foundations server variant;

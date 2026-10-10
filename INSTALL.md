@@ -257,7 +257,7 @@ Use a disposable test account first:
 - enter the bootstrap secret only through the masked admin prompt and confirm the intended staff tools;
 - confirm there is only one character selector, inventory UI, interaction prompt, and emote handler.
 
-Use [CLOSED_TESTING.md](CLOSED_TESTING.md) for the full functional test pass.
+Use [BETA_TESTING.md](BETA_TESTING.md) for the full functional test pass.
 
 ## Existing-resource overlap
 

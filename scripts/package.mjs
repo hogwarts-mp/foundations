@@ -7,7 +7,7 @@ const resourcesRoot = path.join(root, "resources");
 const outputRoot = path.join(root, "build", "hmp-foundations");
 const outputResources = path.join(outputRoot, "resources");
 const pack = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
-const releaseFiles = ["README.md", "INSTALL.md", "DATABASE.md", "COMPATIBILITY.md", "CHANGELOG.md", "CLOSED_TESTING.md", "LICENSE"];
+const releaseFiles = ["README.md", "INSTALL.md", "DATABASE.md", "COMPATIBILITY.md", "CHANGELOG.md", "BETA_TESTING.md", "LICENSE"];
 
 await rm(outputRoot, { recursive: true, force: true });
 await mkdir(outputResources, { recursive: true });
