@@ -12,6 +12,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - `hmp-ui` `input()` takes an optional `{ onChange }` handler. While the dialog is open, `number`,
   `range`, `checkbox` and `select` edits reach it as they happen, each validated against its field on
   the server, so tuning screens can apply values live and restore them on cancel.
+- `hmp-houses` ships a minimal client entry, like `hmp-mysql`'s, so client-bearing resources can
+  depend on it in the shared resource dependency graph.
 
 ## [0.8.2] - 2026-10-12
 
