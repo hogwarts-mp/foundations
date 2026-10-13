@@ -59,6 +59,12 @@ function memoryRepository() {
             identities.set(key, { accountId, trust: principal.trust });
             return true;
         },
+        async listIdentities(accountId: number) {
+            return [...identities.entries()].filter(([, link]) => link.accountId === accountId).map(([key, link]) => {
+                const [provider, subject] = key.split(":");
+                return { provider, subject, trust: link.trust };
+            });
+        },
         async findAccountById(id: number) { return accounts.get(id) || null; },
         async touchAccount(id: number, displayName: string) {
             const account = accounts.get(id);
@@ -98,6 +104,7 @@ function memoryRepository() {
 
 function setup(overrides: Partial<CoreConfig> = {}) {
     const emitted: RecordedEvent[] = [];
+    const warnings: string[] = [];
     const migrated: Array<{ resource: string; list: HmpMySQLMigration[] }> = [];
     const repository = memoryRepository();
     const database = {
@@ -110,7 +117,7 @@ function setup(overrides: Partial<CoreConfig> = {}) {
         migrations,
         events: { emit: (name: string, payload: unknown) => emitted.push({ name, payload }) },
         listPlayers: () => [],
-        logger: { error: () => true },
+        logger: { error: () => true, warn: (message: unknown) => warnings.push(String(message)) > 0 },
         config: {
             maxCharacters: 2,
             autoSelectSingleCharacter: false,
@@ -122,7 +129,7 @@ function setup(overrides: Partial<CoreConfig> = {}) {
             ...overrides,
         },
     });
-    return { core, repository, emitted, migrated };
+    return { core, repository, emitted, migrated, warnings };
 }
 
 test("starts with the resource-owned schema and creates an asserted account session", async () => {
@@ -141,6 +148,61 @@ test("starts with the resource-owned schema and creates an asserted account sess
     assert.strictEqual(core.sessions.isReady(7), true);
     assert.strictEqual(core.characters.limit(), 2);
     assert.ok(emitted.some((event) => event.name === "hmp:session:ready"));
+});
+
+test("keeps the account when a later session announces fewer client identifiers", async () => {
+    const { core } = setup();
+    await core.start();
+    const full = player(1, "Poppy", { steamId: "100", discordId: "200", hardwareId: "300" });
+    const account = (await core.connect(full))?.account;
+    assert.ok(account);
+    const character = await core.characters.create(full, { name: "Poppy Sweeting" });
+    await core.disconnect(full);
+
+    for (const ids of [{ hardwareId: "300" }, { discordId: "200" }, { discordId: "200", hardwareId: "300" }]) {
+        const partial = player(2, "Player", ids);
+        assert.strictEqual((await core.connect(partial))?.account.id, account.id, `matched by ${Object.keys(ids).join("+")}`);
+        assert.deepStrictEqual((await core.characters.list(partial)).map((item) => item.id), [character.id]);
+        await core.disconnect(partial);
+    }
+});
+
+test("adopts an account first created from a lower-ranked identifier", async () => {
+    const { core, warnings } = setup();
+    await core.start();
+    const hardwareOnly = player(1, "Player", { hardwareId: "300" });
+    const account = (await core.connect(hardwareOnly))?.account;
+    assert.ok(account);
+    await core.disconnect(hardwareOnly);
+
+    const withSteam = player(2, "Poppy", { steamId: "100", hardwareId: "300" });
+    const session = await core.connect(withSteam);
+    assert.strictEqual(session?.account.id, account.id);
+    assert.deepStrictEqual(session.principal, { provider: "client-steam", subject: "100", trust: "asserted" });
+    await core.disconnect(withSteam);
+
+    const steamOnly = player(3, "Poppy", { steamId: "100" });
+    assert.strictEqual((await core.connect(steamOnly))?.account.id, account.id);
+    assert.deepStrictEqual(warnings, []);
+});
+
+test("keeps players who share a machine on separate accounts", async () => {
+    const { core, warnings } = setup();
+    await core.start();
+    const first = player(1, "First", { steamId: "100", hardwareId: "300" });
+    const firstAccount = (await core.connect(first))?.account;
+    assert.ok(firstAccount);
+    await core.disconnect(first);
+
+    const sibling = player(2, "Sibling", { steamId: "101", hardwareId: "300" });
+    const siblingAccount = (await core.connect(sibling))?.account;
+    assert.ok(siblingAccount);
+    assert.notStrictEqual(siblingAccount.id, firstAccount.id);
+    assert.deepStrictEqual(warnings, [`[hmp-core] Account ${siblingAccount.id} shares a client-hardware ID with account ${firstAccount.id}; the accounts were not merged`]);
+    await core.disconnect(sibling);
+
+    const back = player(3, "First", { steamId: "100", hardwareId: "300" });
+    assert.strictEqual((await core.connect(back))?.account.id, firstAccount.id);
 });
 
 test("manages character slots, scoped groups and JSON metadata", async () => {

@@ -1,5 +1,6 @@
 import type {
     HmpCore,
+    HmpCoreAccount,
     HmpCoreCharacter,
     HmpCoreGroup,
     HmpCoreIdentityProvider,
@@ -14,6 +15,7 @@ const IDENTITY_FIELDS: Readonly<Record<string, string>> = Object.freeze({
     discordId: "client-discord",
     hardwareId: "client-hardware",
 });
+const CLIENT_PROVIDER = "hmp-client-identity";
 
 function fail(code: string, message: string): Error & { code: string } {
     const error = new Error(message);
@@ -74,6 +76,10 @@ function createCore(options: CoreOptions) {
         if (logger && typeof logger.error === "function") logger.error(`${message}: ${error instanceof Error ? error.message : String(error)}`);
     }
 
+    function logWarn(message: string): void {
+        if (logger && typeof logger.warn === "function") logger.warn(message);
+    }
+
     async function emit(name: string, payload: unknown): Promise<void> {
         if (!events || typeof events.emit !== "function") return;
         try { await events.emit(name, payload); }
@@ -102,7 +108,7 @@ function createCore(options: CoreOptions) {
     function removeIdentityProvidersForResource(resource: string): number {
         let removed = 0;
         for (const [name, provider] of providers) {
-            if (provider.resource === resource && name !== "hmp-client-identity") {
+            if (provider.resource === resource && name !== CLIENT_PROVIDER) {
                 providers.delete(name);
                 removed += 1;
             }
@@ -110,29 +116,57 @@ function createCore(options: CoreOptions) {
         return removed;
     }
 
-    async function resolveIdentity(player: Player): Promise<HmpCorePrincipal> {
+    async function resolveIdentity(player: Player): Promise<{ principal: HmpCorePrincipal; provider: string }> {
         const ordered = [...providers.values()].sort((a, b) => b.priority - a.priority || a.name.localeCompare(b.name));
         for (const provider of ordered) {
             const result = await provider.resolve(player);
-            if (result) return normalizePrincipal(result, provider.trust);
+            if (result) return { principal: normalizePrincipal(result, provider.trust), provider: provider.name };
         }
         throw fail("HMP_CORE_IDENTITY_MISSING", "No usable identity was supplied for this player");
     }
 
+    function clientIdentities(player: Player): HmpCorePrincipal[] {
+        const identities: HmpCorePrincipal[] = [];
+        for (const field of config.identityOrder || Object.keys(IDENTITY_FIELDS)) {
+            const provider = IDENTITY_FIELDS[field];
+            const subject = String((player as unknown as Record<string, unknown>)[field] ?? "").trim();
+            if (provider && /^\d+$/.test(subject)) identities.push({ provider, subject, trust: "asserted" });
+        }
+        return identities;
+    }
+
     registerProvider({
-        name: "hmp-client-identity",
+        name: CLIENT_PROVIDER,
         resource: "hmp-core",
         priority: -1000,
         trust: "asserted",
-        resolve(player: Player) {
-            for (const field of config.identityOrder || Object.keys(IDENTITY_FIELDS)) {
-                const provider = IDENTITY_FIELDS[field];
-                const subject = String((player as unknown as Record<string, unknown>)[field] ?? "").trim();
-                if (provider && /^\d+$/.test(subject)) return { provider, subject, trust: "asserted" };
-            }
-            return null;
-        },
+        resolve: (player: Player) => clientIdentities(player)[0] || null,
     });
+
+    // A client announces only the IDs it detected on that launch, so Steam or Discord can be missing
+    // from one session to the next. The account is found through any announced ID and remembers them all.
+    async function accountForClientIdentities(identities: HmpCorePrincipal[], displayName: string): Promise<HmpCoreAccount> {
+        const owners = await Promise.all(identities.map((identity) => repository.findIdentity(identity.provider, identity.subject)));
+        let match = owners.findIndex(Boolean);
+        if (match > 0) {
+            // The IDs ranked above the match are new. An account that already holds a different ID of one
+            // of those kinds belongs to someone else on a shared machine, not to this player.
+            const held = new Set((await repository.listIdentities(owners[match]!.account.id)).map((identity) => identity.provider));
+            if (identities.slice(0, match).some((identity) => held.has(identity.provider))) match = -1;
+        }
+        const primary = Math.max(match, 0);
+        const account = await repository.findOrCreateAccount(identities[primary], displayName);
+        for (const [index, identity] of identities.entries()) {
+            const owner = owners[index];
+            if (owner && owner.account.id !== account.id) {
+                logWarn(`[hmp-core] Account ${account.id} shares a ${identity.provider} ID with account ${owner.account.id}; the accounts were not merged`);
+            } else if (!owner && index !== primary) {
+                try { await repository.linkIdentity(account.id, identity); }
+                catch (error) { logError(`[hmp-core] could not link ${identity.provider} to account ${account.id}`, error); }
+            }
+        }
+        return account;
+    }
 
     function getSession(player: Player | number): HmpCoreSession<Player> | null {
         try { return sessionsByPlayer.get(playerId(player)) || null; }
@@ -161,9 +195,11 @@ function createCore(options: CoreOptions) {
         const token = Symbol(`connect:${id}`);
         attempts.set(id, token);
         try {
-            const principal = await resolveIdentity(player);
+            const { principal, provider } = await resolveIdentity(player);
             const displayName = String(player.nickname || `Player ${id}`).trim().slice(0, 80) || `Player ${id}`;
-            const account = await repository.findOrCreateAccount(principal, displayName);
+            const account = provider === CLIENT_PROVIDER
+                ? await accountForClientIdentities(clientIdentities(player), displayName)
+                : await repository.findOrCreateAccount(principal, displayName);
             if (attempts.get(id) !== token) return null;
 
             const existing = [...sessionsByPlayer.values()].filter((session) => session.account.id === account.id && session.playerId !== id);
@@ -385,7 +421,7 @@ function createCore(options: CoreOptions) {
     }
 
     const status = (): HmpCoreStatus => Object.freeze({ state, lastError, sessions: sessionsByPlayer.size, identityProviders: providers.size, uptimeMs: Date.now() - startedAt });
-    const identity = Object.freeze({ register: registerProvider, unregister: unregisterProvider, list: () => [...providers.values()].map(({ resolve, ...entry }) => entry), resolve: resolveIdentity });
+    const identity = Object.freeze({ register: registerProvider, unregister: unregisterProvider, list: () => [...providers.values()].map(({ resolve, ...entry }) => entry), resolve: async (player: Player) => (await resolveIdentity(player)).principal });
     const accounts = Object.freeze({
         getByPlayer: (player: Player | number) => getSession(player)?.account || null,
         getById: (id: number) => repository.findAccountById(positiveId(id, "accountId")),

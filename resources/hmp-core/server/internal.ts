@@ -31,6 +31,7 @@ export interface Repository {
     findIdentity(provider: string, subject: string): Promise<IdentityResult | null>;
     findOrCreateAccount(principal: HmpCorePrincipal, displayName: string): Promise<HmpCoreAccount>;
     linkIdentity(accountId: number, principal: HmpCorePrincipal): Promise<boolean>;
+    listIdentities(accountId: number): Promise<HmpCorePrincipal[]>;
     findAccountById(id: number): Promise<HmpCoreAccount | null>;
     touchAccount(id: number, displayName: string): Promise<number>;
     listCharacters(accountId: number): Promise<HmpCoreCharacter[]>;
@@ -56,7 +57,7 @@ export interface CoreOptions {
     migrations?: HmpMySQLMigration[];
     events?: CoreEvents | null;
     listPlayers?: () => Player[];
-    logger?: Pick<HmpLogger, "error">;
+    logger?: Pick<HmpLogger, "error"> & Partial<Pick<HmpLogger, "warn">>;
     config?: Partial<CoreConfig>;
 }
 

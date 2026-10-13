@@ -14,6 +14,14 @@ only exposes client-announced Steam, Discord and hardware identifiers. According
 fallback stores them as `client-steam`, `client-discord` or `client-hardware` with trust level
 `asserted`. They must not be treated as proof for sensitive authorization.
 
+A client announces only the identifiers it detected on that launch, so Steam or Discord can be missing
+from one session to the next. Every announced identifier is linked to the account, and a later session
+is matched through any of them, ranked by `identityOrder`. An identifier already linked to another
+account is never moved; the server logs a warning naming both account IDs instead. If a new
+higher-ranked identifier arrives with one that matches an account that already holds a different
+identifier of that kind, as with two Steam users on one machine, the player gets a separate account.
+Remove `hardwareId` from `identityOrder` to stop matching and linking hardware IDs.
+
 A later MafiaHub authentication resource can register a higher-priority server-validated provider:
 
 ```js

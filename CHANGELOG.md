@@ -5,6 +5,15 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+### Fixed
+
+- `hmp-core` no longer gives a returning player a new, empty account when their client announces
+  fewer identifiers than before, such as only a hardware ID because Steam or Discord wasn't detected.
+  Accounts were keyed on the first identifier in `identityOrder` alone. Every announced identifier is
+  now linked to the account, and later sessions match through any of them. Identifiers already linked
+  to a different account are not moved; the server logs a warning naming both accounts so staff can
+  reconcile them.
+
 ## [0.8.1] - 2026-10-10
 
 ### Changed

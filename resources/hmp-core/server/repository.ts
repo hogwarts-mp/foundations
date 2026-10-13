@@ -139,6 +139,14 @@ function createRepository(database: Database): Repository {
         return true;
     }
 
+    async function listIdentities(accountId: number): Promise<HmpCorePrincipal[]> {
+        const rows = await database.query<AccountRow[]>(
+            "SELECT provider, subject, trust_level FROM hmp_account_identities WHERE account_id = ?",
+            [accountId],
+        );
+        return rows.map((row) => ({ provider: String(row.provider), subject: String(row.subject), trust: row.trust_level ?? "asserted" }));
+    }
+
     const findAccountById = async (id: number): Promise<HmpCoreAccount | null> => accountRow(await database.single<AccountRow>(
         "SELECT id, display_name, created_at, last_seen_at FROM hmp_accounts WHERE id = ?",
         [id],
@@ -232,6 +240,7 @@ function createRepository(database: Database): Repository {
         findIdentity,
         findOrCreateAccount,
         linkIdentity,
+        listIdentities,
         findAccountById,
         touchAccount,
         listCharacters,
