@@ -1,0 +1,135 @@
+<meta charset="utf-8">
+<title>Quidditch Banner</title>
+<style>
+  /* This page is an overlay and nothing else. It is never focused and never takes input — a focused
+     CEF view holds the cursor and locks controls, which mid-flight would be a crash into the stands.
+     pointer-events:none is the belt to that braces. */
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
+    pointer-events: none; user-select: none; }
+  #stage { position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-start; padding-top: 26vh; gap: 14px; }
+
+  .card { display: flex; flex-direction: column; align-items: center; gap: 6px;
+    opacity: 0; transform: translateY(18px) scale(.92); }
+  .card.in  { animation: rise .5s cubic-bezier(.16,1,.3,1) forwards; }
+  .card.out { animation: fall .55s ease-in forwards; }
+  @keyframes rise { to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes fall { from { opacity: 1; transform: translateY(0) scale(1); }
+                    to   { opacity: 0; transform: translateY(-26px) scale(1.04); } }
+
+  /* The scrim is what makes white text legible against bright sky, which is most of a Quidditch
+     pitch. Sized to the text rather than the screen so it reads as a plate, not a letterbox. */
+  .plate { position: relative; padding: 10px 44px;
+    background: linear-gradient(90deg, transparent, rgba(10,8,5,.82) 12%, rgba(10,8,5,.82) 88%, transparent); }
+
+  .text { font-family: Cinzel, Georgia, serif; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; text-align: center; line-height: 1.1; color: #f6ecd2;
+    text-shadow: 0 2px 18px rgba(0,0,0,.9), 0 0 42px var(--glow, rgba(201,162,39,.55)); }
+  .sub { font-family: "Segoe UI", system-ui, sans-serif; font-size: 15px; letter-spacing: .22em;
+    text-transform: uppercase; color: #cbb87f; text-shadow: 0 2px 10px rgba(0,0,0,.9); }
+
+  /* The house name in the house's own colour, wherever it appears. Uses a brightened palette rather
+     than the crest colours: Slytherin green and Ravenclaw blue are too dark to read as large text
+     against sky, even over the scrim. The heavy black shadow is what keeps them legible. */
+  .lead { color: var(--house, #c9a227);
+    text-shadow: 0 2px 18px rgba(0,0,0,.95), 0 0 34px var(--house, rgba(201,162,39,.7)); }
+  .sub .lead { text-shadow: 0 2px 10px rgba(0,0,0,.95); }
+
+  /* The rule carries the house colour — the only thing on screen that says WHO scored, so it is
+     wider and brighter for the snitch, which ends the match. */
+  .rule { height: 2px; width: 0; background: linear-gradient(90deg, transparent, var(--accent, #c9a227), transparent);
+    animation: sweep .55s cubic-bezier(.16,1,.3,1) .12s forwards; }
+  @keyframes sweep { to { width: var(--rw, 320px); } }
+
+  .goal   .text { font-size: 46px; }
+  .snitch .text { font-size: 76px; --glow: rgba(255, 214, 92, .85); }
+  .snitch .plate { padding: 16px 64px; }
+  .snitch .sub { font-size: 18px; }
+  .snitch { animation: none; }
+  .snitch.in .text { animation: shimmer 2.4s ease-in-out .4s infinite; }
+  @keyframes shimmer { 50% { text-shadow: 0 2px 18px rgba(0,0,0,.9), 0 0 70px rgba(255,214,92,.95); } }
+</style>
+
+<div id="stage"></div>
+
+<script>
+  // Houses carry their own colour so a goal is readable at a glance without reading the words.
+  const HOUSE = {
+    gryffindor: "#c0392b", slytherin: "#2f8f5b",
+    hufflepuff: "#e8b62c", ravenclaw:  "#4a6cc4",
+  };
+  // Brighter variants for TEXT. The crest colours above are fine as a 2px rule but unreadable as
+  // 46px letters against sky — Slytherin and Ravenclaw especially.
+  const HOUSE_TEXT = {
+    gryffindor: "#e8604e", slytherin: "#4ad089",
+    hufflepuff: "#f5cd52", ravenclaw:  "#849cf5",
+  };
+
+  // Banners QUEUE rather than replace. A snitch catch in Full Match fires a goal-ish score line and
+  // the catch together, and overwriting would eat one of them.
+  const queue = [];
+  let running = false;
+
+  function show(d) { queue.push(d || {}); if (!running) next(); }
+
+  function next() {
+    const d = queue.shift();
+    if (!d) { running = false; return; }
+    running = true;
+
+    const big = d.size === "snitch";
+    const hold = Number(d.holdMs) || (big ? 3600 : 2200);
+    const key = String(d.house || "").toLowerCase();
+    const accent = HOUSE[key] || "#c9a227";
+
+    const card = document.createElement("div");
+    card.className = "card in " + (big ? "snitch" : "goal");
+    card.style.setProperty("--accent", accent);
+    card.style.setProperty("--house", HOUSE_TEXT[key] || "#e2c96b");
+    card.style.setProperty("--rw", big ? "620px" : "360px");
+
+    // `lead` is the house name and is coloured; `tail` is the rest and stays cream. Splitting it
+    // server-side keeps this page from having to know which word is a house.
+    const line = (el, lead, tail, plain) => {
+      if (lead) {
+        const s = document.createElement("span");
+        s.className = "lead";
+        s.textContent = String(lead);
+        el.appendChild(s);
+        if (tail) el.appendChild(document.createTextNode(" " + tail));
+      }
+      else { el.textContent = String(plain || ""); }
+    };
+
+    const plate = document.createElement("div");
+    plate.className = "plate";
+    const text = document.createElement("div");
+    text.className = "text";
+    line(text, d.lead, d.tail, d.text);
+    plate.appendChild(text);
+    card.appendChild(plate);
+
+    const rule = document.createElement("div");
+    rule.className = "rule";
+    card.appendChild(rule);
+
+    if (d.sub || d.subLead) {
+      const sub = document.createElement("div");
+      sub.className = "sub";
+      line(sub, d.subLead, d.subTail, d.sub);
+      card.appendChild(sub);
+    }
+
+    document.getElementById("stage").appendChild(card);
+    setTimeout(() => {
+      card.classList.remove("in");
+      card.classList.add("out");
+      setTimeout(() => { card.remove(); next(); }, 560);
+    }, hold);
+  }
+
+  window.addEventListener("quid:banner", (e) => show(e.detail || {}));
+
+  // Announce, so the client can flush anything that fired before the page finished loading.
+  callEvent("quid:bannerReady", "{}");
+</script>

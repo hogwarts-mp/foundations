@@ -1,0 +1,132 @@
+<meta charset="utf-8">
+<title>Quidditch Scoreboard</title>
+<style>
+  /* A broadcast bar across the top: both sides in their own colours, the clock between them, and a
+     quaffle pip on whoever is holding it.
+
+     Overlay rules, same as banner.html and for the same reason: never focused, never takes input.
+     A focused CEF view holds the cursor and locks controls, and taking those from someone at
+     2000 cm/s flies them into the stands. pointer-events:none is the belt to that braces. */
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
+    pointer-events: none; user-select: none; }
+  body { display: flex; justify-content: center; align-items: flex-start; }
+
+  #bar { display: flex; align-items: stretch; margin-top: 14px; height: 46px;
+    opacity: 0; transition: opacity .35s ease;
+    filter: drop-shadow(0 6px 18px rgba(0,0,0,.65)); }
+  #bar.up { opacity: 1; }
+
+  /* Two ribbons notched toward the crest, so the three parts read as one object with the shield set
+     into the middle rather than as three widgets that happen to be adjacent. */
+  .side { position: relative; display: flex; align-items: center; min-width: 132px; padding: 0 22px;
+    color: #fff; font-family: Cinzel, Georgia, serif; font-size: 27px; font-weight: 700;
+    text-shadow: 0 2px 6px rgba(0,0,0,.55); transition: filter .22s ease;
+    background: linear-gradient(180deg, var(--tint) 0%, var(--tint-dark) 100%); }
+  .side.left  { justify-content: flex-end; padding-right: 30px;
+    clip-path: polygon(10px 0, 100% 0, 100% 100%, 10px 100%, 0 50%); }
+  .side.right { justify-content: flex-start; padding-left: 30px;
+    clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 50%, calc(100% - 10px) 100%, 0 100%); }
+  /* A hairline of the house's own colour along the top, the way a crest band reads. */
+  .side::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px;
+    background: var(--band); opacity: .85; }
+  .score { font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+
+  /* The shield is the darkest thing in the bar on purpose: the eye lands on the clock first, and the
+     two colours then read as belonging to it. */
+  #crest { position: relative; z-index: 2; width: 96px; margin: -4px -12px 0; padding: 4px 0 8px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: linear-gradient(180deg, #23201a 0%, #12100b 100%);
+    border: 1px solid rgba(201,162,90,.38);
+    border-radius: 3px 3px 26px 26px / 3px 3px 34px 34px; }
+  #clock { font-family: Cinzel, Georgia, serif; font-size: 19px; font-weight: 600; color: #f0e3c2;
+    font-variant-numeric: tabular-nums; letter-spacing: .04em; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+  #clock.low { color: #f0a35e; }
+  #mode { font-family: "Segoe UI", system-ui, sans-serif; font-size: 8.5px; letter-spacing: .18em;
+    text-transform: uppercase; color: rgba(201,162,90,.62); margin-top: 1px; }
+
+  /* Possession. The pip sits ON the side holding the quaffle -- the POSITION is the information, so
+     it reads at a glance mid-flight without anyone having to learn an icon. */
+  .pip { position: absolute; top: 50%; transform: translateY(-50%) scale(.4);
+    width: 16px; height: 16px; border-radius: 50%;
+    background: radial-gradient(circle at 34% 30%, #ffdf9b, #c8922f 62%, #6d4a12);
+    box-shadow: 0 0 10px rgba(255,205,92,.75), inset 0 -1px 3px rgba(0,0,0,.45);
+    opacity: 0; transition: opacity .22s ease, transform .22s ease; }
+  /* OUTER edge, not inner. The pip's whole job is which-side, and two positions either side of
+     the crest sit ~100px apart -- a glance cannot tell them apart mid-flight. Pushed to the ends
+     they are the full width of the bar apart, which is as separable as this space gets. */
+  .side.left  .pip { left: 15px; }
+  .side.right .pip { right: 15px; }
+  .side.has .pip { opacity: 1; transform: translateY(-50%) scale(1); }
+  /* The holder brightens too. Colour alone is not enough when the two houses sit close in hue --
+     Gryffindor against Hufflepuff is the case that proves it. */
+  .side.has { filter: brightness(1.16); }
+
+  @media (prefers-reduced-motion: reduce) { #bar, .pip, .side { transition: none; } }
+</style>
+
+<div id="bar">
+  <div class="side left" id="left"><span class="score" id="leftScore">0</span><i class="pip"></i></div>
+  <div id="crest"><div id="clock">--:--</div><div id="mode"></div></div>
+  <div class="side right" id="right"><span class="score" id="rightScore">0</span><i class="pip"></i></div>
+</div>
+
+<script>
+  const bar = document.getElementById("bar");
+  const el = (id) => document.getElementById(id);
+
+  let endsAt = 0;
+  let ticking = null;
+
+  // Darken one authored colour for the ribbon's lower edge, rather than shipping two per house: the
+  // house has one colour, and lighting it is this page's business.
+  function shade(hex, k) {
+    const n = parseInt(String(hex || "#888888").slice(1), 16);
+    const f = (c) => Math.max(0, Math.min(255, Math.round(c * k)));
+    return `rgb(${f((n >> 16) & 255)}, ${f((n >> 8) & 255)}, ${f(n & 255)})`;
+  }
+
+  function paintSide(which, data) {
+    const node = el(which);
+    const d = data || {};
+    node.style.setProperty("--tint", shade(d.colour, 0.82));
+    node.style.setProperty("--tint-dark", shade(d.colour, 0.5));
+    node.style.setProperty("--band", d.colour || "#8a8a8a");
+    el(which + "Score").textContent = d.score == null ? "0" : d.score;
+    node.classList.toggle("has", !!d.holding);
+    // A side with no team leaves the layout entirely. An empty ribbon reads as a team on nil, and
+    // merely hiding it keeps its box, which pushes the whole bar off-centre in a solo session.
+    node.style.display = d.team ? "flex" : "none";
+  }
+
+  // The clock runs LOCALLY off `endsAt`. The server sends the deadline once per push and this counts
+  // down to it, so a ticking clock costs no packets.
+  function paintClock() {
+    if (!endsAt) { el("clock").textContent = "--:--"; return; }
+    const left = Math.max(0, endsAt - Date.now());
+    const s = Math.round(left / 1000);
+    el("clock").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    el("clock").classList.toggle("low", left <= 60000);
+  }
+
+  function show(d) {
+    paintSide("left", d.left);
+    paintSide("right", d.right);
+    el("mode").textContent = d.mode || "";
+    endsAt = Number(d.endsAt) || 0;
+    paintClock();
+    bar.classList.add("up");
+    if (!ticking) ticking = setInterval(paintClock, 250);
+  }
+
+  function hide() {
+    bar.classList.remove("up");
+    if (ticking) { clearInterval(ticking); ticking = null; }
+    endsAt = 0;
+  }
+
+  window.addEventListener("quid:score", (e) => show((e && e.detail) || {}));
+  window.addEventListener("quid:scoreHide", hide);
+  // The view can be created after the first push -- on a cold boot the HTML is still syncing down --
+  // so it announces itself and the client replays the last state it held.
+  callEvent("quid:scoreReady", "{}");
+</script>

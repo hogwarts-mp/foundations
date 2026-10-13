@@ -3,10 +3,11 @@
 Gamemodes are complete games built on HMP Foundations. They are optional: the core pack is the
 infrastructure every Foundations server installs, and a server adds only the gamemodes it wants on top.
 
-No gamemodes ship yet. Each one goes in `resources/` here and gets a row below.
+Each one lives in `resources/` here and has a row below.
 
 | Gamemode | Description |
 |---|---|
+| [`hmp-quidditch`](resources/hmp-quidditch) | Quidditch on the Hogwarts pitch: called matches with house lineups, practice and Snitch hunts. Built on activities, houses, UI, input, inventory, audio, blips and world policy. |
 
 ## Versioning
 

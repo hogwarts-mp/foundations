@@ -11,6 +11,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   release with the pack, on its version, as a separate optional archive, `hmp-gamemodes-v<version>.zip`.
   A gamemode may depend on the core pack; the core pack never depends on a gamemode, and the release
   check enforces it. See `gamemodes/README.md`.
+- `hmp-quidditch`, the first gamemode, brings HogwartsMP's Quidditch into Foundations. The pitch is
+  server WorldObjects: a physics Quaffle simulated by the nearest client, a Snitch Blueprint flown by
+  one client and steered by the server, race-ring hoops and server-moved bludgers. Sessions use
+  activities, character metadata, houses, native inventory, UI and input, interactions, audio, blips
+  and world policy. Match control is configurable, from an `hmp-core` group to anyone, and opens to
+  everyone while no qualifying player is online. The manager's tuning screens are live `hmp-ui`
+  sliders. A called match reaches eligible players as a small unfocused card they can ignore; a key
+  opens the picker.
 - `hmp-ui` input dialogs gain `range` fields: a slider with a live value readout, bounded by `min` and
   `max`, with an optional `step` (now also honoured by `number` fields) and `unit`.
 - `hmp-ui` `input()` takes an optional `{ onChange }` handler. While the dialog is open, `number`,

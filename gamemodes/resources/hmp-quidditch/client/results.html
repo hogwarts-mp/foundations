@@ -1,0 +1,135 @@
+<meta charset="utf-8">
+<title>Quidditch Results</title>
+<style>
+  /* Read-only, like the banner: shown but never focused, so it cannot take the cursor or the
+     controls. A results screen that strands the player behind a locked mouse is worse than no
+     results screen. It fades itself out when the celebration window ends. */
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
+    pointer-events: none; user-select: none;
+    font-family: "Segoe UI", system-ui, sans-serif; }
+
+  #wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+
+  .panel { width: 640px; max-height: 78vh; overflow: hidden;
+    background: linear-gradient(180deg, rgba(14,11,7,.95), rgba(9,7,5,.97));
+    border: 1px solid #4a3f28; border-radius: 12px;
+    box-shadow: 0 26px 90px rgba(0,0,0,.75), 0 0 60px rgba(201,162,39,.10);
+    opacity: 0; transform: translateY(26px) scale(.97); }
+  .panel.in  { animation: rise .6s cubic-bezier(.16,1,.3,1) forwards; }
+  .panel.out { animation: sink .6s ease-in forwards; }
+  @keyframes rise { to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes sink { from { opacity: 1; transform: translateY(0) scale(1); }
+                    to   { opacity: 0; transform: translateY(-18px) scale(.99); } }
+
+  header { padding: 18px 26px 14px; border-bottom: 1px solid #4a3f28; text-align: center; }
+  h1 { margin: 0 0 4px; font-family: Cinzel, Georgia, serif; font-size: 15px; letter-spacing: .28em;
+    text-transform: uppercase; color: #b6a77f; font-weight: 600; }
+  .winner { font-family: Cinzel, Georgia, serif; font-size: 34px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em; color: #f6ecd2;
+    text-shadow: 0 0 34px var(--accent, rgba(201,162,39,.6)); }
+  .meta { margin-top: 5px; font-size: 12px; letter-spacing: .16em; text-transform: uppercase;
+    color: #8d8060; }
+
+  .scores { display: flex; gap: 10px; justify-content: center; padding: 16px 26px;
+    border-bottom: 1px solid #322a1b; flex-wrap: wrap; }
+  .house { min-width: 118px; padding: 9px 14px; border-radius: 8px; text-align: center;
+    background: rgba(255,255,255,.035); border-top: 2px solid var(--c, #c9a227); }
+  .house .n { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: #b6a77f; }
+  .house .p { font-family: Cinzel, Georgia, serif; font-size: 26px; font-weight: 700; color: #f6ecd2; }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead th { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: #8d8060;
+    font-weight: 600; text-align: right; padding: 11px 10px 8px; }
+  thead th:first-child, tbody td:first-child { text-align: left; padding-left: 26px; }
+  thead th:last-child, tbody td:last-child { padding-right: 26px; }
+  tbody td { padding: 9px 10px; text-align: right; font-size: 14px; color: #e6dcc2;
+    border-top: 1px solid rgba(255,255,255,.05); font-variant-numeric: tabular-nums; }
+  tbody tr:first-child td { color: #fff4d8; }
+  .who { display: flex; align-items: center; gap: 9px; }
+  .pip { width: 3px; height: 20px; border-radius: 2px; background: var(--c, #c9a227); }
+  .role { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #8d8060; }
+  .zero { color: #6b6047; }
+  .empty { padding: 26px; text-align: center; color: #8d8060; font-size: 13px; }
+</style>
+
+<div id="wrap"></div>
+
+<script>
+  const HOUSE = {
+    gryffindor: "#c0392b", slytherin: "#2f8f5b",
+    hufflepuff: "#e8b62c", ravenclaw:  "#4a6cc4",
+  };
+  // Brighter for text, same as the banner — the crest colours are too dark to read as words.
+  const HOUSE_TEXT = {
+    gryffindor: "#e8604e", slytherin: "#4ad089",
+    hufflepuff: "#f5cd52", ravenclaw:  "#849cf5",
+  };
+  const colour = (h) => HOUSE[String(h || "").toLowerCase()] || "#c9a227";
+  const ink = (h) => HOUSE_TEXT[String(h || "").toLowerCase()] || "#e2c96b";
+  const cap = (s) => String(s || "").replace(/^./, (c) => c.toUpperCase());
+
+  let panel = null;
+
+  function render(d) {
+    const wrap = document.getElementById("wrap");
+    wrap.innerHTML = "";
+
+    const accent = colour(d.winner);
+    panel = document.createElement("div");
+    panel.className = "panel";
+    panel.style.setProperty("--accent", accent + "99");
+
+    const mins = Math.floor((d.durationSec || 0) / 60);
+    const secs = (d.durationSec || 0) % 60;
+    const ended = d.reason === "snitch" ? "Snitch caught"
+      : d.reason === "time" ? "Full time" : cap(d.reason || "Ended");
+
+    let html = '<header>'
+      + '<h1>' + (d.mode || "Quidditch") + '</h1>'
+      + '<div class="winner" style="--accent:' + accent + '99">'
+      + (d.winner ? '<span style="color:' + ink(d.winner) + '">' + cap(d.winner) + '</span> win' : "No score") + '</div>'
+      + '<div class="meta">' + ended + ' · ' + mins + 'm ' + secs + 's</div>'
+      + '</header>';
+
+    const score = Array.isArray(d.score) ? d.score : [];
+    if (score.length) {
+      html += '<div class="scores">' + score.map((s) =>
+        '<div class="house" style="--c:' + colour(s.house) + '">'
+        + '<div class="n" style="color:' + ink(s.house) + '">' + cap(s.house) + '</div>'
+        + '<div class="p">' + s.points + '</div></div>').join("") + '</div>';
+    }
+
+    const rows = Array.isArray(d.players) ? d.players : [];
+    if (!rows.length) { html += '<div class="empty">No players on the pitch.</div>'; }
+    else {
+      html += '<table><thead><tr><th>Player</th><th>Goals</th><th>Snitch</th><th>Points</th></tr></thead><tbody>'
+        + rows.map((p) =>
+          '<tr><td><div class="who"><span class="pip" style="--c:' + colour(p.team) + '"></span>'
+          + '<span>' + esc(p.name) + '</span><span class="role">' + cap(p.role) + '</span></div></td>'
+          + '<td class="' + (p.goals ? "" : "zero") + '">' + p.goals + '</td>'
+          + '<td class="' + (p.snitch ? "" : "zero") + '">' + p.snitch + '</td>'
+          + '<td>' + p.points + '</td></tr>').join("")
+        + '</tbody></table>';
+    }
+
+    panel.innerHTML = html;
+    wrap.appendChild(panel);
+
+    // Let the banner have the screen first — it announces the thing this panel then explains.
+    setTimeout(() => panel && panel.classList.add("in"), Number(d.afterMs) || 4200);
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  window.addEventListener("quid:results", (e) => render(e.detail || {}));
+  window.addEventListener("quid:resultsHide", () => {
+    if (!panel) return;
+    panel.classList.remove("in");
+    panel.classList.add("out");
+  });
+
+  callEvent("quid:resultsReady", "{}");
+</script>

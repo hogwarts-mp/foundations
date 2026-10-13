@@ -49,7 +49,7 @@ The dedicated server may run on Windows x64 or Linux x86-64; Hogwarts Legacy cli
 
 Complete games built on Foundations ship separately, as optional resources a server adds on top of the
 core pack. They live in [`gamemodes/`](gamemodes/README.md), release with the pack on its version, and
-are published as their own archive.
+are published as their own archive. The first is [`hmp-quidditch`](gamemodes/resources/hmp-quidditch).
 
 ## Development
 
