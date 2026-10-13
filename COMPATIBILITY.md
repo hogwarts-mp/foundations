@@ -35,7 +35,8 @@ preserve them:
   default character-card renderer;
 - server-owned hold/release and player visibility primitives used by administration;
 - `InventoryCatalog` schema version 1 and the server-authoritative player inventory surface, including
-  replace, grant/remove, use, persistence control, and revision acknowledgement;
+  replace, grant/remove, use, persistence control, revision acknowledgement, and each worn gear row's
+  `appearanceOverride` (a host without it still works; gear then restores in its own look);
 - the current native Galleons definition (with `native:knuts` retained only as a Foundations alias);
 - the server-authoritative `player.house` property, including deferred world-ready application and the
   native robe/crest character rebuild;

@@ -19,6 +19,13 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - `hmp-houses` ships a minimal client entry, like `hmp-mysql`'s, so client-bearing resources can
   depend on it in the shared resource dependency graph.
 
+### Fixed
+
+- `hmp-inventory` keeps a worn item's Equipment-menu look (`appearanceOverride`, the transmog source
+  GearID) when it saves and restores native rows, so gear no longer comes back in its own look after a
+  reconnect. It needs a HogwartsMP host that reports the field; an older host leaves it out, as before.
+  An override that is not a bare GearID is dropped on its own instead of failing the whole restore.
+
 ## [0.8.2] - 2026-10-12
 
 ### Changed

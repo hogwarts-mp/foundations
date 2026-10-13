@@ -3,6 +3,8 @@ import type { Character, Core, Logger, NativeBridge, Player, Repository } from "
 
 interface NativeRowInternal extends HmpNativeInventoryRow { unique?: boolean }
 type NativeMethod = "replace" | "give" | "remove" | "use";
+// The game splices a transmog source GearID into its own SQL, so the host accepts only these.
+const GEAR_ID = /^[A-Za-z0-9_]{1,96}$/;
 
 function sanitizeRows(raw: unknown): NativeRowInternal[] {
     const rows: NativeRowInternal[] = [];
@@ -18,6 +20,8 @@ function sanitizeRows(raw: unknown): NativeRowInternal[] {
         if (value.identified === true) normalized.identified = true;
         if (value.equipped === true) normalized.equipped = true;
         if (value.hoodUp === true) normalized.hoodUp = true;
+        // The host refuses a whole restore over one id that isn't a bare GearID, so drop just the field.
+        if (typeof value.appearanceOverride === "string" && GEAR_ID.test(value.appearanceOverride)) normalized.appearanceOverride = value.appearanceOverride;
         if (["item", "gear", "tool", "mount"].includes(String(value.kind))) normalized.kind = value.kind as NativeRowInternal["kind"];
         if (value.itemType) normalized.itemType = String(value.itemType).slice(0, 64);
         if (value.unique === true) normalized.unique = true;

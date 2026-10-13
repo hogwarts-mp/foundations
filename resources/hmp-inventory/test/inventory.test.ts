@@ -325,6 +325,42 @@ test("native snapshots restore per character and save through Foundations", asyn
     assert.deepStrictEqual(saved.at(-1), { characterId: 9, rows: [] });
 });
 
+test("a worn item's appearance override survives a save and restore, and a non-GearID is dropped alone", async () => {
+    const replaced: HmpNativeInventoryRow[][] = [];
+    const saved: HmpNativeInventoryRow[][] = [];
+    interface TestInventory extends HogwartsMpNativeInventory { rows: HmpNativeInventoryRow[] }
+    const inventory = {
+        rows: [],
+        revision: 1,
+        replace(rows: HmpNativeInventoryRow[], callback?: (error: null, result: { revision: number; rows: number }) => void) {
+            replaced.push(clone(rows));
+            inventory.rows = clone(rows);
+            Object.defineProperty(inventory, "revision", { value: 2, writable: true });
+            callback?.(null, { revision: 2, rows: rows.length });
+        },
+        list: () => clone(inventory.rows),
+        native: () => ({ items: clone(inventory.rows), sequence: 1, appliedRevision: inventory.revision, applyErrors: [] }),
+        waitForRevision: async (revision: number) => ({ items: clone(inventory.rows), sequence: 1, appliedRevision: revision, applyErrors: [] }),
+    } as unknown as TestInventory;
+    const player = { id: 5, nickname: "Ominis", position: { x: 0, y: 0, z: 0 }, emit() {}, teleport: () => 0, inventory } as unknown as Player;
+    const cloak = { itemId: "Back_002_Rare", holder: "ActorBackpack", count: 1, variation: "v1", kind: "gear" as const, identified: true, equipped: true };
+    const robe = { itemId: "Outfit_002_Basic", holder: "ActorBackpack", count: 1, variation: "v2", kind: "gear" as const, identified: true, equipped: true };
+    const repository = {
+        loadNative: async () => [{ ...cloak, appearanceOverride: "Back_112_Legendary" }, { ...robe, appearanceOverride: "Outfit_072' OR '1'='1" }],
+        saveNative: async (_characterId: number, rows: HmpNativeInventoryRow[]) => { saved.push(clone(rows)); return rows; },
+    } as unknown as Repository;
+    const core = { characters: { active: () => ({ id: 9 }) } } as unknown as Core;
+    const bridge = createNativeBridge({ repository, core, logger: { info: () => true, warn: () => true, error: () => true } });
+
+    assert.strictEqual(await bridge.attach(player, { id: 9 }), true);
+    assert.deepStrictEqual(replaced.at(-1), [{ ...cloak, appearanceOverride: "Back_112_Legendary" }, robe]);
+
+    inventory.rows = [{ ...cloak, appearanceOverride: "Back_010_Rare" }, robe];
+    await bridge.onUpdated(player, inventory.rows);
+    await bridge.flush();
+    assert.deepStrictEqual(saved.at(-1), [{ ...cloak, appearanceOverride: "Back_010_Rare" }, robe]);
+});
+
 test("inventory UI opens through the public service without relying on flattened methods", async () => {
     const { service, transfers, repository, registry, native, player, core, events, config, clientEvents } = setup();
     const database = {

@@ -84,6 +84,8 @@ export interface HmpNativeItemOptions {
     identified?: boolean;
     equipped?: boolean;
     hoodUp?: boolean;
+    /** Worn gear only: show the look of this GearID (an Equipment-menu transmog) instead of its own. */
+    appearanceOverride?: string;
     stolen?: boolean;
     unique?: boolean;
     keepOnReset?: boolean;
@@ -97,6 +99,8 @@ export interface HmpNativeInventoryRow {
     identified?: boolean;
     equipped?: boolean;
     hoodUp?: boolean;
+    /** Worn gear only: the GearID whose look it shows (an Equipment-menu transmog). */
+    appearanceOverride?: string;
     stolen?: boolean;
     unique?: boolean;
     keepOnReset?: boolean;
