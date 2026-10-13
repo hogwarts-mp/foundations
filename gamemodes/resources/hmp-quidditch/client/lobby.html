@@ -1,0 +1,120 @@
+<meta charset="utf-8">
+<title>Quidditch Call</title>
+<style>
+  /* A called match, as a small card on the right edge: who is playing, how long the call stays open,
+     how full each side is, and the one key that opens the picker.
+
+     Overlay rules, same as the scoreboard: never focused, never takes input. A call goes to everyone
+     eligible, and most of them are busy with something else; it has to be something they can ignore. */
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
+    pointer-events: none; user-select: none; }
+
+  /* Below the notification stack in the top-right, so a toast never lands on top of it. */
+  #card { position: fixed; right: 24px; top: 34%; width: 248px; padding: 12px 14px 12px 16px;
+    border: 1px solid rgba(201,162,90,.28); border-radius: 5px;
+    background: linear-gradient(145deg, rgba(21,18,12,.94), rgba(10,8,5,.94));
+    box-shadow: 0 14px 36px rgba(0,0,0,.5);
+    color: #d5c8a9; font-family: Spectral, Georgia, serif; font-size: 12px;
+    opacity: 0; transform: translateX(14px); transition: opacity .3s ease, transform .3s ease; }
+  #card.up { opacity: 1; transform: none; }
+  #card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; border-radius: 5px 0 0 5px;
+    background: #c9a25a; }
+
+  .eyebrow { display: flex; justify-content: space-between; align-items: baseline;
+    color: #b89a64; font-family: Cinzel, Georgia, serif; font-size: 9px; letter-spacing: .26em;
+    text-transform: uppercase; }
+  #clock { font-family: ui-monospace, Consolas, monospace; font-size: 11px; letter-spacing: 0;
+    color: #c2b291; font-variant-numeric: tabular-nums; }
+  #clock.low { color: #f0a35e; }
+  #title { margin: 5px 0 1px; color: #f0e3c2; font-family: Cinzel, Georgia, serif; font-size: 15px;
+    font-weight: 600; letter-spacing: .04em; line-height: 1.25; }
+  #mode { color: #9c8f74; font-size: 11px; }
+
+  #sides { display: grid; gap: 5px; margin: 10px 0 9px; }
+  .side { display: grid; grid-template-columns: 8px 1fr auto; align-items: center; gap: 8px; }
+  .chip { width: 8px; height: 8px; border-radius: 2px; }
+  .count { color: #c2b291; font-family: ui-monospace, Consolas, monospace; font-size: 11px;
+    font-variant-numeric: tabular-nums; }
+  .bar { grid-column: 2 / 4; height: 3px; border-radius: 2px; background: #2a241a; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--tint, #c9a25a); }
+
+  #hint { padding-top: 8px; border-top: 1px solid rgba(201,162,90,.14); color: #9c8f74; font-size: 11px;
+    line-height: 1.4; }
+  #hint b { color: #f0e3c2; font-weight: normal; }
+  kbd { display: inline-block; min-width: 14px; padding: 0 4px; margin-right: 3px; text-align: center;
+    border: 1px solid rgba(201,162,90,.45); border-radius: 3px; color: #f0e3c2;
+    font-family: ui-monospace, Consolas, monospace; font-size: 10px; line-height: 15px; }
+
+  @media (prefers-reduced-motion: reduce) { #card { transition: none; } }
+</style>
+
+<div id="card">
+  <div class="eyebrow"><span>Quidditch called</span><span id="clock">--:--</span></div>
+  <div id="title"></div>
+  <div id="mode"></div>
+  <div id="sides"></div>
+  <div id="hint"></div>
+</div>
+
+<script>
+  const card = document.getElementById("card");
+  const el = (id) => document.getElementById(id);
+  const node = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
+
+  let endsAt = 0;
+  let ticking = null;
+
+  // The server sends how long is left, not a wall-clock deadline: the two clocks need not agree.
+  function paintClock() {
+    if (!endsAt) { el("clock").textContent = "--:--"; return; }
+    const left = Math.max(0, endsAt - Date.now());
+    const s = Math.ceil(left / 1000);
+    el("clock").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    el("clock").classList.toggle("low", left <= 20000);
+  }
+
+  function show(d) {
+    el("title").textContent = d.title || "";
+    el("mode").textContent = d.mode || "";
+    const sides = el("sides");
+    sides.replaceChildren();
+    for (const side of d.teams || []) {
+      const row = node("div", "side");
+      const chip = node("i", "chip");
+      chip.style.background = side.colour || "#8a8a8a";
+      const bar = node("div", "bar");
+      const fill = node("i");
+      fill.style.setProperty("--tint", side.colour || "#c9a25a");
+      fill.style.width = `${side.total ? Math.min(100, Math.round(100 * side.filled / side.total)) : 0}%`;
+      bar.appendChild(fill);
+      row.append(chip, node("span", "", side.team || ""), node("span", "count", `${side.filled}/${side.total}`), bar);
+      sides.appendChild(row);
+    }
+    const hint = el("hint");
+    hint.replaceChildren();
+    const key = node("kbd", "", d.key || "J");
+    if (d.pick) {
+      hint.append("You are ", node("b", "", d.pick), ". ", key, d.referee ? "lineup, start or call off" : "change or leave");
+    } else if (d.referee) {
+      hint.append(key, d.canPlay ? "pick a position, start or call off" : "start or call off");
+    } else {
+      hint.append(key, "pick a position — or ignore this to sit it out");
+    }
+    endsAt = Date.now() + (Number(d.remainingMs) || 0);
+    paintClock();
+    card.classList.add("up");
+    if (!ticking) ticking = setInterval(paintClock, 250);
+  }
+
+  function hide() {
+    card.classList.remove("up");
+    if (ticking) { clearInterval(ticking); ticking = null; }
+    endsAt = 0;
+  }
+
+  window.addEventListener("quid:lobby", (e) => show((e && e.detail) || {}));
+  window.addEventListener("quid:lobbyHide", hide);
+  // The view can be created after the first push -- on a cold boot the HTML is still syncing down --
+  // so it announces itself and the client replays the last state it held.
+  callEvent("quid:lobbyReady", "{}");
+</script>
