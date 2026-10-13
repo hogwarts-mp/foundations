@@ -6,6 +6,7 @@ target.
 | Component | Supported baseline | Status | Notes |
 |---|---|---|---|
 | HMP Foundations | `0.8.2` pack and resources | Supported | All twenty-eight resources must use the same version. |
+| HMP Gamemodes | `0.8.2` | Supported | Optional; each gamemode must match the core pack's version. |
 | HogwartsMP scripting host | `1.8.0` or newer | Supported | Provides the scripting capabilities listed below. |
 | MafiaHub Framework | `16.2.0` or newer | Supported | Required for the `fw://` local resource scheme. On `16.1.x` and older every resource-served page, font, and icon fails to load. |
 | Hogwarts Legacy client data | Steam build ID `20773316` | Supported baseline | The native inventory catalog declares this game-data build. Other builds require revalidation. |

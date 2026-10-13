@@ -32,8 +32,12 @@ jobs:
         run: |
           cd build
           zip -r "../hmp-foundations-${GITHUB_REF_NAME}.zip" hmp-foundations
+          if [ -d hmp-gamemodes ]; then zip -r "../hmp-gamemodes-${GITHUB_REF_NAME}.zip" hmp-gamemodes; fi
 
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" "hmp-foundations-${GITHUB_REF_NAME}.zip" --generate-notes
+        run: |
+          assets=("hmp-foundations-${GITHUB_REF_NAME}.zip")
+          if [ -f "hmp-gamemodes-${GITHUB_REF_NAME}.zip" ]; then assets+=("hmp-gamemodes-${GITHUB_REF_NAME}.zip"); fi
+          gh release create "${GITHUB_REF_NAME}" "${assets[@]}" --generate-notes

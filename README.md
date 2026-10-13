@@ -45,6 +45,12 @@ The dedicated server may run on Windows x64 or Linux x86-64; Hogwarts Legacy cli
 | [`hmp-business`](resources/hmp-business) | Player-run businesses: job-owned counters with owner-managed prices, stock, staffing and books. |
 | [`hmp-webhooks`](resources/hmp-webhooks) | Server-only named webhook destinations, queued delivery, retries and optional gameplay-event relays. |
 
+## Gamemodes
+
+Complete games built on Foundations ship separately, as optional resources a server adds on top of the
+core pack. They live in [`gamemodes/`](gamemodes/README.md), release with the pack on its version, and
+are published as their own archive.
+
 ## Development
 
 Node.js 22 or newer is required for Foundations's build tools. The generated resources target Node.js

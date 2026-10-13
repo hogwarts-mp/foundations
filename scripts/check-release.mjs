@@ -3,13 +3,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const resourcesRoot = path.join(root, "resources");
 const requiredFiles = [
     "README.md",
     "INSTALL.md",
     "DATABASE.md",
     "COMPATIBILITY.md",
     "CHANGELOG.md",
+    "gamemodes/README.md",
     "examples/config/README.md",
     "examples/config/environment.example",
 ];
@@ -34,12 +34,24 @@ for (const file of ["README.md", "INSTALL.md", "DATABASE.md", "examples/config/R
     if (/\bpixi\b/i.test(contents)) throw new Error(`${file} must not require the private Pixi workspace tooling`);
 }
 
-const entries = (await readdir(resourcesRoot, { withFileTypes: true }))
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith("hmp-"))
+// The core pack lives in resources/ and the optional gamemodes in gamemodes/resources/. Both release
+// on the pack's version; a gamemode may depend on the core, never the other way round.
+async function resourceEntries(dir, kind) {
+    // Git keeps no empty directories, so a checkout with no gamemodes has no gamemodes/resources at all.
+    const found = await readdir(path.join(root, dir), { withFileTypes: true }).catch((error) => {
+        if (kind === "gamemode" && error.code === "ENOENT") return [];
+        throw error;
+    });
+    return found.filter((entry) => entry.isDirectory() && entry.name.startsWith("hmp-")).map((entry) => ({ name: entry.name, dir, kind }));
+}
+const entries = [...await resourceEntries("resources", "core"), ...await resourceEntries("gamemodes/resources", "gamemode")]
     .sort((a, b) => a.name.localeCompare(b.name));
 const manifests = new Map();
+const locations = new Map();
 for (const entry of entries) {
-    const manifest = await json(`resources/${entry.name}/package.json`);
+    if (locations.has(entry.name)) throw new Error(`${entry.name} exists in both resources/ and gamemodes/resources/`);
+    locations.set(entry.name, entry);
+    const manifest = await json(`${entry.dir}/${entry.name}/package.json`);
     if (manifest.name !== entry.name) throw new Error(`${entry.name} manifest name is '${manifest.name}'`);
     if (manifest.version !== pack.version) throw new Error(`${entry.name} is ${manifest.version}; expected ${pack.version}`);
     if (!manifest.mafiahub) throw new Error(`${entry.name} has no mafiahub manifest`);
@@ -74,6 +86,9 @@ for (const [name, manifest] of manifests) {
             throw new Error(`${name} pins ${dependency.name} at '${dependency.version}', expected '${pack.version}'`);
         }
         if (!manifests.has(dependency.name)) throw new Error(`${name} depends on missing ${dependency.name}`);
+        if (locations.get(name).kind === "core" && locations.get(dependency.name).kind === "gamemode") {
+            throw new Error(`core resource ${name} must not depend on gamemode ${dependency.name}`);
+        }
         const dependencyPriority = Number(manifests.get(dependency.name).mafiahub.priority || 0);
         const resourcePriority = Number(manifest.mafiahub.priority || 0);
         if (dependencyPriority >= resourcePriority) {
@@ -105,13 +120,14 @@ for (const name of manifests.keys()) visit(name);
 
 const lock = await json("package-lock.json");
 for (const name of manifests.keys()) {
-    const locked = lock.packages?.[`resources/${name}`]?.version;
+    const locked = lock.packages?.[`${locations.get(name).dir}/${name}`]?.version;
     if (locked !== pack.version) throw new Error(`${name} package-lock version is '${locked}', expected '${pack.version}'`);
 }
 
 const dockerfile = await readFile(path.join(root, "Dockerfile"), "utf8");
 for (const name of manifests.keys()) {
-    if (!dockerfile.includes(`COPY resources/${name}/package.json resources/${name}/package.json`)) {
+    const dir = locations.get(name).dir;
+    if (!dockerfile.includes(`COPY ${dir}/${name}/package.json ${dir}/${name}/package.json`)) {
         throw new Error(`Dockerfile does not stage ${name}/package.json before npm ci`);
     }
 }
@@ -121,4 +137,5 @@ if (!String(mysqlExample.password || "").includes("CHANGE_ME")) throw new Error(
 const changelog = await readFile(path.join(root, "CHANGELOG.md"), "utf8");
 if (!changelog.includes(`[${pack.version}]`)) throw new Error(`CHANGELOG.md has no ${pack.version} release entry`);
 
-console.log(`Release metadata verified for ${manifests.size} resources at ${pack.version}`);
+const gamemodes = entries.filter((entry) => entry.kind === "gamemode").length;
+console.log(`Release metadata verified for ${manifests.size - gamemodes} resources and ${gamemodes} gamemode(s) at ${pack.version}`);

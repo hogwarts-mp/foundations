@@ -35,3 +35,11 @@ jobs:
           name: hmp-foundations
           path: build/hmp-foundations
           if-no-files-found: error
+
+      - name: Upload gamemodes pack
+        uses: actions/upload-artifact@v7
+        with:
+          name: hmp-gamemodes
+          path: build/hmp-gamemodes
+          # Built only once a gamemode exists.
+          if-no-files-found: ignore

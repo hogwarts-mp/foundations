@@ -58,7 +58,7 @@ The result must look like this:
 
 Do not leave an extra nesting level such as
 `<server-root>/resources/hmp-foundations/resources/hmp-core`. There should be exactly twenty-eight
-top-level `hmp-*` directories.
+top-level `hmp-*` directories from the core pack, plus any [gamemodes](#6-optional-gamemodes) you add.
 
 On Linux, resource and configuration names are case-sensitive. Preserve names such as `hmp-core`
 and `data/hmp-mysql.json` exactly.
@@ -259,6 +259,14 @@ Use a disposable test account first:
 
 Use [BETA_TESTING.md](BETA_TESTING.md) for the full functional test pass.
 
+## 6. Optional gamemodes
+
+Gamemodes are complete games built on Foundations and are not part of the core pack. A release that
+includes any publishes them separately as `hmp-gamemodes-v<version>.zip`. To add one, copy its `hmp-*`
+directory from that archive's `resources/` into `<server-root>/resources/` beside the core resources,
+and restart the server. Use the archive from the same release as the core pack. See
+[gamemodes/README.md](gamemodes/README.md).
+
 ## Existing-resource overlap
 
 | Existing resource | Guidance |
@@ -304,7 +312,8 @@ Never post passwords, connection URLs, bootstrap secrets, player IPs, or identit
 1. Stop the server and prevent player connections.
 2. Back up the Foundations database and `<server-root>/data/hmp-*.json`.
 3. Read [CHANGELOG.md](CHANGELOG.md) and compare the new `examples/config` files with local settings.
-4. Replace all twenty-eight `hmp-*` directories together; do not merge old and new `dist` directories.
+4. Replace all twenty-eight `hmp-*` directories together, plus any gamemodes from the same release; do
+   not merge old and new `dist` directories.
 5. Start the server and let every migration and resource reach ready state before admitting players.
 6. Restart clients after changing client-bearing resources.
 

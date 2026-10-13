@@ -7,6 +7,10 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ### Added
 
+- Gamemodes: complete games built on Foundations get their own home, `gamemodes/resources/`. They
+  release with the pack, on its version, as a separate optional archive, `hmp-gamemodes-v<version>.zip`.
+  A gamemode may depend on the core pack; the core pack never depends on a gamemode, and the release
+  check enforces it. See `gamemodes/README.md`.
 - `hmp-ui` input dialogs gain `range` fields: a slider with a live value readout, bounded by `min` and
   `max`, with an optional `step` (now also honoured by `number` fields) and `unit`.
 - `hmp-ui` `input()` takes an optional `{ onChange }` handler. While the dialog is open, `number`,
