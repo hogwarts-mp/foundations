@@ -67,6 +67,62 @@ test("server correlates responses and revalidates client selections", async () =
     assert.strictEqual(ui.status().pending, 0);
 });
 
+test("range fields need bounds and clamp their default", () => {
+    assert.throws(() => normalizeInput({ title: "Bad", fields: [{ name: "size", label: "Size", type: "range", min: 5 }] }), /min below max/);
+    assert.throws(() => normalizeInput({ title: "Bad", fields: [{ name: "size", label: "Size", type: "range", min: 5, max: 5 }] }), /min below max/);
+    const field = normalizeInput({ title: "Tune", fields: [{ name: "size", label: "Size", type: "range", min: 0.5, max: 6, step: 0.1, default: 40, unit: "times bigger" }] }).fields[0];
+    assert.deepStrictEqual({ min: field.min, max: field.max, step: field.step, default: field.default, unit: field.unit }, { min: 0.5, max: 6, step: 0.1, default: 6, unit: "times bigger" });
+    assert.strictEqual(normalizeInput({ title: "Tune", fields: [{ name: "size", label: "Size", type: "range", min: 0, max: 1, step: -1 }] }).fields[0].step, undefined);
+    assert.strictEqual(normalizeInput({ title: "Tune", fields: [{ name: "a", label: "A" }] }).live, undefined);
+    assert.strictEqual(normalizeInput({ title: "Tune", live: true, fields: [{ name: "a", label: "A" }] }).live, true);
+});
+
+test("server forwards validated live changes for the dialog's own player only", async () => {
+    const sent: Array<{ name: string; payload: unknown }> = [];
+    const player: HmpUiPlayer = { id: 3, emit: (name, payload) => sent.push({ name, payload }) };
+    const stranger: HmpUiPlayer = { id: 4, emit: () => undefined };
+    let clock = 1000;
+    const ui = createUiService<HmpUiPlayer>({ logger, now: () => clock });
+    const changes: Array<[string, unknown]> = [];
+    const answer = ui.input(player, {
+        title: "Tune",
+        fields: [
+            { name: "speed", label: "Speed", type: "range", min: 0, max: 10, step: 0.5, default: 2 },
+            { name: "frozen", label: "Frozen", type: "checkbox" },
+            { name: "mode", label: "Mode", type: "select", options: [{ label: "Calm", value: "calm" }, { label: "Wild", value: "wild" }] },
+            { name: "note", label: "Note" },
+        ],
+    }, { onChange: (name, value) => changes.push([name, value]) });
+    const request = parse(sent.at(-1)?.payload);
+    const id = request.id;
+    assert.strictEqual((request.payload as { live?: boolean }).live, true);
+
+    assert.strictEqual(ui.onChange(player, { id, name: "speed", value: "3.5" }), true);
+    assert.strictEqual(ui.onChange(player, { id, name: "speed", value: 4 }), false, "inside the per-field interval");
+    assert.strictEqual(ui.onChange(player, { id, name: "frozen", value: true }), true, "other fields keep their own interval");
+    clock += 100;
+    assert.strictEqual(ui.onChange(player, { id, name: "speed", value: 3.3 }), false, "off its step");
+    assert.strictEqual(ui.onChange(player, { id, name: "speed", value: 11 }), false, "above its maximum");
+    assert.strictEqual(ui.onChange(player, JSON.stringify({ id, name: "mode", value: "wild" })), true);
+    assert.strictEqual(ui.onChange(player, { id, name: "mode", value: "invented" }), false);
+    assert.strictEqual(ui.onChange(player, { id, name: "note", value: "typed" }), false, "text reports on submit only");
+    assert.strictEqual(ui.onChange(player, { id, name: "missing", value: 1 }), false);
+    assert.strictEqual(ui.onChange(stranger, { id, name: "speed", value: 1 }), false);
+    assert.deepStrictEqual(changes, [["speed", 3.5], ["frozen", true], ["mode", "wild"]]);
+
+    ui.onResponse(player, { id, result: { speed: 6, frozen: false, mode: "calm", note: "done" } });
+    assert.deepStrictEqual(await answer, { speed: 6, frozen: false, mode: "calm", note: "done" });
+    clock += 100;
+    assert.strictEqual(ui.onChange(player, { id, name: "speed", value: 1 }), false, "a settled dialog takes no more edits");
+
+    const plain = ui.input(player, { title: "Plain", fields: [{ name: "speed", label: "Speed", type: "range", min: 0, max: 10 }] });
+    const plainRequest = parse(sent.at(-1)?.payload);
+    assert.strictEqual((plainRequest.payload as { live?: boolean }).live, undefined);
+    assert.strictEqual(ui.onChange(player, { id: plainRequest.id, name: "speed", value: 1 }), false);
+    ui.onResponse(player, { id: plainRequest.id, result: { speed: 12 } });
+    await assert.rejects(plain, /above its maximum/);
+});
+
 test("server notifications are fire-and-forget and disconnect settles pending work", async () => {
     const sent: Array<{ name: string; payload: unknown }> = [];
     const player: HmpUiPlayer = { id: 9, emit: (name, payload) => sent.push({ name, payload }) };
@@ -185,6 +241,47 @@ test("client bridges chained server menus without dropping the backdrop or focus
     assert.strictEqual(hidden, 1);
     assert.strictEqual(releases, 1);
     assert.strictEqual(pageEvents.filter((event) => event.name === "clear").length, 1);
+});
+
+test("client validates local live edits and forwards remote ones untouched", async () => {
+    const handlers = new Map<string, (payload?: unknown) => unknown>();
+    const pageEvents: Array<{ name: string; payload: unknown }> = [];
+    const serverEvents: Array<{ name: string; payload: unknown }> = [];
+    const web = {
+        createView: () => 5,
+        destroyView: () => true,
+        showView: () => true,
+        hideView: () => true,
+        focusView: () => true,
+        emit: (_view: number, name: string, payload?: unknown) => { pageEvents.push({ name, payload }); return true; },
+        on: (_view: number, name: string, listener: (payload?: unknown) => unknown) => handlers.set(name, listener),
+    };
+    const ui = createUiClient({ web, events: { emitServer: (name, payload) => serverEvents.push({ name, payload }) }, transitionGraceMs: 0 });
+    const changes: Array<[string, unknown]> = [];
+    const local = ui.input({ title: "Tune", fields: [{ name: "gap", label: "Gap", type: "range", min: 0, max: 100, step: 5 }] }, {
+        onChange: (name, value) => changes.push([name, value]),
+    });
+    handlers.get("ready")?.();
+    const request = pageEvents.find((event) => event.name === "request")?.payload as { id: string; payload: { live?: boolean } };
+    assert.strictEqual(request.payload.live, true);
+    assert.strictEqual(handlers.get("change")?.({ id: request.id, name: "gap", value: "35" }), true);
+    assert.strictEqual(handlers.get("change")?.({ id: request.id, name: "gap", value: 36 }), false);
+    assert.strictEqual(handlers.get("change")?.({ id: "stale", name: "gap", value: 40 }), false);
+    assert.deepStrictEqual(changes, [["gap", 35]]);
+    handlers.get("response")?.({ id: request.id, result: { gap: 40 } });
+    assert.deepStrictEqual(await local, { gap: 40 });
+    assert.strictEqual(serverEvents.length, 0);
+
+    ui.receiveRequest({ id: "remote:live", type: "input", payload: { title: "Tune", live: true, fields: [{ name: "gap", label: "Gap", type: "range", min: 0, max: 100 }] } });
+    assert.strictEqual(handlers.get("change")?.({ id: "remote:live", name: "gap", value: 999 }), true);
+    assert.deepStrictEqual(parse(serverEvents.at(-1)?.payload), { id: "remote:live", name: "gap", value: 999 });
+    assert.strictEqual(serverEvents.at(-1)?.name, "hmp-ui:change");
+    handlers.get("response")?.({ id: "remote:live", result: null });
+
+    ui.receiveRequest({ id: "remote:plain", type: "input", payload: { title: "Tune", fields: [{ name: "gap", label: "Gap", type: "range", min: 0, max: 100 }] } });
+    const before = serverEvents.length;
+    assert.strictEqual(handlers.get("change")?.({ id: "remote:plain", name: "gap", value: 5 }), false);
+    assert.strictEqual(serverEvents.length, before);
 });
 
 test("client notifications remain unfocused and hide after the page reports idle", () => {

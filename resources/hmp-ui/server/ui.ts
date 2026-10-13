@@ -3,6 +3,7 @@ import type {
     HmpUiAlert,
     HmpUiContextMenu,
     HmpUiInputDialog,
+    HmpUiInputOptions,
     HmpUiInputResult,
     HmpUiInputValue,
     HmpUiNotification,
@@ -11,9 +12,11 @@ import type {
     HmpUiServer,
 } from "../types";
 
-const { clean, normalizeNotification, normalizeAlert, normalizeInput, normalizeContext, normalizeProgress } = normalizeModule;
+const { clean, normalizeNotification, normalizeAlert, normalizeInput, normalizeContext, normalizeProgress, liveField, fieldValue } = normalizeModule;
 type RequestKind = "alert" | "input" | "context" | "progress";
 const MAX_REQUEST_BYTES = 16 * 1024;
+// The page sends a dragged slider at most every 100 ms; anything faster is not a person.
+const MIN_CHANGE_MS = 40;
 
 interface PendingRequest {
     id: string;
@@ -23,6 +26,8 @@ interface PendingRequest {
     resolve(value: unknown): void;
     reject(error: unknown): void;
     timer: ReturnType<typeof setTimeout>;
+    onChange?: (name: string, value: HmpUiInputValue) => void;
+    changedAt?: Map<string, number>;
 }
 
 interface Logger {
@@ -42,23 +47,7 @@ function inputResult(dialog: HmpUiInputDialog, raw: unknown): HmpUiInputResult {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new TypeError("invalid input response");
     const value = raw as Record<string, unknown>;
     const result: HmpUiInputResult = {};
-    for (const field of dialog.fields) {
-        const current = value[field.name];
-        let normalized: HmpUiInputValue;
-        if (field.type === "checkbox") normalized = current === true;
-        else if (field.type === "number") {
-            const number = Number(current);
-            if (!Number.isFinite(number)) throw new TypeError(`input field '${field.name}' must be a number`);
-            if (field.min !== undefined && number < field.min) throw new RangeError(`input field '${field.name}' is below its minimum`);
-            if (field.max !== undefined && number > field.max) throw new RangeError(`input field '${field.name}' is above its maximum`);
-            normalized = number;
-        } else {
-            normalized = clean(current, field.type === "textarea" ? 1000 : 256);
-            if (field.required && !normalized) throw new TypeError(`input field '${field.name}' is required`);
-            if (field.type === "select" && !field.options?.some((option) => option.value === normalized)) throw new TypeError(`input field '${field.name}' has an invalid option`);
-        }
-        result[field.name] = normalized;
-    }
+    for (const field of dialog.fields) result[field.name] = fieldValue(field, value[field.name]);
     return result;
 }
 
@@ -84,6 +73,7 @@ function validateResult(pending: PendingRequest, raw: unknown): unknown {
 
 function createUiService<P extends HmpUiPlayer>(options: { logger: Logger; now?: () => number }): HmpUiServer<P> & {
     onResponse(player: P, raw: unknown): boolean;
+    onChange(player: P, raw: unknown): boolean;
     disconnect(player?: P | null): number;
     stop(): number;
 } {
@@ -115,7 +105,7 @@ function createUiService<P extends HmpUiPlayer>(options: { logger: Logger; now?:
         if (!ids?.size) byPlayer.delete(request.playerId);
     }
 
-    function request<T>(player: P, type: RequestKind, payload: PendingRequest["payload"]): Promise<T> {
+    function request<T>(player: P, type: RequestKind, payload: PendingRequest["payload"], onChange?: PendingRequest["onChange"]): Promise<T> {
         const owner = playerId(player);
         const id = `hmpui:${owner}:${now().toString(36)}:${(++sequence).toString(36)}`;
         const timeoutMs = Number(payload.timeoutMs) || 300000;
@@ -136,6 +126,10 @@ function createUiService<P extends HmpUiPlayer>(options: { logger: Logger; now?:
                     resolve((type === "progress" ? false : null) as T);
                 }, timeoutMs),
             };
+            if (onChange) {
+                record.onChange = onChange;
+                record.changedAt = new Map();
+            }
             record.timer.unref?.();
             track(record);
             try { player.emit("hmp-ui:request", envelope); }
@@ -153,8 +147,9 @@ function createUiService<P extends HmpUiPlayer>(options: { logger: Logger; now?:
         return request(player, "alert", normalizeAlert(raw));
     }
 
-    function input(player: P, raw: HmpUiInputDialog): Promise<HmpUiInputResult | null> {
-        return request(player, "input", normalizeInput(raw));
+    function input(player: P, raw: HmpUiInputDialog, options?: HmpUiInputOptions): Promise<HmpUiInputResult | null> {
+        const onChange = typeof options?.onChange === "function" ? options.onChange : undefined;
+        return request(player, "input", normalizeInput({ ...raw, live: !!onChange }), onChange);
     }
 
     function context(player: P, raw: HmpUiContextMenu): Promise<string | null> {
@@ -177,6 +172,29 @@ function createUiService<P extends HmpUiPlayer>(options: { logger: Logger; now?:
             logger.warn(`[hmp-ui] rejected invalid ${record.type} response from #${owner}:`, error);
             record.reject(error);
         }
+        return true;
+    }
+
+    // A live edit is only ever advisory: the dialog stays open and the submitted result is still revalidated.
+    function onChange(player: P, raw: unknown): boolean {
+        const owner = playerId(player);
+        const change = parse(raw);
+        const record = pending.get(String(change.id || ""));
+        if (!record || record.playerId !== owner || record.type !== "input" || !record.onChange || !record.changedAt) return false;
+        const field = (record.payload as HmpUiInputDialog).fields.find((entry) => entry.name === change.name);
+        if (!field || !liveField(field)) return false;
+        const at = now();
+        const previous = record.changedAt.get(field.name);
+        if (previous !== undefined && at - previous < MIN_CHANGE_MS) return false;
+        let value: HmpUiInputValue;
+        try { value = fieldValue(field, change.value); }
+        catch (error) {
+            logger.warn(`[hmp-ui] rejected invalid input change from #${owner}:`, error);
+            return false;
+        }
+        record.changedAt.set(field.name, at);
+        try { record.onChange(field.name, value); }
+        catch (error) { logger.warn(`[hmp-ui] input change handler for '${field.name}' failed:`, error); }
         return true;
     }
 
@@ -222,6 +240,7 @@ function createUiService<P extends HmpUiPlayer>(options: { logger: Logger; now?:
         close,
         status: () => ({ pending: pending.size, players: byPlayer.size, uptimeMs: now() - startedAt }),
         onResponse,
+        onChange,
         disconnect,
         stop,
     });

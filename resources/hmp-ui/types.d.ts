@@ -25,13 +25,19 @@ export interface HmpUiSelectOption {
 export interface HmpUiInputField {
     name: string;
     label: string;
-    type?: "text" | "password" | "textarea" | "number" | "checkbox" | "select";
+    type?: "text" | "password" | "textarea" | "number" | "range" | "checkbox" | "select";
     description?: string;
     placeholder?: string;
     required?: boolean;
     default?: string | number | boolean;
+    /** Required for `range`. */
     min?: number;
+    /** Required for `range`. */
     max?: number;
+    /** `number` and `range` only; submitted values must land on a step from `min`. */
+    step?: number;
+    /** `range` only: a short suffix shown beside the live value, such as "cm". */
+    unit?: string;
     options?: HmpUiSelectOption[];
     /** Adds client-side filtering for large option catalogs. */
     searchable?: boolean;
@@ -44,10 +50,20 @@ export interface HmpUiInputDialog {
     cancelLabel?: string;
     allowCancel?: boolean;
     timeoutMs?: number;
+    /** Set by `input()` when an `onChange` handler is supplied; the page then reports edits as they happen. */
+    live?: boolean;
 }
 
 export type HmpUiInputValue = string | number | boolean;
 export type HmpUiInputResult = Record<string, HmpUiInputValue>;
+
+export interface HmpUiInputOptions {
+    /**
+     * Called while the dialog is open whenever a `number`, `range`, `checkbox` or `select` field changes,
+     * with the value already validated against that field. Text fields only report on submit.
+     */
+    onChange?(name: string, value: HmpUiInputValue): void;
+}
 
 export interface HmpUiContextMetadata {
     label: string;
@@ -97,7 +113,7 @@ export interface HmpUiStatus {
 export interface HmpUiServer<P = HmpUiPlayer> {
     notify(player: P, notification: string | HmpUiNotification): boolean;
     alert(player: P, dialog: HmpUiAlert): Promise<"confirm" | "cancel" | null>;
-    input(player: P, dialog: HmpUiInputDialog): Promise<HmpUiInputResult | null>;
+    input(player: P, dialog: HmpUiInputDialog, options?: HmpUiInputOptions): Promise<HmpUiInputResult | null>;
     context(player: P, menu: HmpUiContextMenu): Promise<string | null>;
     progress(player: P, progress: HmpUiProgress): Promise<boolean>;
     close(player: P, reason?: string): boolean;
@@ -107,7 +123,7 @@ export interface HmpUiServer<P = HmpUiPlayer> {
 export interface HmpUiClient {
     notify(notification: string | HmpUiNotification): boolean;
     alert(dialog: HmpUiAlert): Promise<"confirm" | "cancel" | null>;
-    input(dialog: HmpUiInputDialog): Promise<HmpUiInputResult | null>;
+    input(dialog: HmpUiInputDialog, options?: HmpUiInputOptions): Promise<HmpUiInputResult | null>;
     context(menu: HmpUiContextMenu): Promise<string | null>;
     progress(progress: HmpUiProgress): Promise<boolean>;
     close(reason?: string): boolean;

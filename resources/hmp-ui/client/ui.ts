@@ -4,12 +4,14 @@ import type {
     HmpUiClient,
     HmpUiContextMenu,
     HmpUiInputDialog,
+    HmpUiInputOptions,
     HmpUiInputResult,
+    HmpUiInputValue,
     HmpUiNotification,
     HmpUiProgress,
 } from "../types";
 
-const { normalizeNotification, normalizeAlert, normalizeInput, normalizeContext, normalizeProgress } = normalizeModule;
+const { normalizeNotification, normalizeAlert, normalizeInput, normalizeContext, normalizeProgress, liveField, fieldValue } = normalizeModule;
 type RequestKind = "alert" | "input" | "context" | "progress";
 
 interface WebApi {
@@ -32,6 +34,7 @@ interface RequestRecord {
     payload: HmpUiAlert | HmpUiInputDialog | HmpUiContextMenu | HmpUiProgress;
     remote: boolean;
     resolve?: (value: unknown) => void;
+    onChange?: (name: string, value: HmpUiInputValue) => void;
 }
 
 interface UiClientOptions {
@@ -111,6 +114,7 @@ function createUiClient(options: UiClientOptions): HmpUiClient & {
             pump();
         });
         web.on(view, "response", onPageResponse);
+        web.on(view, "change", onPageChange);
         web.on(view, "idle", () => {
             notificationsVisible = false;
             if (!active && !transitionTimer) web.hideView(view);
@@ -189,6 +193,26 @@ function createUiClient(options: UiClientOptions): HmpUiClient & {
         return finish(response.result);
     }
 
+    // A server dialog's edits go up for the server to validate; a local one's are validated here.
+    function onPageChange(raw: unknown): boolean {
+        const change = parse(raw);
+        if (!active || active.type !== "input" || String(change.id || "") !== active.id) return false;
+        const dialog = active.payload as HmpUiInputDialog;
+        if (!dialog.live) return false;
+        if (active.remote) {
+            events.emitServer("hmp-ui:change", JSON.stringify({ id: active.id, name: change.name, value: change.value }));
+            return true;
+        }
+        const field = dialog.fields.find((entry) => entry.name === change.name);
+        if (!field || !liveField(field) || !active.onChange) return false;
+        let value: HmpUiInputValue;
+        try { value = fieldValue(field, change.value); }
+        catch (_) { return false; }
+        try { active.onChange(field.name, value); }
+        catch (_) { /* the caller's handler; the dialog stays open */ }
+        return true;
+    }
+
     function pump(): void {
         if (active || !queue.length || !ensureView() || !ready) return;
         cancelTransition();
@@ -204,12 +228,17 @@ function createUiClient(options: UiClientOptions): HmpUiClient & {
         web.emit(view, "request", { id: active.id, type: active.type, payload: active.payload });
     }
 
-    function enqueue<T>(type: RequestKind, payload: RequestRecord["payload"]): Promise<T> {
+    function enqueue<T>(type: RequestKind, payload: RequestRecord["payload"], onChange?: RequestRecord["onChange"]): Promise<T> {
         const id = `local:${Date.now().toString(36)}:${(++localSequence).toString(36)}`;
         return new Promise<T>((resolve) => {
-            queue.push({ id, type, payload, remote: false, resolve: (value) => resolve(value as T) });
+            queue.push({ id, type, payload, remote: false, resolve: (value) => resolve(value as T), onChange });
             pump();
         });
+    }
+
+    function input(raw: HmpUiInputDialog, options?: HmpUiInputOptions): Promise<HmpUiInputResult | null> {
+        const onChange = typeof options?.onChange === "function" ? options.onChange : undefined;
+        return enqueue<HmpUiInputResult | null>("input", normalizeInput({ ...raw, live: !!onChange }), onChange);
     }
 
     function normalizeRequest(type: RequestKind, raw: unknown): RequestRecord["payload"] {
@@ -273,7 +302,7 @@ function createUiClient(options: UiClientOptions): HmpUiClient & {
     return Object.freeze({
         notify(raw: string | HmpUiNotification) { showNotification(normalizeNotification(raw)); return true; },
         alert: (raw: HmpUiAlert) => enqueue<"confirm" | "cancel" | null>("alert", normalizeAlert(raw)),
-        input: (raw: HmpUiInputDialog) => enqueue<HmpUiInputResult | null>("input", normalizeInput(raw)),
+        input,
         context: (raw: HmpUiContextMenu) => enqueue<string | null>("context", normalizeContext(raw)),
         progress: (raw: HmpUiProgress) => enqueue<boolean>("progress", normalizeProgress(raw)),
         close,

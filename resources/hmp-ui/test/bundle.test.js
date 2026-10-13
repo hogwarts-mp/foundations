@@ -19,6 +19,7 @@ global.Events = {
 require(path.resolve(__dirname, "..", "dist", "server.js"));
 assert.deepStrictEqual([...serverExports.keys()], ["notify", "alert", "input", "context", "progress", "close", "status"]);
 assert.ok(serverHandlers.has("client:hmp-ui:response"));
+assert.ok(serverHandlers.has("client:hmp-ui:change"));
 assert.ok(serverHandlers.has("playerDisconnect"));
 
 const clientExports = new Map();
@@ -48,6 +49,7 @@ assert.ok(clientHandlers.has("hmp-ui:notify"));
 clientExports.get("notify")("Bundle ready");
 assert.ok(webHandlers.has("ready"));
 assert.ok(webHandlers.has("response"));
+assert.ok(webHandlers.has("change"));
 const pagePath = path.resolve(__dirname, "..", "dist", "index.html");
 assert.ok(fs.existsSync(pagePath));
 const page = fs.readFileSync(pagePath, "utf8");
@@ -55,6 +57,8 @@ assert.match(page, /className=\"select-option\"|node\(\"button\",\"select-option
 assert.match(page, /select-search/);
 assert.match(page, /Showing 80 of/);
 assert.doesNotMatch(page, /node\(\"select\"\)/);
+assert.match(page, /input\.type="range"/);
+assert.match(page, /send\("change"/);
 assert.doesNotMatch(page, /<select\b/i);
 assert.match(page, /fonts\/Cinzel-Variable\.ttf/);
 const inlineScript = page.match(/<script>([\s\S]*)<\/script>/)?.[1];

@@ -50,6 +50,27 @@ const values = await UI.input(player, {
 if (values) console.log(values.price, values.note);
 ```
 
+`range` fields render as a slider with its value beside it. They require `min` and `max`, and take an
+optional `step` (also honoured by `number` fields) and a short `unit` label. Submitted values must land
+on a step from `min`.
+
+Pass an `onChange` handler to hear edits while the dialog is still open. `number`, `range`, `checkbox`
+and `select` fields report as they change, a dragged slider at most every 100 ms with its final value
+always sent. Text fields only report on submit. Each value is validated against its field before your
+handler sees it. The dialog still resolves with the full result on submit, or `null` on cancel, which is
+where a tuning screen puts its original values back:
+
+```js
+const before = { speed: config.speed };
+const values = await UI.input(player, {
+    title: "Tune the snitch",
+    fields: [{ name: "speed", label: "Speed", type: "range", min: 200, max: 3000, step: 50, default: config.speed, unit: "cm/s" }],
+}, {
+    onChange: (name, value) => { config[name] = value; },
+});
+if (!values) Object.assign(config, before);
+```
+
 Pre-filtered catalogs can use the same select contract with client-side search. A dialog accepts at most
 192 options per select, and the complete request must remain below the safe event-payload budget. Resources
 with larger catalogs should first collect a server-side search term, then offer the matching subset. The
@@ -110,7 +131,7 @@ Client resources receive the same export names and promise shapes through `Impor
 - All rendered text is plain text, length-limited and control-character cleaned.
 - One player can have multiple server requests pending, but the client presents them sequentially.
 - Every response carries an opaque request ID and is accepted only from its intended player.
-- Input values and context selections are validated again on the server.
+- Input values and context selections are validated again on the server, live edits included.
 - Timeouts and disconnects settle Promises rather than leaving gameplay coroutines hanging.
 - A full `close(player)` settles and clears that player's outstanding requests.
 
@@ -118,7 +139,7 @@ Client resources receive the same export names and promise shapes through `Impor
 
 - `notify(player?, notification)`
 - `alert(player?, dialog)`
-- `input(player?, dialog)`
+- `input(player?, dialog, options?)`
 - `context(player?, menu)`
 - `progress(player?, progress)`
 - `close(player?, reason?)`

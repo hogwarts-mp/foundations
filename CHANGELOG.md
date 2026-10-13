@@ -5,6 +5,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+### Added
+
+- `hmp-ui` input dialogs gain `range` fields: a slider with a live value readout, bounded by `min` and
+  `max`, with an optional `step` (now also honoured by `number` fields) and `unit`.
+- `hmp-ui` `input()` takes an optional `{ onChange }` handler. While the dialog is open, `number`,
+  `range`, `checkbox` and `select` edits reach it as they happen, each validated against its field on
+  the server, so tuning screens can apply values live and restore them on cancel.
+
 ## [0.8.2] - 2026-10-12
 
 ### Changed
