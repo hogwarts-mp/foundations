@@ -41,8 +41,8 @@ preserve them:
 - the server-authoritative `player.house` property, including deferred world-ready application and the
   native robe/crest character rebuild;
 - client `Doors` logical-lock, Alohomora, physical-door diagnostic, and streaming-aware policy builtins;
-- client `Breakables` repairable-object watch, listing, and streaming-aware state apply builtins with the native `breakableState` event (mod commit `59b3cfa9` or newer);
-- server `World.setEncounterPolicy` (`"suppressed"` or `"server"`), the server-owned enemy encounter policy used by `hmp-world` (mod commit `c8c3fc74` or newer);
+- client `Breakables` repairable-object watch, listing, and streaming-aware state apply builtins with the native `breakableState` event (HogwartsMP `1.9` or newer);
+- server `World.setEncounterPolicy` (`"suppressed"` or `"server"`), the server-owned enemy encounter policy used by `hmp-world` (HogwartsMP `1.9` or newer);
 - synchronized `LocalPlayer.playClip`, ability playback/cancellation, emote preview/placement, and
   prop/sound animation-notify replay;
 - client key binding, controls, position, browser UI, and resource HTTP assets.
@@ -56,14 +56,14 @@ preserve them:
   availability, point, purchase, grant, level, removal, refund, and reset operations.
 - server-owned `Pvp` relations: rules (`configure`, `getRules`, `pvpRulesChanged`), pair overrides
   (`setPair`) and the `pvpDefeat` event; the hit policy with live-health `minHp` floors and the vitals
-  view; `Player.setHealthRecovery`; and the client opponent meter (mod commit `55acb616` or newer).
+  view; `Player.setHealthRecovery`; and the client opponent meter (HogwartsMP `1.9` or newer).
 - server `NPC.create`, NPC mutation/destruction, `NPCManager`, and `npcDied` events using the verified
   enemy identifiers documented by `hmp-npcs`.
 - server `Lootables` placement, contents, per-player views and the `lootableTaken` event, and
   `World.suppressLoot`, used by `hmp-loot`; a build without them leaves
   `hmp-loot` degraded with nothing placed.
 - server beast capture: `Beast.bagOf`, `Beast.giveCaptured`, `Beast.takeCaptured` and the
-  `beastCaptured` / `beastReleased` events (mod commit `249fd244` or newer), used by `hmp-beasts`; a
+  `beastCaptured` / `beastReleased` events (HogwartsMP `1.9` or newer), used by `hmp-beasts`; a
   build without them leaves `hmp-beasts` degraded with no bags kept.
 
 The current PvP host has one presentation caveat: relayed Killing Curse hits do not reproduce the

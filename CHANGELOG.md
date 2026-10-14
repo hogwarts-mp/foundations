@@ -43,15 +43,15 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - `hmp-admin` exports `noclip.isActive(player | playerId)`, so other resources can tell whether an
   administrator is no-clipping without duplicating the state.
 - `hmp-loot` `suppressGameLoot` gains `pouches`, switching off the game's coin pouches ("Search Pouch").
-  It needs a host with pouch suppression; an older one ignores it.
+  It needs HogwartsMP `1.9` or newer; an older host ignores it.
 - New `hmp-beasts` resource: each `hmp-core` character's beast bag is kept in `hmp_beast_bags`, put back
   into the player's game when the character loads and emptied when it unloads, so catches survive
   reconnects and never follow a player onto another character. A beast released from the Field Guide
   comes back where the player stood (`release.respawn`, optionally catchable again with
   `release.capturable`). `/beasts` opens an `hmp-ui` list of the player's beasts to free (in front of
   them) or rename. Other resources read and change bags through the `bag` export, open the list through
-  `menu`, and hear `hmp:beasts:captured` and `hmp:beasts:released`. Requires a host with server beast
-  capture (mod commit `249fd244` or newer).
+  `menu`, and hear `hmp:beasts:captured` and `hmp:beasts:released`. Requires HogwartsMP `1.9` or newer
+  for server beast capture.
 
 ### Changed
 

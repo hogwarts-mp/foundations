@@ -18,7 +18,7 @@ fully-broken events and reports only changes the local player caused; the server
 broadcasts it; clients replay it through the game's own repair path (animated) or snap it into place on
 join, and re-apply it whenever a cell streams in. Disposable breakables (vases, crates) are not tracked.
 
-The client build must carry the `Breakables` builtin (mod commit `59b3cfa9` or newer). Older clients log a
+The client build must carry the `Breakables` builtin (HogwartsMP `1.9` or newer). Older clients log a
 warning, keep the cached state, and simply do not apply it.
 
 ## Configuration

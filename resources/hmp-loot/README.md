@@ -47,7 +47,7 @@ Copy `examples/config/data/hmp-loot.json` to `<server-root>/data/hmp-loot.json`:
 
 - `suppressGameLoot` switches the game's own chests, moonstones, foragables and coin pouches off
   (`World.suppressLoot`) while the resource runs, and back on when it stops. Families left out, or `false`,
-  keep the game's loot. `pouches` needs a host with pouch suppression (mod commit `388c9e0b` or newer).
+  keep the game's loot. `pouches` needs HogwartsMP `1.9` or newer.
   The Overland spawns go from areas that load after startup, so a client that joins sees none.
 - `key` names a lootable for good: takes are recorded against it, so renaming one forgets who looted it.
 - `kind` is `chest`, `moonstone` or `foragable`; `model` (a Blueprint class path) is optional and
