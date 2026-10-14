@@ -18,7 +18,8 @@ native-encounter policy applied to every client.
 `hmp-worldstate` includes the `/worldstate` admin groups and the repairable-object report limit.
 `hmp-loot` includes two example lootables in a Hogwarts courtyard and switches the game's own chests,
 moonstones and foragables off.
-`hmp-beasts` includes the release policy: released beasts come back into the world, not catchable again.
+`hmp-beasts` includes the `/beasts` menu command and the release policy: released beasts come back into the
+world, not catchable again.
 `hmp-npcs` includes total and per-resource limits for NPCs managed through the Foundation service.
 `hmp-emotes` includes one for curated aliases, editor groups, the `allowAll` catalog policy, and renderer selection.
 `hmp-audio` includes one for Wwise aliases, positional range, handle limits, and closed-test commands.

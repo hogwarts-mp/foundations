@@ -1,3 +1,5 @@
 {
+  "command": "beasts",
+  "enableCommands": true,
   "release": { "respawn": true, "capturable": false }
 }

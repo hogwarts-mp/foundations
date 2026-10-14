@@ -46,9 +46,10 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   into the player's game when the character loads and emptied when it unloads, so catches survive
   reconnects and never follow a player onto another character. A beast released from the Field Guide
   comes back where the player stood (`release.respawn`, optionally catchable again with
-  `release.capturable`). Other resources read and change bags through the `bag` export and hear
-  `hmp:beasts:captured` and `hmp:beasts:released`. Requires a host with server beast capture (mod
-  commit `249fd244` or newer).
+  `release.capturable`). `/beasts` opens an `hmp-ui` list of the player's beasts to free (in front of
+  them) or rename. Other resources read and change bags through the `bag` export, open the list through
+  `menu`, and hear `hmp:beasts:captured` and `hmp:beasts:released`. Requires a host with server beast
+  capture (mod commit `249fd244` or newer).
 
 ### Changed
 

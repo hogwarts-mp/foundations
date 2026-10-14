@@ -1,5 +1,6 @@
 import assert = require("node:assert");
 import configModule = require("../server/config");
+import menuModule = require("../server/menu");
 import repositoryModule = require("../server/repository");
 import serviceModule = require("../server/service");
 import type { HmpStoredBeast } from "../types";
@@ -8,8 +9,9 @@ import type { BeastsRepository, NativeBeasts, NativeCapturedBeast } from "../ser
 const { loadConfig } = configModule;
 const { parseBeasts } = repositoryModule;
 const { createBeastService } = serviceModule;
+const { createBeastMenu, speciesLabel, colorLabel } = menuModule;
 
-interface FakePlayer { id: number; nickname: string; characterId: number | null }
+interface FakePlayer { id: number; nickname: string; characterId: number | null; position?: { x: number; y: number; z: number; yaw: number } | null }
 
 const CATALOG = [
     { id: "Hippogriff", colors: [{ id: "Default" }, { id: "Variation1" }] },
@@ -81,7 +83,7 @@ function setup(options: { seed?: Record<number, HmpStoredBeast[]>; players?: Fak
     const warnings: string[] = [];
     let uids = 0;
     const service = createBeastService<FakePlayer>({
-        config: { release: { respawn: options.respawn ?? true, capturable: options.capturable ?? false } },
+        config: { command: "beasts", enableCommands: true, release: { respawn: options.respawn ?? true, capturable: options.capturable ?? false } },
         native: options.native === false ? null : native.native,
         repository: repo.repository,
         migrations: [],
@@ -90,6 +92,7 @@ function setup(options: { seed?: Record<number, HmpStoredBeast[]>; players?: Fak
             return found?.characterId ? { id: found.characterId } : null;
         } } as never },
         players: () => players,
+        positionOf: (player) => player.position ?? null,
         emit: (eventName, payload) => emitted.push({ eventName, payload }),
         logger: { warn: (message: string) => { warnings.push(message); return true; }, info: () => true },
         now: () => 1_000,
@@ -103,7 +106,9 @@ const beast = (uid: string, species: string, color = "Default"): HmpStoredBeast 
 async function run(): Promise<void> {
     // Config: defaults, overrides and the type errors a server owner will hit.
     const Hmp = (loaded: Record<string, unknown>) => ({ config: { load: (_path: string, options: { defaults: Record<string, unknown> }) => ({ ...options.defaults, ...loaded }) } });
-    assert.deepStrictEqual(loadConfig(Hmp({}) as never, { env: {} as NodeJS.ProcessEnv }), { release: { respawn: true, capturable: false } });
+    assert.deepStrictEqual(loadConfig(Hmp({}) as never, { env: {} as NodeJS.ProcessEnv }), { command: "beasts", enableCommands: true, release: { respawn: true, capturable: false } });
+    assert.strictEqual(loadConfig(Hmp({ command: "Pets" }) as never, { env: {} as NodeJS.ProcessEnv }).command, "pets");
+    assert.throws(() => loadConfig(Hmp({ command: "/beasts" }) as never, { env: {} as NodeJS.ProcessEnv }), /command must be/);
     assert.deepStrictEqual(loadConfig(Hmp({ release: { respawn: false } }) as never, { env: {} as NodeJS.ProcessEnv }).release, { respawn: false, capturable: false });
     assert.throws(() => loadConfig(Hmp({ release: { capturable: "yes" } }) as never, { env: {} as NodeJS.ProcessEnv }), /must be a boolean/);
 
@@ -233,6 +238,131 @@ async function run(): Promise<void> {
         native.native.giveCaptured(hank, { species: "Niffler" });
         await service.attach(hank, 80);
         assert.deepStrictEqual(native.native.bagOf(hank), []);
+    }
+
+    // bag.release lets a beast go in front of the player, facing them, as the Field Guide would.
+    {
+        const ivy: FakePlayer = { id: 9, nickname: "Ivy", characterId: 90, position: { x: 1000, y: 2000, z: 300, yaw: 90 } };
+        const { service, native, repo, emitted } = setup({ players: [ivy], seed: { 90: [beast("i1", "Hippogriff", "Variation1"), beast("i2", "Niffler")] } });
+        await service.ready();
+        const result = await service.bag.release(ivy, "i1", { resource: "test" });
+        assert.ok(result);
+        assert.strictEqual(result.beast.species, "Hippogriff");
+        assert.strictEqual(result.respawnedBeastId, 100);
+        assert.deepStrictEqual(native.native.bagOf(ivy).map((entry) => entry.species), ["Niffler"]);
+        assert.deepStrictEqual(repo.stored(90).map((entry) => entry.uid), ["i2"]);
+        const spawn = native.spawned[0].opts as { x: number; y: number; z: number; yaw: number; color: string };
+        assert.ok(Math.abs(spawn.x - 1000) < 1e-6 && Math.abs(spawn.y - 2300) < 1e-6 && spawn.z === 300, "not 3 m in front");
+        assert.strictEqual(spawn.yaw, 270);
+        assert.strictEqual(spawn.color, "Variation1");
+        assert.strictEqual(emitted.at(-1)!.payload.source, "api");
+        assert.strictEqual(await service.bag.release(ivy, "i1"), null);
+
+        // Without a position or a loaded character there is nowhere to let it go.
+        ivy.position = null;
+        await assert.rejects(service.bag.release(ivy, "i2"), /position is not known/);
+        await assert.rejects(service.bag.release({ id: 99, nickname: "Ghost", characterId: 1 }, "i2"), /no character loaded/);
+        assert.deepStrictEqual(repo.stored(90).map((entry) => entry.uid), ["i2"]);
+
+        // A Field Guide release says where it came from.
+        const entry = native.native.bagOf(ivy)[0];
+        await service.released(ivy, native.releaseFrom(ivy, entry.id), { x: 0, y: 0, z: 0 });
+        assert.strictEqual(emitted.at(-1)!.payload.source, "fieldGuide");
+    }
+
+    // bag.rename swaps the game's entry for one carrying the new name; offline, it changes only the row.
+    {
+        const jo: FakePlayer = { id: 10, nickname: "Jo", characterId: 100 };
+        const { service, native, repo } = setup({ players: [jo], seed: { 100: [beast("j1", "Hippogriff", "Variation1")], 101: [beast("k1", "Niffler")] } });
+        await service.ready();
+        const renamed = await service.bag.rename(jo, "j1", "  Buckbeak  ");
+        assert.strictEqual(renamed!.name, "Buckbeak");
+        assert.deepStrictEqual(native.native.bagOf(jo).map((entry) => `${entry.species}/${entry.color}/${entry.name}`), ["Hippogriff/Variation1/Buckbeak"]);
+        assert.strictEqual(repo.stored(100)[0].name, "Buckbeak");
+        // The swapped entry is still mapped: taking it empties the game's bag.
+        assert.strictEqual(await service.bag.take(jo, "j1"), true);
+        assert.deepStrictEqual(native.native.bagOf(jo), []);
+
+        assert.strictEqual((await service.bag.rename(101, "k1", "Goldie"))!.name, "Goldie");
+        assert.strictEqual((await service.bag.rename(101, "k1", ""))!.name, "");
+        assert.strictEqual(repo.stored(101)[0].name, "");
+        assert.strictEqual(await service.bag.rename(101, "missing", "x"), null);
+        await assert.rejects(service.bag.rename(101, "k1", "x".repeat(65)), /over 64 bytes/);
+    }
+
+    // Menu labels read as words, not game ids.
+    assert.strictEqual(speciesLabel("HippogriffOffspring"), "Young Hippogriff");
+    assert.strictEqual(speciesLabel("GiantPurpleToad"), "Giant Purple Toad");
+    assert.strictEqual(colorLabel("UniqueVariation2"), "Rare variant 2");
+    assert.strictEqual(colorLabel("Default"), "Standard coat");
+
+    // The menu: list, pick, free with a confirmation, rename, page through a big bag.
+    {
+        const kim: FakePlayer = { id: 11, nickname: "Kim", characterId: 110, position: { x: 0, y: 0, z: 0, yaw: 0 } };
+        const { service, native, repo } = setup({ players: [kim], seed: { 110: [beast("m2", "Niffler"), beast("m1", "Hippogriff")] } });
+        await service.ready();
+        const shown: any[] = [];
+        const notes: any[] = [];
+        let answers: Array<string | null | Record<string, string>> = [];
+        const ui = {
+            context: async (_player: FakePlayer, menu: any) => { shown.push(menu); return answers.shift() as string | null ?? null; },
+            alert: async (_player: FakePlayer, dialog: any) => { shown.push(dialog); return answers.shift() as "confirm" | "cancel" | null; },
+            input: async (_player: FakePlayer, dialog: any) => { shown.push(dialog); return answers.shift() as Record<string, string> | null; },
+            notify: (_player: FakePlayer, note: any) => { notes.push(note); return true; },
+        };
+        const menu = createBeastMenu<FakePlayer>({ bag: service.bag, ui: ui as never, config: { command: "beasts", enableCommands: true, release: { respawn: true, capturable: false } } });
+
+        // Free the hippogriff: list, its actions, the confirmation, then the shorter list, then close.
+        answers = ["beast:m1", "free", "confirm", null];
+        await menu.open(kim);
+        assert.deepStrictEqual(shown[0].options.map((option: any) => option.title), ["Hippogriff", "Niffler"]);
+        assert.strictEqual(shown[2].title, "Free Hippogriff?");
+        assert.deepStrictEqual(shown[3].options.map((option: any) => option.title), ["Niffler"]);
+        assert.deepStrictEqual(repo.stored(110).map((entry) => entry.uid), ["m2"]);
+        assert.strictEqual(native.spawned.length, 1);
+        assert.strictEqual(notes.at(-1).tone, "success");
+
+        // Keeping it at the confirmation changes nothing; closing the actions closes the menu.
+        shown.length = 0;
+        answers = ["beast:m2", "free", "cancel", "beast:m2", null];
+        await menu.open(kim);
+        assert.strictEqual(repo.stored(110).length, 1);
+        assert.strictEqual(shown.length, 5);
+
+        // Rename, then Back to the list, which now shows the name.
+        shown.length = 0;
+        answers = ["beast:m2", "rename", { name: "Goldie" }, null];
+        await menu.open(kim);
+        assert.strictEqual(shown[3].options[0].title, "Goldie");
+        assert.strictEqual(native.native.bagOf(kim)[0].name, "Goldie");
+
+        // A second open while one is up does nothing.
+        shown.length = 0;
+        let release!: (value: string | null) => void;
+        ui.context = async (_player, menuShown) => { shown.push(menuShown); return new Promise((resolve) => { release = resolve; }); };
+        const first = menu.open(kim);
+        await menu.open(kim);
+        await new Promise((resolve) => setImmediate(resolve));
+        assert.strictEqual(shown.length, 1);
+        release(null);
+        await first;
+
+        // An empty bag still shows a menu, with a placeholder.
+        ui.context = async (_player, menuShown) => { shown.push(menuShown); return null; };
+        await service.bag.take(kim, "m2");
+        shown.length = 0;
+        await menu.open(kim);
+        assert.strictEqual(shown[0].options[0].disabled, true);
+
+        // 31 beasts: two pages.
+        for (let index = 0; index < 31; index++) await service.bag.give(kim, { species: "Niffler", color: "Default", gender: "male" });
+        shown.length = 0;
+        answers = ["page:next", null];
+        ui.context = async (_player, menuShown) => { shown.push(menuShown); return answers.shift() as string | null ?? null; };
+        await menu.open(kim);
+        assert.strictEqual(shown[0].options.length, 31);
+        assert.strictEqual(shown[0].options.at(-1).id, "page:next");
+        assert.deepStrictEqual(shown[1].options.map((option: any) => option.id), ["beast:" + (await service.bag.list(kim)).at(-1)!.uid, "page:previous"]);
     }
 
     // A host without beast capture: the bag API still reads and writes the database; nothing reaches a game.

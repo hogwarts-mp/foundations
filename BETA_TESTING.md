@@ -107,6 +107,8 @@ created test transaction after its state has been inspected.
 - Switch characters and confirm the first character's beasts are gone from the second, and back when
   switching back.
 - Release a beast from the Field Guide and confirm it reappears beside you and cannot be caught at once.
+- Open `/beasts`, free a beast and confirm it appears in front of you and is gone from the Field Guide;
+  rename one and confirm the name survives a reconnect.
 - Report a beast that doubles after a reconnect, a missing catch, or one that reappears in the bag after
   release.
 

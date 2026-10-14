@@ -33,7 +33,7 @@ The dedicated server may run on Windows x64 or Linux x86-64; Hogwarts Legacy cli
 | [`hmp-world`](resources/hmp-world) | Server-wide weather, time, season, mount-boundary, ambient-population and native-encounter defaults. |
 | [`hmp-worldstate`](resources/hmp-worldstate) | Persisted world state players change: repairable objects (Reparo) shared by everyone, plus a keyed store for further systems. |
 | [`hmp-loot`](resources/hmp-loot) | Server-placed chests, moonstones and foragables with per-character or shared takes and respawns, replacing the game's own world loot. |
-| [`hmp-beasts`](resources/hmp-beasts) | Character-scoped beast bags kept across reconnects, with released beasts returned to the world. |
+| [`hmp-beasts`](resources/hmp-beasts) | Character-scoped beast bags kept across reconnects, a `/beasts` menu to free or rename them, and released beasts returned to the world. |
 | [`hmp-npcs`](resources/hmp-npcs) | Verified enemy catalog plus resource-scoped NPC spawning, ownership and cleanup. |
 | [`hmp-emotes`](resources/hmp-emotes) | Curated synchronized emotes, account favorites, live alias editing and replaceable picker UI. |
 | [`hmp-spells`](resources/hmp-spells) | Character-scoped spell grants, group-aware policy rules, bonus loadouts and advisory cast events. |

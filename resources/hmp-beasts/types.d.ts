@@ -48,6 +48,24 @@ export interface HmpBeastBagApi<P = HmpBeastPlayer> {
     give(target: P | number, beast: HmpBeastInit, context?: HmpBeastContext<P>): Promise<HmpStoredBeast>;
     /** Removes a beast by uid, from the player's game too; false when the bag holds no such beast. */
     take(target: P | number, uid: string, context?: HmpBeastContext<P>): Promise<boolean>;
+    /**
+     * Lets a beast go in front of the player, as a Field Guide release does: it leaves the bag and, with
+     * `release.respawn` on, comes back into the world there. Null when the bag holds no such beast.
+     */
+    release(player: P, uid: string, context?: HmpBeastContext<P>): Promise<HmpBeastReleaseResult | null>;
+    /** Renames a beast; an empty name restores the species' own. Null when the bag holds no such beast. */
+    rename(target: P | number, uid: string, name: string, context?: HmpBeastContext<P>): Promise<HmpStoredBeast | null>;
+}
+
+export interface HmpBeastReleaseResult {
+    beast: HmpStoredBeast;
+    /** The world beast it came back as, or null when release.respawn is off or the respawn failed. */
+    respawnedBeastId: number | null;
+}
+
+export interface HmpBeastMenuApi<P = HmpBeastPlayer> {
+    /** Opens the player's beast list (an hmp-ui menu); resolves when they close it. */
+    open(player: P): Promise<void>;
 }
 
 export interface HmpBeastsStatus {
@@ -60,6 +78,7 @@ export interface HmpBeastsStatus {
 
 export interface HmpBeastsServer<P = HmpBeastPlayer> {
     bag: HmpBeastBagApi<P>;
+    menu: HmpBeastMenuApi<P>;
     status(): HmpBeastsStatus;
 }
 
@@ -70,9 +89,10 @@ export interface HmpBeastCapturedEvent<P = HmpBeastPlayer> {
     beast: HmpStoredBeast;
 }
 
-/** `hmp:beasts:released`: a player released a beast from their bag through the Field Guide. */
+/** `hmp:beasts:released`: a beast left a player's bag through the Field Guide or `bag.release`. */
 export interface HmpBeastReleasedEvent<P = HmpBeastPlayer> {
     player: P;
+    source: "fieldGuide" | "api";
     characterId: number;
     beast: HmpStoredBeast;
     at: HmpBeastPosition;

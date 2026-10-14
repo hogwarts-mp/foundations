@@ -1,14 +1,19 @@
 const assert = require("node:assert");
 const path = require("node:path");
 
-const exportsMap = new Map(), handlers = new Map(), emitted = [];
+const exportsMap = new Map(), handlers = new Map(), emitted = [], commands = [];
 const player = { id: 1, nickname: "Smoke" };
 const rows = new Map();
 const bag = new Map();
 let nextEntry = 1;
 global.Exports = { register: (name, value) => exportsMap.set(name, value) };
 global.Imports = { get: (name) => {
-  if (name === "hmp-lib") return { logger: { create: () => ({ info() {}, warn() {}, error() {} }) }, config: { load: (_p, o) => o.defaults } };
+  if (name === "hmp-lib") return {
+    logger: { create: () => ({ info() {}, warn() {}, error() {} }) },
+    config: { load: (_p, o) => o.defaults },
+    command: { createRouter: () => ({ register: (command) => commands.push(command), handle: async () => true }) },
+  };
+  if (name === "hmp-ui") return { context: async () => null, alert: async () => null, input: async () => null, notify: () => true };
   if (name === "hmp-mysql") return {
     ready: async () => true, migrate: async () => ({ resource: "hmp-beasts", applied: [1] }),
     scalar: async (_sql, values) => rows.get(values[0]) ?? null,
@@ -26,8 +31,9 @@ global.Beast = {
   create: (species) => ({ id: 99, species, capturable: false }),
 };
 require(path.resolve(__dirname, "..", "dist", "server.js"));
-assert.deepStrictEqual([...exportsMap.keys()], ["bag", "status"]);
-for (const name of ["beastCaptured", "beastReleased", "hmp:character:loaded", "hmp:character:unloading", "hmp:session:ended", "resourceStart", "resourceStop"]) {
+assert.deepStrictEqual([...exportsMap.keys()], ["bag", "menu", "status"]);
+assert.deepStrictEqual(commands, ["beasts"]);
+for (const name of ["beastCaptured", "beastReleased", "chatCommand", "hmp:character:loaded", "hmp:character:unloading", "hmp:session:ended", "resourceStart", "resourceStop"]) {
   assert.ok(handlers.has(name), `no ${name} handler`);
 }
 handlers.get("resourceStart")("hmp-beasts");

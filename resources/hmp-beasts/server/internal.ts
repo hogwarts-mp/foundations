@@ -4,6 +4,9 @@ import type { HmpMySQL, HmpMySQLMigration } from "../../hmp-mysql/types";
 import type { HmpBeastGender, HmpBeastPlayer, HmpBeastsServer, HmpBeastPosition, HmpStoredBeast } from "../types";
 
 export interface BeastsConfig {
+    /** The chat command that opens the beast menu, without the slash. */
+    command: string;
+    enableCommands: boolean;
     release: {
         /** Bring a beast released from the Field Guide back into the world where its player stood. */
         respawn: boolean;
@@ -31,7 +34,7 @@ export interface NativeBeasts<P> {
     bagOf(player: P): NativeCapturedBeast[];
     giveCaptured(player: P, beast: { species: string; color?: string; gender?: HmpBeastGender; name?: string }): NativeCapturedBeast | null;
     takeCaptured(player: P, id: number): boolean;
-    create(species: string, opts: { x: number; y: number; z: number; name?: string; gender?: HmpBeastGender; color?: string; preferredOwnerId?: number }): NativeBeastHandle;
+    create(species: string, opts: { x: number; y: number; z: number; yaw?: number; name?: string; gender?: HmpBeastGender; color?: string; preferredOwnerId?: number }): NativeBeastHandle;
     catalog?(): Array<{ id: string; colors: Array<{ id: string }> }>;
 }
 
@@ -52,13 +55,15 @@ export interface BeastsDependencies<P extends HmpBeastPlayer> {
     migrations: HmpMySQLMigration[];
     core: Pick<HmpCore<P>, "characters">;
     players(): P[];
+    /** Where a player stands and faces (yaw in degrees), or null when the server does not know. */
+    positionOf(player: P): (HmpBeastPosition & { yaw: number }) | null;
     emit(eventName: string, payload: unknown): void;
     logger?: Pick<HmpLogger, "warn" | "info">;
     now?: () => number;
     uid?: () => string;
 }
 
-export interface BeastsService<P extends HmpBeastPlayer> extends HmpBeastsServer<P> {
+export interface BeastsService<P extends HmpBeastPlayer> extends Omit<HmpBeastsServer<P>, "menu"> {
     /** Migrates, then loads the bag of every player already playing a character; once. */
     ready(): Promise<void>;
     /** A character finished loading: its bag goes into the player's game. */

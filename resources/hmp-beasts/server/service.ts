@@ -11,6 +11,8 @@ interface PlayerBag {
 
 const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);
 const copy = (beast: HmpStoredBeast): HmpStoredBeast => ({ ...beast });
+/** How far in front of the player `bag.release` lets a beast go, in game units (centimetres). */
+const RELEASE_DISTANCE = 300;
 
 function createBeastService<P extends HmpBeastPlayer>(deps: BeastsDependencies<P>): BeastsService<P> {
     const { config, native, repository, core } = deps;
@@ -129,6 +131,37 @@ function createBeastService<P extends HmpBeastPlayer>(deps: BeastsDependencies<P
         if (rolled) await persist(characterId, beasts).catch(() => undefined);
     }
 
+    function respawn(player: P, beast: Pick<HmpStoredBeast, "species" | "gender" | "color" | "name">, at: HmpBeastPosition, yaw?: number): number | null {
+        if (!config.release.respawn || !native) return null;
+        try {
+            const spawned = native.create(beast.species, {
+                x: at.x, y: at.y, z: at.z,
+                ...(yaw === undefined ? {} : { yaw }),
+                gender: beast.gender,
+                ...(beast.color ? { color: beast.color } : {}),
+                ...(beast.name ? { name: beast.name } : {}),
+                preferredOwnerId: player.id,
+            });
+            if (config.release.capturable) spawned.capturable = true;
+            return spawned.id;
+        } catch (error) {
+            warn(`Could not bring back the ${beast.species} #${player.id} released: ${messageOf(error)}`);
+            return null;
+        }
+    }
+
+    /** Drops a beast's game entry, if this connection's bag holds one. */
+    function unmap(player: P | null, bag: PlayerBag | undefined, beastUid: string): boolean {
+        if (!player || !bag) return false;
+        for (const [entryId, entryUid] of bag.entries) {
+            if (entryUid !== beastUid) continue;
+            takeFromGame(player, entryId);
+            bag.entries.delete(entryId);
+            return true;
+        }
+        return false;
+    }
+
     function resolve(target: P | number): { characterId: number; player: P | null } {
         if (typeof target === "number") {
             if (!Number.isSafeInteger(target) || target <= 0) throw new TypeError("A character id must be a positive integer");
@@ -196,18 +229,49 @@ function createBeastService<P extends HmpBeastPlayer>(deps: BeastsDependencies<P
                 const index = beasts.findIndex((beast) => beast.uid === beastUid);
                 if (index < 0) return false;
                 const [beast] = beasts.splice(index, 1);
-                const bag = player ? bags.get(player.id) : undefined;
-                if (player && bag) {
-                    for (const [entryId, entryUid] of bag.entries) {
-                        if (entryUid !== beastUid) continue;
-                        takeFromGame(player, entryId);
-                        bag.entries.delete(entryId);
-                        break;
-                    }
-                }
+                unmap(player, player ? bags.get(player.id) : undefined, beastUid);
                 await persist(characterId, beasts);
                 deps.logger?.info(`Took a ${beast.species} from character ${characterId}${describe(context)}`);
                 return true;
+            },
+            async release(player: P, beastUid: string, context?: HmpBeastContext<P>) {
+                ensureUsable();
+                const bag = bags.get(player.id);
+                if (!bag) throw new Error(`${player.nickname} has no character loaded`);
+                const where = deps.positionOf(player);
+                if (!where) throw new Error(`${player.nickname}'s position is not known yet`);
+                const beasts = await stored(bag.characterId);
+                if (bags.get(player.id) !== bag) throw new Error(`${player.nickname} left that character`);
+                const index = beasts.findIndex((beast) => beast.uid === beastUid);
+                if (index < 0) return null;
+                const [beast] = beasts.splice(index, 1);
+                unmap(player, bag, beastUid);
+                await persist(bag.characterId, beasts);
+                // In front of the player and facing them, so it does not spawn inside them.
+                const radians = where.yaw * Math.PI / 180;
+                const at = { x: where.x + Math.cos(radians) * RELEASE_DISTANCE, y: where.y + Math.sin(radians) * RELEASE_DISTANCE, z: where.z };
+                const respawnedBeastId = respawn(player, beast, at, where.yaw + 180);
+                deps.logger?.info(`Released a ${beast.species} from character ${bag.characterId}${describe(context)}`);
+                deps.emit("hmp:beasts:released", { player, characterId: bag.characterId, beast: copy(beast), at, respawnedBeastId, source: "api" });
+                return { beast: copy(beast), respawnedBeastId };
+            },
+            async rename(target: P | number, beastUid: string, name: string, context?: HmpBeastContext<P>) {
+                ensureUsable();
+                if (typeof name !== "string") throw new TypeError("A beast name must be a string");
+                const next = name.trim();
+                if (Buffer.byteLength(next, "utf8") > 64) throw new RangeError("beast.name is over 64 bytes");
+                const { characterId, player } = resolve(target);
+                const beasts = await stored(characterId);
+                const beast = beasts.find((entry) => entry.uid === beastUid);
+                if (!beast) return null;
+                if (beast.name === next) return copy(beast);
+                beast.name = next;
+                // The game's bag has no rename, so its entry is swapped for one carrying the new name.
+                const bag = player ? bags.get(player.id) : undefined;
+                if (player && bag && unmap(player, bag, beastUid)) giveToGame(player, bag, beast);
+                await persist(characterId, beasts);
+                deps.logger?.info(`Renamed a ${beast.species} of character ${characterId}${describe(context)}`);
+                return copy(beast);
             },
         }),
 
@@ -293,25 +357,10 @@ function createBeastService<P extends HmpBeastPlayer>(deps: BeastsDependencies<P
                 }
             }
             // The game already let it go, so it comes back whether or not the bag knew it.
-            let respawnedBeastId: number | null = null;
-            if (config.release.respawn && native) {
-                try {
-                    const spawned = native.create(released.species, {
-                        x: at.x, y: at.y, z: at.z,
-                        gender: released.gender,
-                        color: released.color,
-                        ...(released.name ? { name: released.name } : {}),
-                        preferredOwnerId: player.id,
-                    });
-                    if (config.release.capturable) spawned.capturable = true;
-                    respawnedBeastId = spawned.id;
-                } catch (error) {
-                    warn(`Could not bring back the ${released.species} #${player.id} released: ${messageOf(error)}`);
-                }
-            }
+            const respawnedBeastId = respawn(player, { ...released, name: released.name || "" }, at);
             if (characterId === null) return;
             const record = beast ?? { uid: "", species: released.species, color: released.color, gender: released.gender, name: released.name || "", caughtAt: 0 };
-            deps.emit("hmp:beasts:released", { player, characterId, beast: copy(record), at: { x: at.x, y: at.y, z: at.z }, respawnedBeastId });
+            deps.emit("hmp:beasts:released", { player, characterId, beast: copy(record), at: { x: at.x, y: at.y, z: at.z }, respawnedBeastId, source: "fieldGuide" });
         },
 
         disconnect(player: P) {

@@ -1,10 +1,12 @@
 import configModule = require("./config");
+import menuModule = require("./menu");
 import repositoryModule = require("./repository");
 import schemaModule = require("./schema");
 import serviceModule = require("./service");
 import type { HmpCore } from "../../hmp-core/types";
 import type { HmpLibServer } from "../../hmp-lib/types";
 import type { HmpMySQL } from "../../hmp-mysql/types";
+import type { HmpUiServer } from "../../hmp-ui/types";
 import type { HmpBeastPlayer, HmpBeastPosition } from "../types";
 import type { NativeBeasts, NativeCapturedBeast } from "./internal";
 
@@ -13,12 +15,14 @@ declare const Beast: Partial<NativeBeasts<HmpBeastPlayer>> | undefined;
 const { loadConfig } = configModule;
 const { createRepository } = repositoryModule;
 const { createBeastService } = serviceModule;
+const { createBeastMenu } = menuModule;
 const { migrations } = schemaModule;
 const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);
 
 const Hmp = Imports.get<HmpLibServer<HmpBeastPlayer>>("hmp-lib");
 const database = Imports.get<HmpMySQL>("hmp-mysql");
 const core = Imports.get<HmpCore<HmpBeastPlayer>>("hmp-core");
+const ui = Imports.get<HmpUiServer<HmpBeastPlayer>>("hmp-ui");
 const logger = Hmp.logger.create("hmp-beasts");
 const config = loadConfig(Hmp);
 // A host without beast capture degrades at startup instead of failing to load.
@@ -33,12 +37,34 @@ const service = createBeastService<HmpBeastPlayer>({
     migrations,
     core,
     players: () => PlayerManager.getAll() as HmpBeastPlayer[],
+    positionOf: (player) => {
+        const actor = player as unknown as Partial<HogwartsMpPlayer>;
+        const position = actor.position;
+        if (!position || ![position.x, position.y, position.z].every(Number.isFinite)) return null;
+        let yaw = 0;
+        try { yaw = Number(actor.location?.()?.yaw) || 0; } catch { /* facing is a nicety; the position is enough */ }
+        return { x: position.x, y: position.y, z: position.z, yaw };
+    },
     emit: (eventName, payload) => { Events.emit(eventName, payload); },
     logger,
 });
 
+const menu = createBeastMenu<HmpBeastPlayer>({ bag: service.bag, ui, config });
+
 Exports.register("bag", service.bag);
+Exports.register("menu", menu);
 Exports.register("status", service.status);
+
+if (config.enableCommands) {
+    const router = Hmp.command.createRouter({ logger });
+    router.register(config.command, {
+        description: "List your beasts, free them or rename them.",
+        usage: `/${config.command}`,
+    }, ({ player }) => { void menu.open(player); });
+    Events.on("chatCommand", (player: HmpBeastPlayer, message: string, command: string, args: string[]) => {
+        void router.handle(player, message, command, args);
+    });
+}
 
 // The character events carry { session, character }; hmp:session:ended carries the session itself.
 function sessionPlayer(payload: unknown): HmpBeastPlayer | null {

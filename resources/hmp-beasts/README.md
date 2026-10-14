@@ -8,6 +8,9 @@ player leaves the character, so beasts never follow a player onto another charac
 A beast released from the Field Guide leaves the bag for good. With `release.respawn` on (the default) it
 comes back into the world where the player stood, not catchable again unless `release.capturable` is on.
 
+`/beasts` opens the player's beast list (an `hmp-ui` menu). Picking a beast offers **Free here**, which
+asks first and then lets it go in front of the player, and **Rename**.
+
 The Framework's server `Beast` builtin does the engine work: `Beast.bagOf`, `Beast.giveCaptured`,
 `Beast.takeCaptured`, `Beast.create` and the `beastCaptured` / `beastReleased` events. A server build
 without beast capture logs an error at startup and keeps nothing; the bag API below still reads and
@@ -20,16 +23,21 @@ Copy `examples/config/data/hmp-beasts.json` to `<server-root>/data/hmp-beasts.js
 
 ```json
 {
+  "command": "beasts",
+  "enableCommands": true,
   "release": { "respawn": true, "capturable": false }
 }
 ```
+
+- `command`: the chat command that opens the beast menu, without the slash. `enableCommands: false` drops
+  it; other resources can still open the menu through the `menu` export.
 
 - `release.respawn`: bring a released beast back where its player stood. `false` makes a release a
   deletion, as in the game.
 - `release.capturable`: whether that beast can be caught again straight away. Off, it is a world beast
   like any other server-spawned one until something makes it capturable.
 
-Both values are read at startup; restart the server after changing them.
+The file is read at startup; restart the server after changing it.
 
 ## Storage
 
@@ -53,22 +61,29 @@ const kept = await beasts.bag.list(characterId);        // any character, loaded
 const given = await beasts.bag.give(player, { species: "Hippogriff", color: "Variation1", gender: "female", name: "Buckbeak" },
     { resource: "my-quests", reason: "quest reward" });
 await beasts.bag.take(player, given.uid);
+await beasts.bag.rename(player, uid, "Buckbeak");         // "" restores the species' own name
+const freed = await beasts.bag.release(player, uid);     // { beast, respawnedBeastId } or null
+await beasts.menu.open(player);                          // the /beasts menu, from your own key or zone
 beasts.status();                                         // { state, lastError, loadedBags, uptimeMs }
 ```
 
 - `give` validates the species and colour against `Beast.catalog()`. `color` and `gender` are optional:
   a missing colour is rolled by the game, a missing gender is chosen at random. `name` is at most 64
   bytes.
-- While the character is loaded, `give` and `take` change the player's game bag too; otherwise they
-  change only the database, and the change arrives when the character next loads.
-- `list`, `give` and `take` reject with an error while the resource is starting or stopped, and when a
-  player target has no character loaded.
+- While the character is loaded, `give`, `take` and `rename` change the player's game bag too; otherwise
+  they change only the database, and the change arrives when the character next loads. The game's bag
+  has no rename, so a rename swaps the entry, which moves it to the end of the Field Guide's list.
+- `release` needs the player online with the character loaded: the beast goes free 3 m in front of them,
+  facing them, under the same `release` settings as a Field Guide release.
+- The calls reject with an error while the resource is starting or stopped, and when a player target has
+  no character loaded.
 
 ## Events
 
 ```ts
 Events.on("hmp:beasts:captured", ({ player, characterId, beast }) => { /* kept in the bag */ });
-Events.on("hmp:beasts:released", ({ player, characterId, beast, at, respawnedBeastId }) => {
+Events.on("hmp:beasts:released", ({ player, characterId, beast, at, respawnedBeastId, source }) => {
+    // source: "fieldGuide" or "api" (bag.release, which the menu uses).
     // respawnedBeastId: the world beast it came back as, or null with respawn off or a failed respawn.
 });
 ```
@@ -78,4 +93,4 @@ character loaded is not kept and raises no event.
 
 ## Limits
 
-- No commands in this version; staff use the bag API from another resource or the server console.
+- There are no staff commands; staff use the bag API from another resource or the server console.

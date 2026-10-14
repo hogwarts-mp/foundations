@@ -22,6 +22,7 @@
     ],
     "exports": [
       "bag",
+      "menu",
       "status"
     ],
     "resourceDependencies": [
@@ -35,6 +36,10 @@
       },
       {
         "name": "hmp-core",
+        "version": "0.8.2"
+      },
+      {
+        "name": "hmp-ui",
         "version": "0.8.2"
       }
     ],
