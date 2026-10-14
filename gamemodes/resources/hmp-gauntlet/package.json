@@ -1,0 +1,34 @@
+{
+  "name": "hmp-gauntlet",
+  "version": "0.8.2",
+  "private": true,
+  "author": "HogwartsMP",
+  "description": "Cooperative randomized wave survival built on HMP Foundations activities, NPCs and interactions.",
+  "license": "SEE LICENSE IN LICENSE",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "tsx test/config.test.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "smoke": "node test/bundle.test.js"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "typescript": "5.9.3"
+  },
+  "mafiahub": {
+    "serverScripts": ["dist/server.js"],
+    "clientScripts": ["dist/client.js"],
+    "files": ["dist/client.js", "dist/config.html", "dist/hud.html"],
+    "resourceDependencies": [
+      { "name": "hmp-lib", "version": "0.8.2" },
+      { "name": "hmp-core", "version": "0.8.2" },
+      { "name": "hmp-activities", "version": "0.8.2" },
+      { "name": "hmp-interact", "version": "0.8.2" },
+      { "name": "hmp-worldstate", "version": "0.8.2" },
+      { "name": "hmp-npcs", "version": "0.8.2" }
+    ],
+    "errorBehavior": "stop",
+    "priority": -300
+  }
+}

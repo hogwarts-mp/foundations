@@ -19,6 +19,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   everyone while no qualifying player is online. The manager's tuning screens are live `hmp-ui`
   sliders. A called match reaches eligible players as a small unfocused card they can ignore; a key
   opens the picker.
+- `hmp-gauntlet`, a second gamemode: cooperative wave survival against randomized, escalating waves of native
+  enemies. A run is an `hmp-activities` lobby, enemies come from the `hmp-npcs` catalog, ranked records
+  are kept per preset and party size in `hmp-worldstate`, and personal bests in `hmp-core` character
+  metadata. An optional `hmp-interact` altar opens the configuration screen. Every finished run raises
+  `hmp-gauntlet:complete` for other resources.
+- The shared typings declare the Framework's server `Chat` builtin.
 - `hmp-ui` input dialogs gain `range` fields: a slider with a live value readout, bounded by `min` and
   `max`, with an optional `step` (now also honoured by `number` fields) and `unit`.
 - `hmp-ui` `input()` takes an optional `{ onChange }` handler. While the dialog is open, `number`,
