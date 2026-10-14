@@ -26,7 +26,7 @@ export interface HmpWorldPolicy {
     removeBoundaryVolumes: boolean;
     /** Restore Hogwarts Legacy's ambient student and seat-filler population. */
     ambientPopulation: boolean;
-    /** Allow native DynamicObjectVolume enemy encounters to spawn. */
+    /** Let each client's game spawn its own enemy encounters; false suppresses them (server `World.setEncounterPolicy`). */
     nativeEncounters: boolean;
 }
 
@@ -93,7 +93,6 @@ export interface HmpWorldClientStatus {
     state: "ready" | "stopped";
     policy: Readonly<HmpWorldPolicy> | null;
     boundaryVolumesChanged: number;
-    encounterVolumesChanged: number;
 }
 
 export interface HmpWorldClient {

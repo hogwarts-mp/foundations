@@ -3,7 +3,6 @@ import type { HmpWorldPolicy } from "../types";
 interface NativeWorld {
     setBoundaryPolicy(remove: boolean): number;
     setAmbientPopulation(enabled: boolean): boolean;
-    setEncounterPolicy(suppress: boolean): number;
 }
 
 interface ClientOptions {
@@ -33,15 +32,14 @@ function createWorldClient(options: ClientOptions) {
     let state: "ready" | "stopped" = "ready";
     let currentPolicy: HmpWorldPolicy | null = null;
     let boundaryVolumesChanged = 0;
-    let encounterVolumesChanged = 0;
 
+    // nativeEncounters is applied by the server (World.setEncounterPolicy); the client only records it.
     function apply(raw: unknown): boolean {
         if (state === "stopped") return false;
         const next = parsePolicy(raw);
         if (!next) return false;
         boundaryVolumesChanged = native.setBoundaryPolicy(next.removeBoundaryVolumes);
         native.setAmbientPopulation(next.ambientPopulation);
-        encounterVolumesChanged = native.setEncounterPolicy(!next.nativeEncounters);
         currentPolicy = next;
         return true;
     }
@@ -60,7 +58,7 @@ function createWorldClient(options: ClientOptions) {
         apply,
         stop,
         policy: Object.freeze({ current: () => currentPolicy ? { ...currentPolicy } : null, restore }),
-        status: () => ({ state, policy: currentPolicy ? { ...currentPolicy } : null, boundaryVolumesChanged, encounterVolumesChanged }),
+        status: () => ({ state, policy: currentPolicy ? { ...currentPolicy } : null, boundaryVolumesChanged }),
     });
     options.emitReady();
     return client;

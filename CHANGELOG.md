@@ -43,6 +43,10 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ### Fixed
 
+- `hmp-world` applies `nativeEncounters` through the server's `World.setEncounterPolicy`, which now
+  owns native enemy encounters for every client. Its client no longer calls the removed client
+  builtin, which failed every policy update on current HogwartsMP hosts. The client `status()` drops
+  `encounterVolumesChanged`.
 - `hmp-inventory` keeps a worn item's Equipment-menu look (`appearanceOverride`, the transmog source
   GearID) when it saves and restores native rows, so gear no longer comes back in its own look after a
   reconnect. It needs a HogwartsMP host that reports the field; an older host leaves it out, as before.

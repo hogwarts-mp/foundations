@@ -41,21 +41,29 @@ const native = {
     setDate(day: number, month: number, year = 0) { nativeCalls.push(["date", day, month, year]); Object.assign(environmentState, { day, month, year }); environmentState.revision++; return true; },
     setSeason(season: number) { nativeCalls.push(["season", season]); environmentState.season = season as 0 | 1 | 2 | 3; environmentState.revision++; return true; },
     setTimeScale(scale: number) { nativeCalls.push(["scale", scale]); environmentState.timeScale = scale; environmentState.revision++; return true; },
+    setEncounterPolicy(policy: string) { nativeCalls.push(["encounters", policy]); return true; },
 };
 const players = [{ id: 4, nickname: "Tester", connected: true, emitted: [] as unknown[], emit(name: string, payload?: unknown) { this.emitted.push({ name, payload }); } }];
 const broadcasts: Array<{ name: string; payload: unknown }> = [];
 const service = createWorldService({ config, native, players: () => players, events: { emitAllClients: (name, payload) => broadcasts.push({ name, payload }) } });
-assert.deepStrictEqual(nativeCalls.map(([name]) => name), ["scale", "weather", "date", "season", "time", "scale"]);
+assert.deepStrictEqual(nativeCalls.map(([name]) => name), ["scale", "weather", "date", "season", "time", "scale", "encounters"]);
+assert.deepStrictEqual(nativeCalls.at(-1), ["encounters", "suppressed"]);
 assert.strictEqual(service.environment.state()?.weather, "Clear");
 assert.strictEqual(service.environment.state()?.season, 2);
 assert.strictEqual(service.policy.sync(players[0]), 1);
 assert.strictEqual(players[0].emitted.length, 1);
 service.policy.set({ nativeEncounters: true });
 assert.strictEqual(service.policy.current().nativeEncounters, true);
+assert.deepStrictEqual(nativeCalls.at(-1), ["encounters", "native"]);
 assert.strictEqual(broadcasts.length, 1);
+const encounterCalls = () => nativeCalls.filter(([name]) => name === "encounters").length;
+const encountersBefore = encounterCalls();
+service.policy.set({ removeBoundaryVolumes: false });
+assert.strictEqual(encounterCalls(), encountersBefore);
 service.policy.reset();
 assert.strictEqual(service.policy.current().nativeEncounters, false);
-assert.strictEqual(broadcasts.length, 2);
+assert.deepStrictEqual(nativeCalls.at(-1), ["encounters", "suppressed"]);
+assert.strictEqual(broadcasts.length, 3);
 service.environment.setSeason("winter");
 assert.strictEqual(environmentState.season, 3);
 
@@ -68,15 +76,15 @@ const client = createWorldClient({
     native: {
         setBoundaryPolicy: (value) => { clientCalls.push(["boundaries", value]); return 12; },
         setAmbientPopulation: (value) => { clientCalls.push(["population", value]); return true; },
-        setEncounterPolicy: (value) => { clientCalls.push(["encounters", value]); return 8; },
     },
 });
 assert.strictEqual(ready, 1);
 assert.strictEqual(client.apply(config.policy), true);
-assert.deepStrictEqual(clientCalls, [["boundaries", true], ["population", false], ["encounters", true]]);
+assert.deepStrictEqual(clientCalls, [["boundaries", true], ["population", false]]);
 assert.strictEqual(client.status().boundaryVolumesChanged, 12);
+assert.strictEqual(client.policy.current()?.nativeEncounters, false);
 assert.strictEqual(client.policy.restore(), true);
-assert.strictEqual(clientCalls.length, 6);
+assert.strictEqual(clientCalls.length, 4);
 client.stop();
 assert.strictEqual(client.policy.restore(), false);
 assert.strictEqual(client.apply(config.policy), false);
