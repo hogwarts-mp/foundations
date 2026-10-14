@@ -45,6 +45,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ### Changed
 
+- Set the supported HogwartsMP scripting-host baseline to `1.9` or newer. `hmp-duels`, `hmp-pvp` and
+  `hmp-world` need its server-owned PvP relations (`Pvp.setPair`, `Pvp.configure`, `pvpDefeat`) and
+  server-side `World.setEncounterPolicy`; an older host cannot start `hmp-pvp` or `hmp-world`.
+- The shared typings' `Pvp` matches the current host: `configure`, `getRules`, `setPair`, `relation` and
+  `showMeter`, with the hit's `minHp`, `dotSeconds` and `defeat`. The removed client builtins
+  (`setTargetable`, `setTeam`, `resetTeam`, `kneel`, `startDuelContext`, `endDuelContext`, `setRegen`) and
+  `setDamage`/`setDuration` are gone, so a resource still calling them no longer typechecks. They also
+  declare `Player.setHealthRecovery` and the `pvpDefeat` and `pvpRulesChanged` events.
 - `hmp-pvp` lethal mode is now the host's PvP rules: on sets `who: "everyone"`, off sets `who: "none"`,
   and the mode follows `pvpRulesChanged`. The host resolves relations for every client, so the client
   targeting sync, `/pvp sync`, the `joinSyncDelayMs` setting and the client `mode.restore()` are gone.
