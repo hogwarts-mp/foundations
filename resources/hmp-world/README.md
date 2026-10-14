@@ -2,8 +2,10 @@
 
 `hmp-world` owns the server-wide baseline for Hogwarts Legacy's environment and native world
 behavior. It applies starting weather, clock, date and season on resource startup, then sends the
-configured boundary, population and encounter policy to every client. Policies are re-sent when the
-client resource becomes ready, the world becomes ready, and a character finishes loading.
+configured boundary and population policy to every client. Policies are re-sent when the client
+resource becomes ready, the world becomes ready, and a character finishes loading. Native enemy
+encounters are owned by the server: `nativeEncounters` maps to `World.setEncounterPolicy("native")`
+or `("suppressed")`, which the host applies to every client, including late joiners.
 
 The resource reads and mutates the Framework's replicated environment through the flat `World.*`
 properties and setters. Its own `world.environment` export remains the stable Foundations API used

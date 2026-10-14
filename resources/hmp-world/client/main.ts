@@ -4,7 +4,6 @@ import type { HmpLibClient } from "../../hmp-lib/types";
 declare const World: {
     setBoundaryPolicy(remove: boolean): number;
     setAmbientPopulation(enabled: boolean): boolean;
-    setEncounterPolicy(suppress: boolean): number;
 };
 
 const { createWorldClient } = serviceModule;

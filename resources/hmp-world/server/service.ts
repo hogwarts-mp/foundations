@@ -80,6 +80,19 @@ function createWorldService<P extends HmpWorldPlayer>(options: WorldServiceOptio
         return environmentState();
     }
 
+    // The host owns native enemy encounters for every client, including late joiners, so this is not part of the client sync.
+    function applyEncounterPolicy(value: HmpWorldPolicy): void {
+        const mode = value.nativeEncounters ? "native" : "suppressed";
+        if (!native.setEncounterPolicy(mode)) throw new Error(`Framework rejected encounter policy '${mode}'`);
+    }
+
+    function commitPolicy(next: HmpWorldPolicy): Readonly<HmpWorldPolicy> {
+        if (next.nativeEncounters !== currentPolicy.nativeEncounters) applyEncounterPolicy(next);
+        currentPolicy = Object.freeze(next);
+        sync();
+        return currentPolicy;
+    }
+
     function policyPayload(): string {
         return JSON.stringify({ contract: "hmp.world.policy/v1", ...currentPolicy });
     }
@@ -97,16 +110,12 @@ function createWorldService<P extends HmpWorldPlayer>(options: WorldServiceOptio
 
     function setPolicy(patch: Partial<HmpWorldPolicy>): Readonly<HmpWorldPolicy> {
         ensureReady();
-        currentPolicy = Object.freeze(normalizePolicyPatch(currentPolicy, patch));
-        sync();
-        return currentPolicy;
+        return commitPolicy(normalizePolicyPatch(currentPolicy, patch));
     }
 
     function resetPolicy(): Readonly<HmpWorldPolicy> {
         ensureReady();
-        currentPolicy = Object.freeze(clonePolicy(baselinePolicy));
-        sync();
-        return currentPolicy;
+        return commitPolicy(clonePolicy(baselinePolicy));
     }
 
     const environment = Object.freeze({
@@ -128,6 +137,7 @@ function createWorldService<P extends HmpWorldPlayer>(options: WorldServiceOptio
     });
 
     applyEnvironment();
+    applyEncounterPolicy(currentPolicy);
 
     return Object.freeze({
         environment,

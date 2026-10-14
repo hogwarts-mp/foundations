@@ -7,6 +7,7 @@ const serverHandlers = new Map();
 const playerEvents = [];
 const player = { id: 1, nickname: "Smoke", connected: true, emit: (name, payload) => playerEvents.push({ name, payload }) };
 let environment = { weather: "Default_PHY", hour: 12, minute: 0, second: 0, day: 1, month: 1, year: 0, season: 0, timeScale: 1, revision: 0 };
+const encounterPolicies = [];
 global.Exports = { register: (name, value) => serverExports.set(name, value) };
 global.Imports = { get: (name) => {
     if (name !== "hmp-lib") throw new Error(`Unexpected import ${name}`);
@@ -37,9 +38,11 @@ global.World = {
     setDate: (day, month, year = 0) => { Object.assign(environment, { day, month, year }); environment.revision++; return true; },
     setSeason: (season) => { environment.season = season; environment.revision++; return true; },
     setTimeScale: (timeScale) => { environment.timeScale = timeScale; environment.revision++; return true; },
+    setEncounterPolicy: (policy) => { encounterPolicies.push(policy); return true; },
 };
 require(path.resolve(__dirname, "..", "dist", "server.js"));
 assert.deepStrictEqual([...serverExports.keys()], ["environment", "policy", "status"]);
+assert.deepStrictEqual(encounterPolicies, ["suppressed"]);
 assert.ok(serverHandlers.has("client:hmp-world:ready"));
 assert.ok(serverHandlers.has("worldReady"));
 assert.strictEqual(serverExports.get("policy").current().removeBoundaryVolumes, true);
@@ -59,14 +62,13 @@ global.Events = {
 global.World = {
     setBoundaryPolicy: (value) => { worldCalls.push(["boundaries", value]); return 1; },
     setAmbientPopulation: (value) => { worldCalls.push(["population", value]); return true; },
-    setEncounterPolicy: (value) => { worldCalls.push(["encounters", value]); return 1; },
 };
 require(path.resolve(__dirname, "..", "dist", "client.js"));
 assert.deepStrictEqual([...clientExports.keys()], ["policy", "status"]);
 assert.deepStrictEqual(clientEmits.map((entry) => entry.name), ["hmp-world:ready"]);
 assert.ok(clientHandlers.has("hmp-world:policy"));
 clientHandlers.get("hmp-world:policy")({ removeBoundaryVolumes: true, ambientPopulation: false, nativeEncounters: false });
-assert.deepStrictEqual(worldCalls, [["boundaries", true], ["population", false], ["encounters", true]]);
+assert.deepStrictEqual(worldCalls, [["boundaries", true], ["population", false]]);
 assert.strictEqual(clientExports.get("policy").restore(), true);
 clientHandlers.get("resourceStop")("hmp-world");
 console.log("hmp-world bundle contract passed");

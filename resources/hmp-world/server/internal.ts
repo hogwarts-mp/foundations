@@ -27,6 +27,7 @@ export interface NativeWorld {
     setDate(day: number, month: number, year?: number): boolean;
     setSeason(season: number): boolean;
     setTimeScale(minutesPerSecond: number): boolean;
+    setEncounterPolicy(policy: "suppressed" | "native" | "server"): boolean;
 }
 
 export interface WorldEvents<P extends HmpWorldPlayer> {
