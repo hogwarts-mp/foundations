@@ -216,22 +216,22 @@ created test transaction after its state has been inspected.
 
 - Keep `hmp-pvp.defaultDecision` set to `deny`. Outside an agreed duel, cast at another player and
   confirm the server vetoes the hit.
-- Challenge with `/duel <playerId>`. Confirm the target receives the Arcanum-default consent dialog,
+- Challenge with `/duel #<playerId>`. Confirm the target receives the Arcanum-default consent dialog,
   can decline it, and that the challenge expires without leaving either player busy.
 - While one challenge is pending, attempt another outgoing challenge and confirm exclusivity rejects
   it. Attempt a cross-area challenge and confirm it is rejected.
 - Accept a challenge and confirm neither player can damage the other during the authoritative
   countdown. After “Duel!”, verify mutual lock-on/homing, opponent health meters, and normal spell hits.
-- Deal a finishing burst and confirm the loser remains at or above the configured health floor,
-  enters the retail kneel when available, and both clients restore targeting, team, meter, recovery,
-  and damage-immunity state afterward.
+- Deal a finishing burst and confirm the loser stays at or above the configured health floor, kneels,
+  and the duel ends as a knock-out. Afterward both players are peaceful again, the meter is gone and
+  health recovers normally.
 - As configured staff, run `/pvp lethal on`. Confirm all connected players can mutually lock on and
-  ordinary relayed damage can enter the real death/respawn flow; a player joining afterward must inherit
-  mutual targeting after the configured delay.
+  ordinary relayed damage can enter the real death/respawn flow; a player joining afterward must be
+  hostile to everyone straight away.
 - While lethal mode remains on, complete another duel and confirm its finishing hit is still floored and
   kneel-finished. After the duel, both participants must return to open-world mutual hostility rather than
-  becoming untargetable. Run `/pvp lethal on` again and `/pvp sync` to exercise proxy re-fan recovery.
-- Run `/pvp lethal off` and confirm third-party hits are denied and the global hostile presentation clears.
+  becoming untargetable.
+- Run `/pvp lethal off` and confirm third-party hits are denied and players are peaceful again.
   Do not report the currently documented missing victim-side green-bolt cosmetic as an arbitration failure.
 - Exercise `/duel forfeit`, death, and disconnect. Confirm each closes the activity exactly once and
   the remaining player can immediately issue or accept another challenge.

@@ -21,6 +21,8 @@ const koHp = Math.max(1, Math.min(100, Number(loaded.koHp) || 1));
 const duels = createDuelService({
     activities, pvp, countdownSeconds, invitationTtlSeconds, koHp,
     player: (id) => PlayerManager.getById(id),
+    pair: (a, b, options) => Pvp.setPair(a, b, options),
+    setRecovery: (id, on) => { try { PlayerManager.getById(id)?.setHealthRecovery?.(on); } catch (_) { /* left mid-duel */ } },
     emit: (player, event, payload) => player.emit(event, JSON.stringify(payload)),
     notify: (player, message, tone = "inform") => { ui.notify(player, { title: "Wizard's duel", description: message, tone }); },
     warn: (message) => logger.warn(message),
@@ -51,7 +53,7 @@ if (loaded.enableCommands !== false) Events.on("chatCommand", (player: HmpDuelPl
         if (action === "forfeit") { reply(await duels.forfeit(player) ? "duel forfeited" : "you are not in a duel"); return; }
         if (action === "status") { const status = duels.status(); reply(`${status.pending} pending, ${status.countdowns} countdown, ${status.live} live`); return; }
         const target = action ? Hmp.player.find(args.join(" "), player) : null;
-        if (!target || target.id === player.id) { reply(`Usage: /${command} <playerId|nickname> | accept | decline | cancel | forfeit | status`); return; }
+        if (!target || target.id === player.id) { reply(`Usage: /${command} <#playerId|nickname> | accept | decline | cancel | forfeit | status`); return; }
         const challenge = await duels.challenge(player, target);
         reply(`challenge sent to ${target.nickname}; expires ${new Date(challenge.expiresAt).toLocaleTimeString()}`);
         void promptChallenge(target, player).catch((error) => logger.warn(`Challenge prompt failed: ${error instanceof Error ? error.message : String(error)}`));
@@ -59,6 +61,7 @@ if (loaded.enableCommands !== false) Events.on("chatCommand", (player: HmpDuelPl
 });
 
 Events.on("hmp:activities:invitation:expired", (payload: unknown) => { void duels.expired(payload); });
+Events.on("pvpDefeat", (victim: HmpDuelPlayer, killer: HmpDuelPlayer) => { void duels.defeated(victim, killer); });
 Events.on("playerDied", (player: HmpDuelPlayer) => { void duels.died(player); });
 Events.on("playerDisconnect", (player: HmpDuelPlayer) => { void duels.disconnected(player); });
 Events.on("resourceStop", (name?: string) => { if (!name || name === "hmp-duels") void duels.stop(); });

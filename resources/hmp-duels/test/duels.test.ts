@@ -19,7 +19,17 @@ async function run(): Promise<void> {
     const pvp = createPvpService({ defaultDecision: "deny", initialLethalMode: false, install: (fn) => { nativePolicy = fn; }, clearPolicy: () => { nativePolicy = null; }, vitals: () => null, applyMode: () => undefined });
     const timers: Array<() => void> = [];
     const emitted: Array<{ player: number; event: string; payload: Record<string, unknown> }> = [];
-    const duels = createDuelService<Player>({ activities, pvp, player: (id) => players.find((entry) => entry.id === id) || null, emit: (player, event, payload) => emitted.push({ player: player.id, event, payload }), notify() {}, countdownSeconds: 3, invitationTtlSeconds: 30, koHp: 1, setTimer: ((handler: () => void) => { timers.push(handler); return { unref() {} } as NodeJS.Timeout; }), clearTimer() {} });
+    const pairs: Array<[number, number, unknown]> = [];
+    const recovery: Array<[number, boolean]> = [];
+    let pairRoom = true;
+    const duels = createDuelService<Player>({
+        activities, pvp, player: (id) => players.find((entry) => entry.id === id) || null,
+        pair: (a, b, options) => { pairs.push([a, b, options]); return pairRoom || options === null; },
+        setRecovery: (id, on) => { recovery.push([id, on]); },
+        emit: (player, event, payload) => emitted.push({ player: player.id, event, payload }), notify() {},
+        countdownSeconds: 3, invitationTtlSeconds: 30, koHp: 1,
+        setTimer: ((handler: () => void) => { timers.push(handler); return {} as NodeJS.Timeout; }), clearTimer() {},
+    });
 
     const challenge = await duels.challenge(players[0], players[1]);
     assert.strictEqual(activities.invitations.list().length, 1);
@@ -27,15 +37,32 @@ async function run(): Promise<void> {
     await assert.rejects(duels.challenge(players[2], players[3]), /game area/);
     assert.strictEqual(await duels.accept(players[1]), true);
     assert.strictEqual(activities.sessions.get(challenge.sessionId)?.state, "running");
+    // The countdown reserves the pair peaceful and holds recovery off.
+    assert.deepStrictEqual(pairs, [[1, 2, { hostile: false }]]);
+    assert.deepStrictEqual(recovery, [[1, false], [2, false]]);
     const hit = { casterId: 1, victimId: 2, spellId: 1, spell: "BasicCast", damage: 10, duration: 0, victimHp: 20 };
     assert.strictEqual(nativePolicy!(hit), false);
     timers.shift()!();
+    assert.deepStrictEqual(pairs.at(-1), [1, 2, { hostile: true, aim: "lock", defeat: "kneel" }]);
     assert.deepStrictEqual(nativePolicy!(hit), { minHp: 1 });
-    assert.deepStrictEqual(nativePolicy!({ ...hit, damage: 25 }), { damage: 19, minHp: 1 });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // A finishing hit is only floored; the victim's own kneel, reported as pvpDefeat, ends the duel.
+    assert.deepStrictEqual(nativePolicy!({ ...hit, damage: 25 }), { minHp: 1 });
+    assert.ok(activities.sessions.get(challenge.sessionId));
+    await duels.defeated(players[2], players[0]);
+    assert.ok(activities.sessions.get(challenge.sessionId));
+    await duels.defeated(players[1], players[0]);
     assert.strictEqual(activities.sessions.get(challenge.sessionId), null);
     assert.ok(emitted.some((entry) => entry.event === "hmp-duels:end" && entry.payload.result === "win"));
     assert.ok(emitted.some((entry) => entry.event === "hmp-duels:end" && entry.payload.result === "lose"));
+    assert.deepStrictEqual(pairs.at(-1), [1, 2, null]);
+    assert.deepStrictEqual(recovery.slice(-2), [[1, true], [2, true]]);
+
+    // A host with no room for another pair refuses the duel instead of starting an unprotected one.
+    pairRoom = false;
+    const refused = await duels.challenge(players[0], players[1]);
+    await assert.rejects(duels.accept(players[1]), /no room/);
+    assert.strictEqual(activities.sessions.get(refused.sessionId), null);
+    pairRoom = true;
 
     await duels.challenge(players[0], players[1]);
     assert.strictEqual(await duels.decline(players[1]), true);

@@ -3,7 +3,6 @@
   "lethalMode": false,
   "enableCommands": true,
   "command": "pvp",
-  "joinSyncDelayMs": 3000,
   "adminGroups": [
     { "key": "admin", "minimumGrade": 1 }
   ]

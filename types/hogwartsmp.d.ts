@@ -259,6 +259,7 @@ declare global {
         release?(owner: string): boolean;
         holds?(): Array<{ owner: string }>;
         location?(): HogwartsMpPlayerLocation | null;
+        setHealthRecovery?(on: boolean): void;
     }
 
     interface HogwartsMpNpc {
@@ -301,6 +302,8 @@ declare global {
         on(eventName: "playerTeleportComplete", listener: (player: HogwartsMpPlayer, requestId: number, status: number, completion: HogwartsMpTeleportCompletion) => unknown): void;
         on(eventName: "playerLocationChanged", listener: (player: HogwartsMpPlayer, current: HogwartsMpPlayerLocation | null, previous: HogwartsMpPlayerLocation | null) => unknown): void;
         on(eventName: "resourceStop", listener: (name?: string) => unknown): void;
+        on(eventName: "pvpDefeat", listener: (victim: HogwartsMpPlayer, killer: HogwartsMpPlayer, kind: "death" | "kneel") => unknown): void;
+        on(eventName: "pvpRulesChanged", listener: (rules: HogwartsMpPvpRules) => unknown): void;
         on<TArgs extends unknown[]>(eventName: string, listener: (...args: TArgs) => unknown): void;
         onClient<TArgs extends unknown[]>(eventName: string, listener: (player: HogwartsMpPlayer, ...args: TArgs) => unknown): void;
         emit(eventName: string, ...args: unknown[]): unknown;
@@ -367,23 +370,41 @@ declare global {
         spell: string;
         damage: number;
         duration: number;
+        minHp?: number;
+        dotSeconds?: number;
+        defeat?: "death" | "kneel";
         victimHp?: number;
         victimMax?: number;
     }
     type HogwartsMpPvpDecision = void | boolean | number | { allow?: boolean; damage?: number; duration?: number; minHp?: number };
+    interface HogwartsMpPvpRules {
+        enabled: boolean;
+        who: "none" | "flagged" | "teams" | "everyone";
+        aim: "lock" | "skillshot";
+        defeat: "death" | "kneel";
+        friendlyFire: boolean;
+        curses: "on" | "off";
+        kneelHp: number;
+        flagCombatLockSeconds: number;
+        spawnProtectionSeconds: number;
+        damageScale: number;
+    }
+    interface HogwartsMpPvpRelation {
+        hostile: boolean;
+        aim: "lock" | "skillshot";
+        defeat: "death" | "kneel";
+        reason: string;
+    }
+    /** Server and client builtins share the global; the server owns who may hurt whom. */
     const Pvp: {
+        configure(patch: Partial<HogwartsMpPvpRules>): HogwartsMpPvpRules;
+        getRules(): HogwartsMpPvpRules;
+        setPair(a: HogwartsMpPlayer | number, b: HogwartsMpPlayer | number, options?: { hostile?: boolean; aim?: "lock" | "skillshot"; defeat?: "death" | "kneel" } | null): boolean;
+        relation(a: HogwartsMpPlayer | number, b?: HogwartsMpPlayer | number): HogwartsMpPvpRelation | null;
         setPolicy(fn?: ((hit: HogwartsMpPvpHit) => HogwartsMpPvpDecision) | null): boolean;
-        setDamage(amount: number): number;
         setSpellDamage(spell: string, damage?: number | null): boolean;
-        setDuration(seconds: number): number;
         getVitals(playerId: number): { hp: number; max: number; level: number; ageMs: number } | null;
-        setTeam(team?: string, playerId?: number): string;
-        resetTeam(playerId?: number): string;
-        setTargetable(playerId?: number | null, on?: boolean): string;
-        kneel(): string;
-        startDuelContext(arenaControls?: boolean): string;
-        endDuelContext(): string;
-        setRegen(enabled: boolean, seconds?: number): string;
+        /** Client: the opponent health meter. */
         showMeter(playerId?: number | "auto" | null): string;
     };
     const InventoryCatalog: HogwartsMpInventoryCatalog;
