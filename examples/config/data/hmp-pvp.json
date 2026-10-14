@@ -1,5 +1,5 @@
 {
-  "defaultDecision": "deny",
+  "defaultDecision": "allow",
   "lethalMode": false,
   "enableCommands": true,
   "command": "pvp",

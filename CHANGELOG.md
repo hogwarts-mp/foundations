@@ -49,6 +49,10 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   and the mode follows `pvpRulesChanged`. The host resolves relations for every client, so the client
   targeting sync, `/pvp sync`, the `joinSyncDelayMs` setting and the client `mode.restore()` are gone.
   Stopping `hmp-pvp` while lethal ends lethal mode.
+- `hmp-pvp` `defaultDecision` now defaults to `"allow"`. The host drops hits between players who are not
+  hostile before any policy runs, so an undecided hit follows the host's own relations: a fresh server
+  stays consent-only under `who: "none"`, and a team, flag or pair set up elsewhere deals damage instead
+  of being vetoed. Set `"deny"` to keep registered rules as the only way a hit lands.
 
 ### Fixed
 
