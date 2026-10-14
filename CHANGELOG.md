@@ -59,6 +59,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   duel ends on the host's `pvpDefeat` instead of a knock-out guessed from stale vitals. The countdown
   timer is no longer unreferenced, which had left accepted duels counting down forever. The usage text
   now shows that a player id takes a `#`.
+- `hmp-emotes` keeps Enter in its menu: current hosts hand web views Enter's character, which also
+  pressed whichever button a click had left focused.
 - `hmp-world` applies `nativeEncounters` through the server's `World.setEncounterPolicy`, which now
   owns native enemy encounters for every client. Its client no longer calls the removed client
   builtin, which failed every policy update on current HogwartsMP hosts. The client `status()` drops
