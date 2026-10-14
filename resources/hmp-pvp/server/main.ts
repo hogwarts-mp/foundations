@@ -20,7 +20,7 @@ const configured = Hmp.config.load<Config & Record<string, unknown>>(
     process.env.HMP_PVP_CONFIG || "data/hmp-pvp.json",
     {
         defaults: {
-            defaultDecision: "deny",
+            defaultDecision: "allow",
             lethalMode: false,
             enableCommands: true,
             command: "pvp",
@@ -141,7 +141,7 @@ if (configured.enableCommands !== false) {
                 if (action === "status") {
                     const status = pvp.status();
                     reply(
-                        `${status.lethalMode ? "LETHAL" : "consent-only"}; `
+                        `${status.lethalMode ? "LETHAL" : "lethal off"}; default ${status.defaultDecision}; `
                         + `${status.rules} rule(s), ${status.allowed} allowed / `
                         + `${status.denied} denied / ${status.errors} errors`,
                     );

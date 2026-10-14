@@ -2,8 +2,8 @@
 
 `hmp-duels` is Foundations's consensual, non-lethal one-on-one wizard duel resource. A challenge is a
 private `hmp-activities` invitation; accepting creates an exclusive two-player session scoped to the
-same game area and virtual world. `hmp-pvp` then authorizes only that agreed pair while allowing other
-PvP resources to own their own matches or zones.
+same game area and virtual world. Its `hmp-pvp` rule governs only that agreed pair, leaving other PvP
+resources to own their own matches or zones.
 
 An accepted duel is a host pair override (`Pvp.setPair`): peaceful through the countdown, then hostile
 with lock-on and a kneel finish, whatever the server's own PvP rules say. The host decides who may hurt

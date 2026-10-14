@@ -214,8 +214,8 @@ created test transaction after its state has been inspected.
 
 ### PvP policy and duels
 
-- Keep `hmp-pvp.defaultDecision` set to `deny`. Outside an agreed duel, cast at another player and
-  confirm the server vetoes the hit.
+- With the default rules (`who: "none"`), cast at another player outside an agreed duel and confirm
+  the hit does no damage.
 - Challenge with `/duel #<playerId>`. Confirm the target receives the Arcanum-default consent dialog,
   can decline it, and that the challenge expires without leaving either player busy.
 - While one challenge is pending, attempt another outgoing challenge and confirm exclusivity rejects
