@@ -40,6 +40,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   needs HogwartsMP `1.9` (`LocalPlayer.setVisibility`). Visibility is restored whenever no-clip ends.
 - `hmp-admin` exports `noclip.isActive(player | playerId)`, so other resources can tell whether an
   administrator is no-clipping without duplicating the state.
+- `hmp-loot` `suppressGameLoot` gains `pouches`, switching off the game's coin pouches ("Search Pouch").
+  It needs a host with pouch suppression; an older one ignores it.
 
 ### Changed
 

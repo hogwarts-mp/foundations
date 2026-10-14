@@ -22,7 +22,7 @@ Copy `examples/config/data/hmp-loot.json` to `<server-root>/data/hmp-loot.json`:
   "command": "loot",
   "enableCommands": true,
   "adminGroups": [{ "key": "admin", "minimumGrade": 1 }],
-  "suppressGameLoot": { "chests": true, "moonstones": true, "foragables": true },
+  "suppressGameLoot": { "chests": true, "moonstones": true, "foragables": true, "pouches": true },
   "lootables": [
     {
       "key": "courtyard-chest",
@@ -45,8 +45,9 @@ Copy `examples/config/data/hmp-loot.json` to `<server-root>/data/hmp-loot.json`:
 }
 ```
 
-- `suppressGameLoot` switches the game's own chests, moonstones and foragables off (`World.suppressLoot`)
-  while the resource runs, and back on when it stops. Families left out, or `false`, keep the game's loot.
+- `suppressGameLoot` switches the game's own chests, moonstones, foragables and coin pouches off
+  (`World.suppressLoot`) while the resource runs, and back on when it stops. Families left out, or `false`,
+  keep the game's loot. `pouches` needs a host with pouch suppression (mod commit `388c9e0b` or newer).
   The Overland spawns go from areas that load after startup, so a client that joins sees none.
 - `key` names a lootable for good: takes are recorded against it, so renaming one forgets who looted it.
 - `kind` is `chest`, `moonstone` or `foragable`; `model` (a Blueprint class path) is optional and

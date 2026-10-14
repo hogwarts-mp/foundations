@@ -27,7 +27,7 @@ const native = typeof Lootables === "undefined" || typeof World === "undefined" 
 const missing = {
     place: () => { throw new Error("this server build has no Lootables builtin"); },
     setItems: () => false, setView: () => false, remove: () => false,
-    lootSuppressed: { chests: false, moonstones: false, foragables: false },
+    lootSuppressed: { chests: false, moonstones: false, foragables: false, pouches: false },
     suppressLoot: () => false,
 };
 const service = createLootService<HmpLootPlayer>({

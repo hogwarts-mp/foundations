@@ -24,7 +24,7 @@ global.Imports = { get: (name) => {
     if (name === "hmp-core") return core;
     if (name === "hmp-lib") return {
         logger: { create: () => logger },
-        config: { load: (_path, options) => ({ ...options.defaults, suppressGameLoot: { chests: true, moonstones: true, foragables: true }, lootables }), env: { boolean: (_value, fallback) => fallback } },
+        config: { load: (_path, options) => ({ ...options.defaults, suppressGameLoot: { chests: true, moonstones: true, foragables: true, pouches: true }, lootables }), env: { boolean: (_value, fallback) => fallback } },
         command: { createRouter: () => ({
             register: (name, _options, handler) => commands.set(name, handler),
             handle: async (p, message, command, args) => { const h = commands.get(command); if (!h) return false; await h({ player: p, message, command, invokedAs: command, args, usage: "usage", reply() { return true; } }); return true; },
@@ -40,7 +40,7 @@ global.Lootables = {
     setView: (id, p, view) => { views.push({ id, player: p.id, view }); return true; },
     remove: () => true,
 };
-global.World = { lootSuppressed: { chests: false, moonstones: false, foragables: false }, suppressLoot: (families) => { suppressed.push(families); return true; } };
+global.World = { lootSuppressed: { chests: false, moonstones: false, foragables: false, pouches: false }, suppressLoot: (families) => { suppressed.push(families); return true; } };
 
 require(path.resolve(__dirname, "..", "dist", "server.js"));
 assert.deepStrictEqual([...serverExports.keys()], ["lootables", "status"]);
@@ -55,7 +55,7 @@ assert.ok(commands.has("loot"));
     const status = serverExports.get("status")();
     assert.strictEqual(status.state, "ready", status.lastError);
     assert.strictEqual(status.lootables, 2);
-    assert.deepStrictEqual(suppressed, [{ chests: true, moonstones: true, foragables: true }]);
+    assert.deepStrictEqual(suppressed, [{ chests: true, moonstones: true, foragables: true, pouches: true }]);
     assert.deepStrictEqual(placed.map((p) => [p.kind, p.options.mode, p.options.items.length]), [["chest", "shared", 0], ["foragable", "perPlayer", 1]]);
     assert.deepStrictEqual(views.at(-1), { id: 2, player: 1, view: null });
     views.length = 0;
@@ -68,6 +68,6 @@ assert.ok(commands.has("loot"));
     assert.ok(serverExports.get("lootables").record("courtyard-eggs", 7));
     await serverHandlers.get("chatCommand")(player, "/loot list", "loot", ["list"]);
     serverHandlers.get("resourceStop")("hmp-loot");
-    assert.deepStrictEqual(suppressed.at(-1), { chests: false, moonstones: false, foragables: false });
+    assert.deepStrictEqual(suppressed.at(-1), { chests: false, moonstones: false, foragables: false, pouches: false });
     console.log("hmp-loot bundle contract passed");
 })().catch((error) => { console.error(error); process.exit(1); });

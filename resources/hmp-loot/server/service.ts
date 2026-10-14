@@ -1,7 +1,7 @@
 import type { HmpLootDefinition, HmpLootFamilies, HmpLootItem, HmpLootPlayer, HmpLootRecord, HmpLootState, HmpLootStatus, HmpLootTake } from "../types";
 import type { LootDependencies, LootService } from "./internal";
 
-const NONE: HmpLootFamilies = Object.freeze({ chests: false, moonstones: false, foragables: false });
+const NONE: HmpLootFamilies = Object.freeze({ chests: false, moonstones: false, foragables: false, pouches: false });
 
 const recordId = (key: string, characterId: number | null): string => `${key}\u0000${characterId ?? 0}`;
 const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);
