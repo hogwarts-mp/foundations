@@ -36,8 +36,9 @@ created test transaction after its state has been inspected.
   dismount volumes must not constrain the broom, including after streaming into a new area.
 - Temporarily preserve boundary volumes through the `hmp-world` API or server admin command, reload the
   area, and confirm the native restriction returns; reset the policy and confirm the JSON baseline wins.
-- Confirm ambient students and native enemy encounters match the configured policy for every connected
-  client and after world travel.
+- Confirm ambient students and the Overland's enemy camps and world events match the configured policy
+  (none under `"suppressed"`, the same NPCs for everyone under `"server"`) for every connected client and
+  after world travel.
 - Report environment changes that affect only one client, disappear on world travel, or survive a
   server restart despite differing from the JSON baseline.
 

@@ -3,9 +3,9 @@
 `hmp-world` owns the server-wide baseline for Hogwarts Legacy's environment and native world
 behavior. It applies starting weather, clock, date and season on resource startup, then sends the
 configured boundary and population policy to every client. Policies are re-sent when the client
-resource becomes ready, the world becomes ready, and a character finishes loading. Native enemy
-encounters are owned by the server: `nativeEncounters` maps to `World.setEncounterPolicy("native")`
-or `("suppressed")`, which the host applies to every client, including late joiners.
+resource becomes ready, the world becomes ready, and a character finishes loading. Enemy encounters
+are the server's: `encounters` goes to `World.setEncounterPolicy`, which the host applies to every
+client, including late joiners.
 
 The resource reads and mutates the Framework's replicated environment through the flat `World.*`
 properties and setters. Its own `world.environment` export remains the stable Foundations API used
@@ -15,7 +15,7 @@ by other resources.
 
 Copy `examples/config/data/hmp-world.json` to `<server-root>/data/hmp-world.json`. The bundled defaults
 remove native mount boundaries—including Hogsmeade's no-fly zone—and suppress ambient population and
-native enemy encounters:
+the Overland's enemy encounters:
 
 ```json
 {
@@ -28,10 +28,14 @@ native enemy encounters:
   "policy": {
     "removeBoundaryVolumes": true,
     "ambientPopulation": false,
-    "nativeEncounters": false
+    "encounters": "suppressed"
   }
 }
 ```
+
+`encounters` decides who spawns the Overland's enemy camps and roaming world events: `"suppressed"`
+(the default) spawns none, and `"server"` spawns them on the server as NPCs every player shares. Mission
+enemies always come from the game.
 
 `time.scale` is in-game minutes per real second: `1` gives a 24-minute in-game day and `0` freezes
 the clock. `date.year: 0` preserves the game's native year. Seasons accept `spring`, `summer`,

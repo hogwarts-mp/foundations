@@ -33,4 +33,4 @@ Events.on("playerDisconnect", (player: HmpWorldPlayer) => world.disconnect(playe
 Events.on("resourceStop", (name?: string) => { if (!name || name === "hmp-world") world.stop(); });
 
 const policy = world.policy.current();
-logger.info(`World ready: ${config.environment.weather}, ${String(config.environment.time.hour).padStart(2, "0")}:${String(config.environment.time.minute).padStart(2, "0")}, boundaries ${policy.removeBoundaryVolumes ? "removed" : "preserved"}`);
+logger.info(`World ready: ${config.environment.weather}, ${String(config.environment.time.hour).padStart(2, "0")}:${String(config.environment.time.minute).padStart(2, "0")}, boundaries ${policy.removeBoundaryVolumes ? "removed" : "preserved"}, encounters ${policy.encounters}`);

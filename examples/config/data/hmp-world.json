@@ -17,6 +17,6 @@
   "policy": {
     "removeBoundaryVolumes": true,
     "ambientPopulation": false,
-    "nativeEncounters": false
+    "encounters": "suppressed"
   }
 }

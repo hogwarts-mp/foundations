@@ -14,9 +14,12 @@ const config = normalizeConfig({
         date: { day: 1, month: 9, year: 0 },
         season: "autumn",
     },
-    policy: { removeBoundaryVolumes: true, ambientPopulation: false, nativeEncounters: false },
+    policy: { removeBoundaryVolumes: true, ambientPopulation: false },
 });
 assert.strictEqual(config.environment.season, "autumn");
+assert.strictEqual(config.policy.encounters, "suppressed");
+assert.strictEqual(normalizeConfig({ ...config, policy: { ...config.policy, encounters: "server" } }).policy.encounters, "server");
+assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, encounters: "native" } }), /"suppressed" or "server"/);
 assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, removeBoundaryVolumes: "yes" } }), /boolean/);
 assert.throws(() => normalizeConfig({ ...config, environment: { ...config.environment, time: { ...config.environment.time, hour: 24 } } }), /0 to 23/);
 
@@ -52,23 +55,26 @@ assert.strictEqual(service.environment.state()?.weather, "Clear");
 assert.strictEqual(service.environment.state()?.season, 2);
 assert.strictEqual(service.policy.sync(players[0]), 1);
 assert.strictEqual(players[0].emitted.length, 1);
-service.policy.set({ nativeEncounters: true });
-assert.strictEqual(service.policy.current().nativeEncounters, true);
-assert.deepStrictEqual(nativeCalls.at(-1), ["encounters", "native"]);
+// Clients apply only what they own; encounters stay on the server.
+assert.deepStrictEqual(JSON.parse(String((players[0].emitted[0] as { payload: unknown }).payload)), { contract: "hmp.world.policy/v2", removeBoundaryVolumes: true, ambientPopulation: false });
+service.policy.set({ encounters: "server" });
+assert.strictEqual(service.policy.current().encounters, "server");
+assert.deepStrictEqual(nativeCalls.at(-1), ["encounters", "server"]);
 assert.strictEqual(broadcasts.length, 1);
+assert.throws(() => service.policy.set({ encounters: "native" as never }), /"suppressed" or "server"/);
 const encounterCalls = () => nativeCalls.filter(([name]) => name === "encounters").length;
 const encountersBefore = encounterCalls();
 service.policy.set({ removeBoundaryVolumes: false });
 assert.strictEqual(encounterCalls(), encountersBefore);
 service.policy.reset();
-assert.strictEqual(service.policy.current().nativeEncounters, false);
+assert.strictEqual(service.policy.current().encounters, "suppressed");
 assert.deepStrictEqual(nativeCalls.at(-1), ["encounters", "suppressed"]);
 assert.strictEqual(broadcasts.length, 3);
 service.environment.setSeason("winter");
 assert.strictEqual(environmentState.season, 3);
 
 assert.strictEqual(parsePolicy("bad"), null);
-assert.deepStrictEqual(parsePolicy(JSON.stringify(config.policy)), config.policy);
+assert.deepStrictEqual(parsePolicy(JSON.stringify(config.policy)), { removeBoundaryVolumes: true, ambientPopulation: false });
 const clientCalls: Array<[string, unknown]> = [];
 let ready = 0;
 const client = createWorldClient({
@@ -82,7 +88,7 @@ assert.strictEqual(ready, 1);
 assert.strictEqual(client.apply(config.policy), true);
 assert.deepStrictEqual(clientCalls, [["boundaries", true], ["population", false]]);
 assert.strictEqual(client.status().boundaryVolumesChanged, 12);
-assert.strictEqual(client.policy.current()?.nativeEncounters, false);
+assert.deepStrictEqual(client.policy.current(), { removeBoundaryVolumes: true, ambientPopulation: false });
 assert.strictEqual(client.policy.restore(), true);
 assert.strictEqual(clientCalls.length, 4);
 client.stop();

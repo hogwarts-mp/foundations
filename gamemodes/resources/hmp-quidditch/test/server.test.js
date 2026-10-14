@@ -43,8 +43,6 @@ global.PlayerManager = { getAll: () => online, getById: (id) => online.find((p) 
 
 // ---------------------------------------------------------------- foundations
 const logger = { info() {}, warn() {}, error() {}, debug() {} };
-let encounters = true;
-const policySets = [];
 const markers = new Map();
 const uiAnswers = [];
 let inputCall = null;
@@ -74,13 +72,8 @@ const services = {
     "hmp-interact": { register: () => () => true },
     "hmp-audio": { sounds: { playForAll: () => null, playAt: () => null, playForPlayer: () => null, stop: () => true, release: () => 0 } },
     "hmp-blips": { markers: { clear: () => 0, upsert: async (marker) => { markers.set(marker.id, marker); return marker; }, remove: (id) => markers.delete(id) } },
-    "hmp-world": {
-        policy: {
-            current: () => ({ nativeEncounters: encounters }),
-            set: (patch) => { policySets.push(patch); encounters = patch.nativeEncounters ?? encounters; return { nativeEncounters: encounters }; },
-        },
-        status: () => ({ state: "ready" }),
-    },
+    // A match never changes the server-wide world policy; any call here throws.
+    "hmp-world": { status: () => ({ state: "ready" }) },
 };
 
 const exportsMap = new Map();
@@ -117,12 +110,10 @@ const chat = (player, ...args) => handlers.get("chatCommand")(player, `/quidditc
     const rings = [...objects.values()].filter((o) => o.model === RING);
     assert.strictEqual(rings.length, CONFIG.pitch.hoopGeometry.heights.length * 2);
     assert.ok(![...objects.values()].some((o) => o.model === SNITCH), "practice released a snitch");
-    assert.deepStrictEqual(policySets, [{ nativeEncounters: false }], "native encounters were not suppressed");
 
     stop("test");
     await flush();
     assert.strictEqual(objects.size, 0, `stopping left ${[...objects.keys()].join(", ")}`);
-    assert.deepStrictEqual(policySets.at(-1), { nativeEncounters: true }, "native encounters were not restored");
 
     // Snitch hunt: one simulated snitch Blueprint and the configured bludgers.
     start(admin, "snitchHunt", true);

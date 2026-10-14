@@ -1,5 +1,5 @@
 import type { HmpLibServer } from "../../hmp-lib/types";
-import type { HmpWorldPlayer, HmpWorldSeason } from "../types";
+import type { HmpWorldEncounters, HmpWorldPlayer, HmpWorldSeason } from "../types";
 import { SEASONS, type WorldConfig } from "./internal";
 
 function finiteInteger(value: unknown, label: string, minimum: number, maximum: number): number {
@@ -20,6 +20,12 @@ function finiteNumber(value: unknown, label: string, minimum: number, maximum: n
 
 function boolean(value: unknown, label: string): boolean {
     if (typeof value !== "boolean") throw new TypeError(`${label} must be a boolean`);
+    return value;
+}
+
+function encounters(value: unknown, label: string): HmpWorldEncounters {
+    if (value === undefined) return "suppressed";
+    if (value !== "suppressed" && value !== "server") throw new TypeError(`${label} must be "suppressed" or "server"`);
     return value;
 }
 
@@ -67,7 +73,7 @@ function normalizeConfig(raw: unknown): WorldConfig {
         policy: {
             removeBoundaryVolumes: boolean(policy.removeBoundaryVolumes, "hmp-world policy.removeBoundaryVolumes"),
             ambientPopulation: boolean(policy.ambientPopulation, "hmp-world policy.ambientPopulation"),
-            nativeEncounters: boolean(policy.nativeEncounters, "hmp-world policy.nativeEncounters"),
+            encounters: encounters(policy.encounters, "hmp-world policy.encounters"),
         },
     };
 }
@@ -84,7 +90,7 @@ function loadConfig(Hmp: HmpLibServer<HmpWorldPlayer>, options: { env?: NodeJS.P
         policy: {
             removeBoundaryVolumes: true,
             ambientPopulation: false,
-            nativeEncounters: false,
+            encounters: "suppressed",
         },
     };
     const loaded = Hmp.config.load<WorldConfig & Record<string, unknown>>(env.HMP_WORLD_CONFIG || "data/hmp-world.json", {

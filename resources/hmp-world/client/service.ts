@@ -1,4 +1,4 @@
-import type { HmpWorldPolicy } from "../types";
+import type { HmpWorldClientPolicy } from "../types";
 
 interface NativeWorld {
     setBoundaryPolicy(remove: boolean): number;
@@ -10,7 +10,7 @@ interface ClientOptions {
     emitReady(): void;
 }
 
-function parsePolicy(raw: unknown): HmpWorldPolicy | null {
+function parsePolicy(raw: unknown): HmpWorldClientPolicy | null {
     let value: unknown = raw;
     if (typeof value === "string") {
         try { value = JSON.parse(value); }
@@ -18,22 +18,19 @@ function parsePolicy(raw: unknown): HmpWorldPolicy | null {
     }
     if (!value || typeof value !== "object" || Array.isArray(value)) return null;
     const policy = value as Record<string, unknown>;
-    if (policy.removeBoundaryVolumes === undefined || policy.ambientPopulation === undefined || policy.nativeEncounters === undefined) return null;
-    if (typeof policy.removeBoundaryVolumes !== "boolean" || typeof policy.ambientPopulation !== "boolean" || typeof policy.nativeEncounters !== "boolean") return null;
+    if (typeof policy.removeBoundaryVolumes !== "boolean" || typeof policy.ambientPopulation !== "boolean") return null;
     return {
         removeBoundaryVolumes: policy.removeBoundaryVolumes,
         ambientPopulation: policy.ambientPopulation,
-        nativeEncounters: policy.nativeEncounters,
     };
 }
 
 function createWorldClient(options: ClientOptions) {
     const { native } = options;
     let state: "ready" | "stopped" = "ready";
-    let currentPolicy: HmpWorldPolicy | null = null;
+    let currentPolicy: HmpWorldClientPolicy | null = null;
     let boundaryVolumesChanged = 0;
 
-    // nativeEncounters is applied by the server (World.setEncounterPolicy); the client only records it.
     function apply(raw: unknown): boolean {
         if (state === "stopped") return false;
         const next = parsePolicy(raw);
