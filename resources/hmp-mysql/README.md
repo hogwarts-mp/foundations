@@ -64,7 +64,7 @@ Multiple SQL statements are always disabled.
 Declare the dependency so `hmp-mysql` starts first:
 
 ```json
-"resourceDependencies": [{ "name": "hmp-mysql", "version": "0.8.2" }]
+"resourceDependencies": [{ "name": "hmp-mysql", "version": "0.9.0" }]
 ```
 
 Then import its exports:

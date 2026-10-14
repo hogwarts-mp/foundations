@@ -5,6 +5,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-14
+
 ### Added
 
 - Gamemodes: complete games built on Foundations get their own home, `gamemodes/resources/`. They
@@ -53,6 +55,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ### Changed
 
+- Set the pack, all twenty-nine resources, both gamemodes, and internal dependency pins to lockstep
+  version `0.9.0`.
 - Set the supported HogwartsMP scripting-host baseline to `1.9` or newer. `hmp-duels`, `hmp-pvp` and
   `hmp-world` need its server-owned PvP relations (`Pvp.setPair`, `Pvp.configure`, `pvpDefeat`) and
   server-side `World.setEncounterPolicy`; an older host cannot start `hmp-pvp` or `hmp-world`.
@@ -529,6 +533,7 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - The initial admin resource focuses on moderation and corrective operations; spectate, noclip, and
   god mode are not included.
 
+[0.9.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.9.0
 [0.8.2]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.8.2
 [0.8.1]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.8.1
 [0.8.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.8.0
