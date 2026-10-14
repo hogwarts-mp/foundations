@@ -31,8 +31,9 @@ No client reports where anything is, so no client can move the ball or the snitc
 - `hmp-interact` owns the pitch interaction instead of the legacy global `interactables` resource.
 - `hmp-audio` owns stadium ambience and gameplay cues.
 - `hmp-blips` publishes the Quaffle, Snitch, and bludger markers from the server's own positions.
-- `hmp-world` owns world policy: a session switches native encounters off for its duration and back on
-  afterwards, and client teardown restores the latest policy.
+- `hmp-world` owns world policy; client teardown restores the latest one. A match leaves the server-wide
+  encounter policy alone: server camps only spawn when players approach them, and switching them off would
+  despawn every camp for everyone.
 
 The resource-specific, non-focused banner, scoreboard, and results overlays remain local. They are
 flight HUDs rather than modal application UI, so they deliberately do not take mouse or keyboard focus.

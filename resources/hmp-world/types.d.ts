@@ -21,14 +21,23 @@ export interface HmpWorldEnvironmentConfig {
     season: HmpWorldSeason;
 }
 
+/**
+ * Who spawns the Overland's enemy camps and roaming world events: nobody (`suppressed`), or the server as NPCs
+ * every player shares (`server`). Mission enemies always come from the game.
+ */
+export type HmpWorldEncounters = "suppressed" | "server";
+
 export interface HmpWorldPolicy {
     /** Destroy native mount boundary volumes, including Hogsmeade's no-fly zone. */
     removeBoundaryVolumes: boolean;
     /** Restore Hogwarts Legacy's ambient student and seat-filler population. */
     ambientPopulation: boolean;
-    /** Let each client's game spawn its own enemy encounters; false suppresses them (server `World.setEncounterPolicy`). */
-    nativeEncounters: boolean;
+    /** Applied by the server for every client (`World.setEncounterPolicy`); clients are not sent it. */
+    encounters: HmpWorldEncounters;
 }
+
+/** The part of the policy each client applies itself. */
+export type HmpWorldClientPolicy = Pick<HmpWorldPolicy, "removeBoundaryVolumes" | "ambientPopulation">;
 
 export interface HmpWorldEnvironmentState {
     weather: string;
@@ -84,14 +93,14 @@ export interface HmpWorld<P = HmpWorldPlayer> {
 }
 
 export interface HmpWorldClientPolicyApi {
-    current(): Readonly<HmpWorldPolicy> | null;
+    current(): Readonly<HmpWorldClientPolicy> | null;
     /** Reapply the most recent server-authored policy after a temporary client-side override. */
     restore(): boolean;
 }
 
 export interface HmpWorldClientStatus {
     state: "ready" | "stopped";
-    policy: Readonly<HmpWorldPolicy> | null;
+    policy: Readonly<HmpWorldClientPolicy> | null;
     boundaryVolumesChanged: number;
 }
 

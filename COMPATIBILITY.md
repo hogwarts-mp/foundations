@@ -42,7 +42,7 @@ preserve them:
   native robe/crest character rebuild;
 - client `Doors` logical-lock, Alohomora, physical-door diagnostic, and streaming-aware policy builtins;
 - client `Breakables` repairable-object watch, listing, and streaming-aware state apply builtins with the native `breakableState` event (mod commit `59b3cfa9` or newer);
-- server `World.setEncounterPolicy`, the server-owned native enemy encounter policy used by `hmp-world` (mod commit `c8c3fc74` or newer);
+- server `World.setEncounterPolicy` (`"suppressed"` or `"server"`), the server-owned enemy encounter policy used by `hmp-world` (mod commit `c8c3fc74` or newer);
 - synchronized `LocalPlayer.playClip`, ability playback/cancellation, emote preview/placement, and
   prop/sound animation-notify replay;
 - client key binding, controls, position, browser UI, and resource HTTP assets.

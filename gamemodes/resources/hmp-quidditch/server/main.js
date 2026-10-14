@@ -1851,13 +1851,6 @@ function startSession(mode, starter, solo, roster, fixture, activitySessionId) {
 
     S = freshSession(mode);
     S.activitySessionId = activitySessionId || null;
-    // Native enemies would wander onto the pitch. The policy is server-wide, so endSession puts it back.
-    try {
-        if (FoundationWorld.policy.current().nativeEncounters) {
-            FoundationWorld.policy.set({ nativeEncounters: false });
-            encountersSuppressed = true;
-        }
-    } catch (error) { logger.warn(`Could not suppress native encounters: ${error}`); }
     // A lobby roster already carries team and role; without one, fall back to seating whoever is
     // connected, which is what solo testing needs.
     const seating = lineupRoster
@@ -2033,19 +2026,10 @@ function resultsPayload(reason) {
     };
 }
 
-// Only what this resource switched off is switched back on: a server that already ran without native
-// encounters keeps running without them.
-let encountersSuppressed = false;
-
 function endSession(reason) {
     if (!S) return;
     const activitySessionId = S.activitySessionId;
     const activityResult = resultsPayload(reason);
-    if (encountersSuppressed) {
-        encountersSuppressed = false;
-        try { FoundationWorld.policy.set({ nativeEncounters: true }); }
-        catch (error) { logger.warn(`Could not restore native encounters: ${error}`); }
-    }
     for (const id of [...stunCards.keys()]) clearStunCard(id);
     for (const h of fumbleCards.values()) clearInterval(h);
     fumbleCards.clear();

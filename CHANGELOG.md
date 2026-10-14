@@ -53,6 +53,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   hostile before any policy runs, so an undecided hit follows the host's own relations: a fresh server
   stays consent-only under `who: "none"`, and a team, flag or pair set up elsewhere deals damage instead
   of being vetoed. Set `"deny"` to keep registered rules as the only way a hit lands.
+- `hmp-world`'s policy replaces `nativeEncounters` with `encounters`: `"suppressed"` (the default) or
+  `"server"`, where the server spawns the Overland's camps and world events as NPCs every player shares.
+  The server applies it through `World.setEncounterPolicy`, so clients are no longer sent it: the client
+  policy, `policy.current()` and `status()` carry only boundaries and population, and `status()` drops
+  `encounterVolumesChanged`. A config that leaves `encounters` out, or still has `nativeEncounters`,
+  runs suppressed.
+- `hmp-quidditch` no longer switches encounters off for a match: with server camps that would despawn
+  every camp for everyone.
 
 ### Fixed
 
@@ -65,10 +73,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   now shows that a player id takes a `#`.
 - `hmp-emotes` keeps Enter in its menu: current hosts hand web views Enter's character, which also
   pressed whichever button a click had left focused.
-- `hmp-world` applies `nativeEncounters` through the server's `World.setEncounterPolicy`, which now
-  owns native enemy encounters for every client. Its client no longer calls the removed client
-  builtin, which failed every policy update on current HogwartsMP hosts. The client `status()` drops
-  `encounterVolumesChanged`.
+- `hmp-world`'s client no longer calls the removed client `World.setEncounterPolicy`, which failed every
+  policy update on current HogwartsMP hosts and left the client policy unset.
 - `hmp-inventory` keeps a worn item's Equipment-menu look (`appearanceOverride`, the transmog source
   GearID) when it saves and restores native rows, so gear no longer comes back in its own look after a
   reconnect. It needs a HogwartsMP host that reports the field; an older host leaves it out, as before.

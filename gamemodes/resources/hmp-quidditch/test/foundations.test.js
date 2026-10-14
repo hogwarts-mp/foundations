@@ -19,7 +19,7 @@ assert.ok(server.includes("FoundationAudio.sounds"), "audio must use hmp-audio")
 assert.ok(server.includes("FoundationBlips.markers"), "markers must use hmp-blips");
 assert.ok(client.includes("Hmp.input.shortcuts.register"), "shortcuts must use hmp-lib arbitration");
 assert.ok(client.includes("FoundationWorld.policy.restore"), "world policy must restore through hmp-world");
-assert.ok(server.includes("FoundationWorld.policy.set"), "native encounters must be suppressed through hmp-world");
+assert.ok(!server.includes("FoundationWorld.policy.set"), "a match must not change the server-wide world policy");
 assert.ok(server.includes("Core.groups.has"), "match control must check hmp-core groups");
 assert.ok(!manifest.mafiahub.resourceDependencies.some((entry) => ["rp-ui", "interactables"].includes(entry.name)));
 // The pitch is server WorldObjects: no client builtin and no client reporting where things are.

@@ -48,6 +48,7 @@ assert.ok(serverHandlers.has("worldReady"));
 assert.strictEqual(serverExports.get("policy").current().removeBoundaryVolumes, true);
 serverHandlers.get("client:hmp-world:ready")(player);
 assert.strictEqual(playerEvents[0].name, "hmp-world:policy");
+assert.ok(!("encounters" in JSON.parse(playerEvents[0].payload)));
 
 const clientExports = new Map();
 const clientHandlers = new Map();
@@ -67,7 +68,7 @@ require(path.resolve(__dirname, "..", "dist", "client.js"));
 assert.deepStrictEqual([...clientExports.keys()], ["policy", "status"]);
 assert.deepStrictEqual(clientEmits.map((entry) => entry.name), ["hmp-world:ready"]);
 assert.ok(clientHandlers.has("hmp-world:policy"));
-clientHandlers.get("hmp-world:policy")({ removeBoundaryVolumes: true, ambientPopulation: false, nativeEncounters: false });
+clientHandlers.get("hmp-world:policy")({ removeBoundaryVolumes: true, ambientPopulation: false });
 assert.deepStrictEqual(worldCalls, [["boundaries", true], ["population", false]]);
 assert.strictEqual(clientExports.get("policy").restore(), true);
 clientHandlers.get("resourceStop")("hmp-world");

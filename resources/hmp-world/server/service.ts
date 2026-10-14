@@ -33,8 +33,11 @@ function numericSeason(value: HmpWorldSeason): 0 | 1 | 2 | 3 {
 
 function normalizePolicyPatch(current: HmpWorldPolicy, patch: Partial<HmpWorldPolicy>): HmpWorldPolicy {
     if (!patch || typeof patch !== "object" || Array.isArray(patch)) throw new TypeError("world policy patch must be an object");
-    for (const key of ["removeBoundaryVolumes", "ambientPopulation", "nativeEncounters"] as const) {
+    for (const key of ["removeBoundaryVolumes", "ambientPopulation"] as const) {
         if (patch[key] !== undefined && typeof patch[key] !== "boolean") throw new TypeError(`world policy ${key} must be a boolean`);
+    }
+    if (patch.encounters !== undefined && patch.encounters !== "suppressed" && patch.encounters !== "server") {
+        throw new TypeError('world policy encounters must be "suppressed" or "server"');
     }
     return { ...current, ...patch };
 }
@@ -80,21 +83,21 @@ function createWorldService<P extends HmpWorldPlayer>(options: WorldServiceOptio
         return environmentState();
     }
 
-    // The host owns native enemy encounters for every client, including late joiners, so this is not part of the client sync.
+    // The host applies encounters for every client, including late joiners, so they are not part of the client sync.
     function applyEncounterPolicy(value: HmpWorldPolicy): void {
-        const mode = value.nativeEncounters ? "native" : "suppressed";
-        if (!native.setEncounterPolicy(mode)) throw new Error(`Framework rejected encounter policy '${mode}'`);
+        if (!native.setEncounterPolicy(value.encounters)) throw new Error(`Framework rejected encounter policy '${value.encounters}'`);
     }
 
     function commitPolicy(next: HmpWorldPolicy): Readonly<HmpWorldPolicy> {
-        if (next.nativeEncounters !== currentPolicy.nativeEncounters) applyEncounterPolicy(next);
+        if (next.encounters !== currentPolicy.encounters) applyEncounterPolicy(next);
         currentPolicy = Object.freeze(next);
         sync();
         return currentPolicy;
     }
 
     function policyPayload(): string {
-        return JSON.stringify({ contract: "hmp.world.policy/v1", ...currentPolicy });
+        const { removeBoundaryVolumes, ambientPopulation } = currentPolicy;
+        return JSON.stringify({ contract: "hmp.world.policy/v2", removeBoundaryVolumes, ambientPopulation });
     }
 
     function sync(player?: P): number {
