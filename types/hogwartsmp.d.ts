@@ -486,6 +486,8 @@ declare global {
         getPosition(): HogwartsMpVector3 | null;
         setPosition(x: number, y: number, z: number): boolean;
         setCollision(enabled: boolean): boolean;
+        /** Shows or hides the local body, wand and held prop on this screen only. Holds through respawns and travel. */
+        setVisibility(visible: boolean): boolean;
         clearVelocity(): boolean;
         getRotation(): { pitch: number; yaw: number; roll: number } | null;
         getControlRotation(): { pitch: number; yaw: number; roll: number } | null;

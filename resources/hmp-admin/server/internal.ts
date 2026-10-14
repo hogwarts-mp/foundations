@@ -25,9 +25,13 @@ export type Logger = Pick<HmpLogger, "debug" | "info" | "warn" | "error">;
 export interface AdminNoclipConfig {
     speed: number;
     boost: number;
+    /** Speed multiplier while the slow key is held; wins over boost when both are held. */
+    slow: number;
     tickMs: number;
     /** Hide the admin from every other player while flying (player.setVisible). Default true. */
     hide?: boolean;
+    /** Hide the admin's body from their own screen while flying (LocalPlayer.setVisibility). Default false. */
+    hideLocal?: boolean;
     movement: {
         forward: string;
         back: string;
@@ -36,6 +40,7 @@ export interface AdminNoclipConfig {
         up: string;
         down: string;
         boost: string;
+        slow: string;
     };
 }
 

@@ -588,7 +588,7 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
                 const capabilities = await admin.permissions.capabilities(player);
                 const menu = [{ id: "players", title: "Connected players", description: "Inspect, moderate, and correct a connected account." }];
                 if (allowed(capabilities, "admin.environment")) menu.push({ id: "environment", title: "World environment", description: "Change global weather, season, date, time, and clock speed." });
-                if (allowed(capabilities, "admin.noclip")) menu.push({ id: "noclip", title: "Toggle no-clip", description: "Fly through geometry with WASD, Space/Ctrl, and Shift to boost." });
+                if (allowed(capabilities, "admin.noclip")) menu.push({ id: "noclip", title: "Toggle no-clip", description: "Fly through geometry with WASD, Space/Ctrl, Shift to boost, and Alt to slow down." });
                 if (allowed(capabilities, "admin.reconcile")) menu.push({ id: "reconcile", title: "Pending banking recovery", description: "Resolve transactions left in a pending state." });
                 if (allowed(capabilities, "admin.ban")) menu.push({ id: "bans", title: "Ban records", description: "Review and revoke identity bans." });
                 if (allowed(capabilities, "admin.audit")) menu.push({ id: "audit", title: "Administrative audit", description: "Review recent successful, failed, and pending actions." });
@@ -599,7 +599,7 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
                 else if (choice === "noclip") {
                     try {
                         const enabled = await admin.actions.noclip(player);
-                        ui.notify(player, { title: `No-clip ${enabled ? "enabled" : "disabled"}`, description: enabled ? "WASD to move, Space/Ctrl for height, Shift to boost. Reopen /admin to turn it off." : "Collision restored; fall protection remains until landing.", tone: enabled ? "success" : "inform", duration: 7000 });
+                        ui.notify(player, { title: `No-clip ${enabled ? "enabled" : "disabled"}`, description: enabled ? "WASD to move, Space/Ctrl for height, Shift to boost, Alt to slow down. Reopen /admin to turn it off." : "Collision restored; fall protection remains until landing.", tone: enabled ? "success" : "inform", duration: 7000 });
                         if (enabled) break;
                     } catch (error) { notifyError(player, error); }
                 }

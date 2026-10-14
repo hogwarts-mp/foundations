@@ -56,8 +56,9 @@ accepts `HMP_ADMIN_COMMAND`, `HMP_ADMIN_REQUIRE_VERIFIED`, and `HMP_ADMIN_CONFIG
 - Moderation: durable warnings, kick, verified-identity timed or permanent bans, ban review/revoke.
 - Intervention: acknowledged streamed go-to/bring and Framework-authoritative freeze/release.
 - Staff movement: audited, server-authorized no-clip from the main menu, with camera-relative WASD,
-  Space/Ctrl vertical movement, Shift boost, collision bypass, and protected landing. While flying
-  the admin is hidden from every other player (body, nametag, minimap blip) by the server.
+  Space/Ctrl vertical movement, Shift boost, Alt slow movement for precise positioning, collision
+  bypass, and protected landing. While flying the admin is hidden from every other player (body,
+  nametag, minimap blip) by the server, and can optionally be hidden from their own screen too.
 - World environment: audited global weather, season, calendar date, 24-hour time, and clock-speed controls, including a
   searchable dropdown of 34 known native weather profiles and a confirmation-gated reset to the
   configured `hmp-world` baseline. A custom live or baseline profile is added to the dropdown
@@ -76,9 +77,31 @@ registered with `hmp-inventory`; native entries are routed through the Framework
 The inventory editor searches that catalog on the server first and sends at most 32 exact choices to the
 client, keeping the dialog below the Framework event-payload limit even with thousands of native items.
 
-No-clip tuning and movement keys can be overridden in the `noclip` object in `data/hmp-admin.json`.
-The defaults are `4500` cm/s, a `3x` Shift boost, and QWERTY WASD movement. Set `"hide": false`
-to keep the admin visible while flying; a server without `player.setVisible` always does.
+No-clip tuning and movement keys can be overridden in the `noclip` object in `data/hmp-admin.json`:
+
+```json
+{
+    "noclip": {
+        "speed": 4500,
+        "boost": 3,
+        "slow": 0.25,
+        "tickMs": 11,
+        "hide": true,
+        "hideLocal": false,
+        "movement": {
+            "forward": "w", "back": "s", "left": "a", "right": "d",
+            "up": "space", "down": "ctrl", "boost": "shift", "slow": "alt"
+        }
+    }
+}
+```
+
+`speed` is in cm/s. `boost` multiplies it while the boost key is held, and `slow` (from `0.05` to
+`1`) while the slow key is held; slow wins when both are held. Set `"hide": false` to keep the admin
+visible to other players while flying; a server without `player.setVisible` always does. Set
+`"hideLocal": true` to also hide the admin's body, wand, and held prop on their own screen while
+flying, which keeps the falling animation out of view. It needs HogwartsMP `1.9` or newer
+(`LocalPlayer.setVisibility`) and is restored when no-clip ends.
 
 ## Suggested closed-test feedback
 
@@ -94,5 +117,7 @@ or situation where the menu lost context after a player disconnected.
 - `actions`
 - `moderation`
 - `audit`
+- `noclip`: `isActive(player | playerId)` reports whether administrator no-clip is switched on for a
+  connected player, so other resources can react without tracking it themselves.
 - `ui`
 - `status`

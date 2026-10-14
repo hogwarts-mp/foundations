@@ -36,7 +36,7 @@ const admin = createAdminService({
 });
 const adminUi = createAdminUi({ admin, ui, banking, inventory, spells });
 
-for (const name of ["permissions", "players", "actions", "moderation", "audit", "status"] as const) Exports.register(name, admin[name]);
+for (const name of ["permissions", "players", "actions", "moderation", "audit", "noclip", "status"] as const) Exports.register(name, admin[name]);
 Exports.register("ui", adminUi);
 
 Events.on("hmp:session:ready", (session: unknown) => {

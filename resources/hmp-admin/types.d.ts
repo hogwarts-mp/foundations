@@ -154,6 +154,11 @@ export interface HmpAdminAuditApi<P = HmpAdminPlayer> {
     history(actor: P, limit?: number, targetAccountId?: number): Promise<HmpAdminAuditEntry[]>;
 }
 
+export interface HmpAdminNoclipApi<P = HmpAdminPlayer> {
+    /** Whether the server has administrator no-clip switched on for a connected player or player id. */
+    isActive(player: P | number): boolean;
+}
+
 export interface HmpAdminUiApi<P = HmpAdminPlayer> { open(player: P): Promise<boolean>; close(player: P): boolean }
 
 export interface HmpAdminStatus {
@@ -172,6 +177,7 @@ export interface HmpAdmin<P = HmpAdminPlayer> {
     actions: HmpAdminActionsApi<P>;
     moderation: HmpAdminModerationApi<P>;
     audit: HmpAdminAuditApi<P>;
+    noclip: HmpAdminNoclipApi<P>;
     ui: HmpAdminUiApi<P>;
     status(): HmpAdminStatus;
 }

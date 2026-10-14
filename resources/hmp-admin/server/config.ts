@@ -13,9 +13,11 @@ function loadConfig(Hmp: HmpLibServer<Player>, options: { env?: NodeJS.ProcessEn
         noclip: {
             speed: 4500,
             boost: 3,
+            slow: 0.25,
             tickMs: 11,
             hide: true,
-            movement: { forward: "w", back: "s", left: "a", right: "d", up: "space", down: "ctrl", boost: "shift" },
+            hideLocal: false,
+            movement: { forward: "w", back: "s", left: "a", right: "d", up: "space", down: "ctrl", boost: "shift", slow: "alt" },
         },
         roleRules: [
             { group: "admin", minimumGrade: 1, capabilities: ["admin.view", "admin.kick", "admin.teleport", "admin.freeze", "admin.warn", "admin.announce", "admin.noclip"] },
@@ -38,8 +40,10 @@ function loadConfig(Hmp: HmpLibServer<Player>, options: { env?: NodeJS.ProcessEn
     config.noclip = {
         speed: Math.max(100, Math.min(50000, Number(noclip.speed) || defaults.noclip.speed)),
         boost: Math.max(1, Math.min(10, Number(noclip.boost) || defaults.noclip.boost)),
+        slow: Math.max(0.05, Math.min(1, Number(noclip.slow) || defaults.noclip.slow)),
         tickMs: Math.max(5, Math.min(100, Math.trunc(Number(noclip.tickMs)) || defaults.noclip.tickMs)),
         hide: noclip.hide !== false,
+        hideLocal: noclip.hideLocal === true,
         movement: {
             forward: String(movement.forward || defaults.noclip.movement.forward),
             back: String(movement.back || defaults.noclip.movement.back),
@@ -48,6 +52,7 @@ function loadConfig(Hmp: HmpLibServer<Player>, options: { env?: NodeJS.ProcessEn
             up: String(movement.up || defaults.noclip.movement.up),
             down: String(movement.down || defaults.noclip.movement.down),
             boost: String(movement.boost || defaults.noclip.movement.boost),
+            slow: String(movement.slow || defaults.noclip.movement.slow),
         },
     };
     if (!Array.isArray(config.roleRules)) throw new TypeError("hmp-admin roleRules must be an array");

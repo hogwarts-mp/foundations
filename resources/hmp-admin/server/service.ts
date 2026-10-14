@@ -255,6 +255,13 @@ function createAdminService(options: {
         catch (error) { logger.warn(`Could not ${hidden ? "hide" : "reveal"} player #${player?.id}: ${error instanceof Error ? error.message : String(error)}`); }
     }
 
+    const noclip = Object.freeze({
+        isActive(player: Player | number): boolean {
+            const id = typeof player === "number" ? Math.trunc(player) : player?.id;
+            return typeof id === "number" && activeNoclip.has(id);
+        },
+    });
+
     const actions = Object.freeze({
         environment,
         async noclip(actor: Player, reason = "Toggle administrator no-clip") {
@@ -502,6 +509,7 @@ function createAdminService(options: {
         actions,
         moderation,
         audit,
+        noclip,
         ready: () => startPromise,
         onSessionReady,
         onTeleportComplete,

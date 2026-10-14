@@ -1,11 +1,13 @@
 import assert = require("node:assert");
 import { test } from "node:test";
+import configModule = require("../server/config");
 import permissionsModule = require("../server/permissions");
 import serviceModule = require("../server/service");
 import uiModule = require("../server/ui");
 import type { HmpAdminAuditEntry, HmpAdminBan, HmpAdminWarning } from "../types";
 import type { AdminConfig, AdminRepository, Player } from "../server/internal";
 
+const { loadConfig } = configModule;
 const { createPermissions } = permissionsModule;
 const { createAdminService } = serviceModule;
 const { inventoryOptions, inventoryItemField, spellOptions, transmogOptions, weatherOptions, WEATHER_PROFILES } = uiModule;
@@ -155,7 +157,7 @@ function setup() {
 
     const config: AdminConfig = {
         command: "admin", requireVerifiedIdentity: true, allowUnsafeAssertedBans: false, teleportTimeoutMs: 5000, auditPageSize: 50,
-        noclip: { speed: 4500, boost: 3, tickMs: 11, movement: { forward: "w", back: "s", left: "a", right: "d", up: "space", down: "ctrl", boost: "shift" } },
+        noclip: { speed: 4500, boost: 3, slow: 0.25, tickMs: 11, hideLocal: true, movement: { forward: "w", back: "s", left: "a", right: "d", up: "space", down: "ctrl", boost: "shift", slow: "alt" } },
         bootstrapSecret: "closed-test-secret", roleRules: [
             { group: "admin", minimumGrade: 1, capabilities: ["admin.view", "admin.kick", "admin.teleport", "admin.freeze", "admin.warn", "admin.noclip"] },
             { group: "admin", minimumGrade: 2, capabilities: ["admin.groups", "admin.jobs", "admin.inventory", "admin.appearance", "admin.spells", "admin.banking", "admin.treasury", "admin.audit", "admin.environment"] },
@@ -290,10 +292,30 @@ test("changes and resets the global environment with validation and audit", asyn
     assert.ok(state.audit.every((entry) => entry.status === "completed"));
 });
 
+test("loads no-clip slow movement and local hiding with safe defaults", () => {
+    const Hmp = { config: { load: (_path: string, options: { defaults: unknown }) => structuredClone(options.defaults), env: { boolean: (_value: unknown, fallback: boolean) => fallback } } };
+    const defaults = loadConfig(Hmp as never, { env: {} }).noclip;
+    assert.strictEqual(defaults.slow, 0.25);
+    assert.strictEqual(defaults.hideLocal, false);
+    assert.strictEqual(defaults.movement.slow, "alt");
+
+    const overrides = { config: { ...Hmp.config, load: () => ({ roleRules: [], noclip: { slow: 0.001, hideLocal: true, movement: { slow: "lalt" } } }) } };
+    const tuned = loadConfig(overrides as never, { env: {} }).noclip;
+    assert.strictEqual(tuned.slow, 0.05);
+    assert.strictEqual(tuned.hideLocal, true);
+    assert.strictEqual(tuned.movement.slow, "lalt");
+    assert.strictEqual(tuned.movement.boost, "shift");
+    assert.strictEqual(loadConfig({ config: { ...Hmp.config, load: () => ({ roleRules: [], noclip: { slow: 4 } }) } } as never, { env: {} }).noclip.slow, 1);
+});
+
 test("toggles and revokes audited administrator no-clip", async () => {
     const state = setup();
+    assert.strictEqual(state.service.noclip.isActive(state.verifiedAdmin), false);
     assert.strictEqual(await state.service.actions.noclip(state.verifiedAdmin), true);
     assert.strictEqual(state.service.status().activeNoclip, 1);
+    assert.strictEqual(state.service.noclip.isActive(state.verifiedAdmin), true);
+    assert.strictEqual(state.service.noclip.isActive(state.verifiedAdmin.id), true);
+    assert.strictEqual(state.service.noclip.isActive(state.verifiedTarget), false);
     const enabled = state.emitted.get(state.verifiedAdmin.id)![0];
     assert.strictEqual(enabled.event, "hmp-admin:noclip");
     assert.deepStrictEqual(JSON.parse(String(enabled.payload)), { enabled: true, ...state.config.noclip });
@@ -301,6 +323,7 @@ test("toggles and revokes audited administrator no-clip", async () => {
 
     assert.strictEqual(await state.service.actions.noclip(state.verifiedAdmin), false);
     assert.strictEqual(state.service.status().activeNoclip, 0);
+    assert.strictEqual(state.service.noclip.isActive(state.verifiedAdmin), false);
     assert.strictEqual(state.visibility.get(state.verifiedAdmin.id), true);
     assert.deepStrictEqual(state.audit.map((entry) => entry.action), ["player.noclip.enable", "player.noclip.disable"]);
 
@@ -308,8 +331,15 @@ test("toggles and revokes audited administrator no-clip", async () => {
     state.groupGrades.delete(state.verifiedAdmin.id);
     assert.strictEqual(await state.service.revalidateNoclip(), 1);
     assert.strictEqual(state.service.status().activeNoclip, 0);
+    assert.strictEqual(state.service.noclip.isActive(state.verifiedAdmin.id), false);
     assert.strictEqual(state.visibility.get(state.verifiedAdmin.id), true);
     assert.deepStrictEqual(JSON.parse(String(state.emitted.get(state.verifiedAdmin.id)!.at(-1)!.payload)), { enabled: false });
+
+    state.groupGrades.set(state.verifiedAdmin.id, 3);
+    await state.service.actions.noclip(state.verifiedAdmin);
+    assert.strictEqual(state.service.noclip.isActive(state.verifiedAdmin), true);
+    state.service.disconnect(state.verifiedAdmin);
+    assert.strictEqual(state.service.noclip.isActive(state.verifiedAdmin), false);
 });
 
 test("inspects, freezes, warns, kicks, and audits player actions", async () => {

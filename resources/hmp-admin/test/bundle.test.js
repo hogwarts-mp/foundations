@@ -53,7 +53,8 @@ delete process.env.HMP_ADMIN_BOOTSTRAP_SECRET;
 
 require(path.resolve(__dirname, "..", "dist", "server.js"));
 
-assert.deepStrictEqual([...exportsSeen.keys()], ["permissions", "players", "actions", "moderation", "audit", "status", "ui"]);
+assert.deepStrictEqual([...exportsSeen.keys()], ["permissions", "players", "actions", "moderation", "audit", "noclip", "status", "ui"]);
+assert.strictEqual(exportsSeen.get("noclip").isActive(1), false);
 assert.ok(handlers.has("hmp:session:ready"));
 assert.ok(handlers.has("hmp:session:ended"));
 assert.ok(handlers.has("hmp:groups:changed"));
@@ -62,6 +63,51 @@ assert.ok(handlers.has("playerTeleportComplete"));
 assert.ok(handlers.has("chatCommand"));
 assert.ok(handlers.has("resourceStart"));
 assert.ok(handlers.has("resourceStop"));
+const clientHandlers = new Map();
+const intervals = [];
+const keys = new Set();
+const positions = [];
+const visibility = [];
+global.Events = { on: (name, handler) => clientHandlers.set(name, handler) };
+global.setInterval = (callback, ms) => { intervals.push({ callback, ms }); return intervals.length; };
+global.clearInterval = () => {};
+global.Key = { isDown: (key) => keys.has(key) };
+global.Game = { areControlsLocked: () => false, notify() {} };
+global.Camera = { capture: () => ({ rotation: { pitch: 0, yaw: 0, roll: 0 } }) };
+global.LocalPlayer = {
+    getPosition: () => ({ x: 0, y: 0, z: 0 }),
+    setPosition: (x, y, z) => { positions.push({ x, y, z }); return true; },
+    setCollision: () => true,
+    clearVelocity: () => true,
+    getControlRotation: () => ({ pitch: 0, yaw: 0, roll: 0 }),
+    setVisibility: (visible) => { visibility.push(visible); return true; },
+    stateInfo: { setInvulnerableToDamage: () => true },
+};
+require(path.resolve(__dirname, "..", "dist", "client.js"));
+assert.ok(clientHandlers.has("hmp-admin:noclip"));
+assert.ok(clientHandlers.has("resourceStop"));
+const movement = { forward: "w", back: "s", left: "a", right: "d", up: "space", down: "ctrl", boost: "shift", slow: "alt" };
+function flyOneTick(held, options = {}) {
+    clientHandlers.get("hmp-admin:noclip")(JSON.stringify({ enabled: true, speed: 1000, boost: 3, slow: 0.25, tickMs: 10, movement, ...options }));
+    keys.clear();
+    for (const key of held) keys.add(key);
+    intervals.at(-1).callback();
+    return positions.at(-1).x;
+}
+assert.strictEqual(flyOneTick(["w"]), 10);
+assert.strictEqual(flyOneTick(["w", "shift"]), 30);
+assert.strictEqual(flyOneTick(["w", "alt"]), 2.5);
+assert.strictEqual(flyOneTick(["w", "shift", "alt"]), 2.5);
+clientHandlers.get("hmp-admin:noclip")(JSON.stringify({ enabled: false }));
+assert.deepStrictEqual(visibility, [], "local hiding is opt-in");
+flyOneTick([], { hideLocal: true });
+assert.deepStrictEqual(visibility, [false]);
+clientHandlers.get("hmp-admin:noclip")(JSON.stringify({ enabled: false }));
+assert.deepStrictEqual(visibility, [false, true]);
+flyOneTick([], { hideLocal: true });
+clientHandlers.get("resourceStop")("hmp-admin");
+assert.deepStrictEqual(visibility, [false, true, false, true]);
+
 void (async () => {
     await handlers.get("resourceStart")("hmp-admin");
     assert.strictEqual(exportsSeen.get("status")().state, "ready");

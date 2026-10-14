@@ -26,7 +26,7 @@
     "files": [
       "dist/client.js"
     ],
-    "exports": ["permissions", "players", "actions", "moderation", "audit", "ui", "status"],
+    "exports": ["permissions", "players", "actions", "moderation", "audit", "noclip", "ui", "status"],
     "resourceDependencies": [
       { "name": "hmp-mysql", "version": "0.8.2" },
       { "name": "hmp-lib", "version": "0.8.2" },
