@@ -5,20 +5,21 @@ private `hmp-activities` invitation; accepting creates an exclusive two-player s
 same game area and virtual world. `hmp-pvp` then authorizes only that agreed pair while allowing other
 PvP resources to own their own matches or zones.
 
-The duel rule has higher priority than `hmp-pvp`'s open-world lethal fallback. Duel participants therefore
-remain floored and kneel-finished even when staff enable lethal mode for everyone outside the pair. When a
-duel ends, its client presentation restores the current `hmp-pvp` targeting/team snapshot rather than
-blindly clearing a server-wide lethal relationship.
+An accepted duel is a host pair override (`Pvp.setPair`): peaceful through the countdown, then hostile
+with lock-on and a kneel finish, whatever the server's own PvP rules say. The host decides who may hurt
+whom for both clients, and natural health recovery is held off for the fight. When the duel ends the
+override is cleared and the two return to the server's own rules.
 
-The client uses the native `Pvp` duel context, targetability gate, hostile relationship, opponent
-meter, health-recovery control, and retail near-death kneel. Damage remains server-arbitrated. The KO
-decision returns `minHp`, so the victim applies the floor against live health instead of trusting the
-server's potentially stale vitals report.
+The duel rule has higher priority than `hmp-pvp`'s open-world lethal fallback, so participants remain
+floored and kneel-finished even while staff have lethal mode on for everyone else. Each hit is floored at
+`koHp` on the victim's live health. The victim's own client kneels on the finishing hit and the host
+reports it as `pvpDefeat`, which ends the duel; nothing trusts the server's possibly stale vitals report.
+The client only presents the countdown, the opponent's health meter and the result.
 
-Commands:
+Commands (a player id takes a `#`, as in `/duel #5`):
 
 ```text
-/duel <playerId|exact nickname>
+/duel <#playerId|exact nickname>
 /duel accept
 /duel decline
 /duel cancel

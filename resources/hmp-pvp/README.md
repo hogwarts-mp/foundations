@@ -34,12 +34,18 @@ Resource-stop cleanup removes every rule owned by that resource. `vitals(playerI
 native last-reported health view for diagnostics; it remains advisory and potentially stale. Use the
 victim-enforced `minHp` decision for non-lethal guarantees.
 
-Staff in a configured group may use `/pvp status`, `/pvp lethal on`, `/pvp lethal off`, and `/pvp sync`.
+Staff in a configured group may use `/pvp status`, `/pvp lethal on` and `/pvp lethal off`.
 The compatibility bus event `pvp:lethalMode` accepts a boolean for existing server resources; new resources
-should prefer `mode.setLethal()`. Changes emit `hmp:pvp:lethal-mode-changed` for observers. Turning lethal
-mode on makes every currently connected player mutually targetable and hostile, and late joiners trigger a
-full snapshot fan-out after the configured delay. Re-running `/pvp lethal on` or using `/pvp sync` repairs
-presentation after a proxy-streaming miss.
+should prefer `mode.setLethal()`. Changes emit `hmp:pvp:lethal-mode-changed` for observers.
+
+Who may hurt whom is the host's: its PvP rules and pair overrides decide it for every client, late joiners
+included, and a hit between players who are not hostile is dropped before any policy runs. Lethal mode is
+the host rules' `who: "everyone"`; turning it off sets `who: "none"`, unless something else has already
+narrowed `who`. `hmp-pvp` follows `pvpRulesChanged`, so a staff tool or resource that changes `who` directly
+keeps the mode in step, and stopping `hmp-pvp` while lethal ends lethal mode.
+
+A resource that makes players hostile itself (a pair, a team or `who`) must also register a rule that allows
+their hits: with `defaultDecision: "deny"` and lethal mode off, an undecided hit is still vetoed here.
 
 Unforgivable replay suppression remains a native safety boundary. Lethal player kills must use the relayed,
 server-arbitrated hit path. The current host also does not replay the victim-side green-bolt cosmetic for a

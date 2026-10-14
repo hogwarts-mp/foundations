@@ -13,7 +13,6 @@ interface Config {
     lethalMode: boolean;
     enableCommands: boolean;
     command: string;
-    joinSyncDelayMs: number;
     adminGroups: Array<{ key: string; minimumGrade?: number }>;
 }
 
@@ -25,7 +24,6 @@ const configured = Hmp.config.load<Config & Record<string, unknown>>(
             lethalMode: false,
             enableCommands: true,
             command: "pvp",
-            joinSyncDelayMs: 3000,
             adminGroups: [{ key: "admin", minimumGrade: 1 }],
         },
     },
@@ -43,34 +41,18 @@ if (!/^[a-z0-9_-]{1,40}$/.test(command)) {
     throw new TypeError("hmp-pvp command is invalid");
 }
 
-const joinSyncDelayMs = Math.max(
-    0,
-    Math.min(30_000, Math.floor(Number(configured.joinSyncDelayMs) || 3000)),
-);
-const joinTimers = new Map<number, ReturnType<typeof setTimeout>>();
-
-function syncMode(enabled: boolean, playerId?: number): void {
+// The host owns who may hurt whom and resolves it for every client, late joiners included: lethal mode is its
+// rules' `who: "everyone"`. Clients only hear the flag.
+function applyMode(enabled: boolean, playerId?: number): void {
+    if (playerId === undefined) {
+        const who = Pvp.getRules().who;
+        if (enabled && who !== "everyone") Pvp.configure({ who: "everyone" });
+        else if (!enabled && who === "everyone") Pvp.configure({ who: "none" });
+    }
     const recipients = playerId === undefined
         ? PlayerManager.getAll()
-        : (() => {
-            const player = PlayerManager.getById(playerId);
-            return player ? [player] : [];
-        })();
-    const all = PlayerManager.getAll();
-
-    for (const player of recipients) {
-        player.emit(
-            "hmp-pvp:mode",
-            JSON.stringify({
-                enabled,
-                playerIds: enabled
-                    ? all
-                        .filter((other) => other.id !== player.id)
-                        .map((other) => other.id)
-                    : [],
-            }),
-        );
-    }
+        : [PlayerManager.getById(playerId)].filter((player): player is HogwartsMpPlayer => Boolean(player));
+    for (const player of recipients) player.emit("hmp-pvp:mode", JSON.stringify({ enabled }));
 }
 
 const pvp = createPvpService({
@@ -83,7 +65,7 @@ const pvp = createPvpService({
         Pvp.setPolicy(null);
     },
     vitals: (id) => Pvp.getVitals(id),
-    applyMode: syncMode,
+    applyMode,
     modeChanged: (enabled, context) => {
         Events.emit("hmp:pvp:lethal-mode-changed", { enabled, ...context });
     },
@@ -95,29 +77,18 @@ Exports.register("mode", pvp.mode);
 Exports.register("vitals", pvp.vitals);
 Exports.register("status", pvp.status);
 
-function delayedSync(player: HogwartsMpPlayer): void {
-    if (!pvp.mode.isLethal()) return;
-
-    const playerId = Number(player.id);
-    const existing = joinTimers.get(playerId);
-    if (existing) clearTimeout(existing);
-
-    const timer = setTimeout(() => {
-        joinTimers.delete(playerId);
-        // Re-send complete snapshots to both the joiner and existing players. A one-sided
-        // sync would let the joiner target everyone without making the joiner targetable.
-        pvp.mode.sync();
-    }, joinSyncDelayMs);
-    timer.unref?.();
-    joinTimers.set(playerId, timer);
-}
-
-Events.on("playerConnect", delayedSync);
 Events.on("hmp:session:ready", (session: unknown) => {
     const player = session && typeof session === "object" && "player" in session
         ? (session.player as HogwartsMpPlayer)
         : null;
-    if (player) delayedSync(player);
+    if (player && pvp.mode.isLethal()) pvp.mode.sync(player);
+});
+// Staff tools and other resources may change the rules directly; the mode follows them.
+Events.on("pvpRulesChanged", (rules: HogwartsMpPvpRules) => {
+    pvp.mode.setLethal(rules.who === "everyone", {
+        resource: "pvpRulesChanged",
+        reason: "host PvP rules changed",
+    });
 });
 Events.on("pvp:lethalMode", (enabled: unknown) => {
     pvp.mode.setLethal(enabled === true, {
@@ -127,8 +98,8 @@ Events.on("pvp:lethalMode", (enabled: unknown) => {
 });
 Events.on("resourceStop", (name?: string) => {
     if (!name || name === "hmp-pvp") {
-        for (const timer of joinTimers.values()) clearTimeout(timer);
-        joinTimers.clear();
+        // Without the policy broker, open lethal rules would let every hit through.
+        if (pvp.mode.isLethal()) applyMode(false);
         pvp.stop();
     } else {
         pvp.cleanup(name);
@@ -182,12 +153,6 @@ if (configured.enableCommands !== false) {
                     return;
                 }
 
-                if (action === "sync") {
-                    pvp.mode.sync();
-                    reply("PvP presentation re-sent to every connected player.");
-                    return;
-                }
-
                 if (action === "lethal") {
                     const enabled = String(args[1] || "on").toLowerCase() !== "off";
                     const changed = pvp.mode.setLethal(enabled, {
@@ -195,21 +160,19 @@ if (configured.enableCommands !== false) {
                         actor: player,
                         reason: "staff command",
                     });
+                    if (!changed) {
+                        reply(`Lethal mode is already ${enabled ? "on" : "off"}.`);
+                        return;
+                    }
                     announce(
                         `open-world LETHAL PvP ${enabled
                             ? "ON — everyone is targetable and lethal spells can cause real death"
                             : "off — consent-only rules restored"}`,
                     );
-                    if (!changed) {
-                        pvp.mode.sync();
-                        reply(
-                            "Mode was already set; presentation was re-sent to streamed proxies.",
-                        );
-                    }
                     return;
                 }
 
-                reply(`Usage: /${command} <status|lethal on|lethal off|sync>`);
+                reply(`Usage: /${command} <status|lethal on|lethal off>`);
             })().catch((error) => {
                 reply(error instanceof Error ? error.message : String(error));
             });

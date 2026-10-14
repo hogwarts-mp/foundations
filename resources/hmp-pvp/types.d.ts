@@ -5,6 +5,10 @@ export interface HmpPvpHit {
     spell: string;
     damage: number;
     duration: number;
+    /** The floor the victim's client applies: the rules' kneelHp under a kneel defeat, else 0. */
+    minHp?: number;
+    dotSeconds?: number;
+    defeat?: "death" | "kneel";
     victimHp?: number;
     victimMax?: number;
 }
@@ -60,7 +64,5 @@ export interface HmpPvp<P = HmpPvpPlayer> {
 export interface HmpPvpClient {
     mode: {
         isLethal(): boolean;
-        /** Reapply the current server-authored targetability/team snapshot after temporary duel state. */
-        restore(): boolean;
     };
 }

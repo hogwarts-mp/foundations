@@ -6,6 +6,9 @@ interface Dependencies<P extends HmpDuelPlayer> {
     activities: HmpActivities<P>;
     pvp: HmpPvp;
     player(id: number): P | null;
+    /** The host's pair override (Pvp.setPair); null clears it. False when the host has no room. */
+    pair(a: number, b: number, options: { hostile: boolean; aim?: "lock" | "skillshot"; defeat?: "death" | "kneel" } | null): boolean;
+    setRecovery(playerId: number, on: boolean): void;
     emit(player: P, event: string, payload: Record<string, unknown>): void;
     notify(player: P, message: string, tone?: "inform" | "success" | "warning" | "error"): void;
     countdownSeconds: number;
@@ -17,7 +20,13 @@ interface Dependencies<P extends HmpDuelPlayer> {
     warn?(message: string): void;
 }
 
+// A live duel is a pair override: lock-on and a kneel finish, whatever the server's own rules say.
+const DUEL = { hostile: true, aim: "lock", defeat: "kneel" } as const;
+// The countdown reserves the pair but holds it peaceful, even on an open-PvP server.
+const COUNTDOWN = { hostile: false } as const;
+
 function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P>): HmpDuels<P> & {
+    defeated(victim: P, killer: P): Promise<void>;
     expired(payload: unknown): Promise<void>;
     died(player: P): Promise<void>;
     disconnected(player: P): Promise<void>;
@@ -48,8 +57,14 @@ function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P
             Number(result?.winnerId) || 0,
             Number(result?.loserId) || 0,
         ].filter(Boolean))];
+        // Only a duel that began holds a pair and recovery; a refused or expired challenge never touched either.
+        const began = ids.filter((id) => active.has(id));
         for (const id of ids) active.delete(id);
-        if (ids.length >= 2) { live.delete(pairKey(ids[0], ids[1])); ending.delete(pairKey(ids[0], ids[1])); }
+        for (const id of began) dependencies.setRecovery(id, true);
+        if (ids.length >= 2) {
+            live.delete(pairKey(ids[0], ids[1])); ending.delete(pairKey(ids[0], ids[1]));
+            if (began.length) dependencies.pair(ids[0], ids[1], null);
+        }
         const winnerId = Number(result?.winnerId) || 0;
         const loserId = Number(result?.loserId) || 0;
         for (const participant of session.participants) {
@@ -76,6 +91,8 @@ function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P
         catch (error) { ending.delete(key); dependencies.warn?.(`Could not finish duel '${match.sessionId}': ${error instanceof Error ? error.message : String(error)}`); }
     }
 
+    // The pair's kneel defeat floors each hit at kneelHp on the victim's live health; this sets the duel's own floor.
+    // The victim's client kneels on the finishing hit and the host reports it as pvpDefeat, which ends the duel.
     const disposePolicy = pvp.policy.register({
         id: "duels", resource: "hmp-duels", priority: 1000,
         decide(hit: Readonly<HmpPvpHit>) {
@@ -83,12 +100,6 @@ function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P
             if (!match || match.opponentId !== hit.casterId) return undefined;
             const key = pairKey(hit.casterId, hit.victimId);
             if (!live.has(key) || ending.has(key)) return false;
-            if (hit.victimHp !== undefined && hit.damage >= hit.victimHp - dependencies.koHp) {
-                ending.add(key); live.delete(key);
-                void activities.sessions.complete(match.sessionId, { winnerId: hit.casterId, loserId: hit.victimId, reason: "ko" }, { resource: "hmp-duels", reason: "ko" })
-                    .catch((error) => { ending.delete(key); dependencies.warn?.(`Could not finish duel KO: ${error instanceof Error ? error.message : String(error)}`); });
-                return { damage: Math.max(0, hit.victimHp - dependencies.koHp), minHp: dependencies.koHp };
-            }
             return { minHp: dependencies.koHp };
         },
     });
@@ -96,19 +107,24 @@ function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P
     async function begin(session: HmpActivitySession): Promise<void> {
         const [left, right] = session.participants;
         if (!left || !right) throw new Error("A duel requires exactly two players");
+        if (!dependencies.pair(left.playerId, right.playerId, COUNTDOWN)) throw new Error("The server has no room for another duel right now");
         active.set(left.playerId, { opponentId: right.playerId, sessionId: session.id });
         active.set(right.playerId, { opponentId: left.playerId, sessionId: session.id });
+        dependencies.setRecovery(left.playerId, false);
+        dependencies.setRecovery(right.playerId, false);
         emitTo(left.playerId, "hmp-duels:countdown", { seconds: dependencies.countdownSeconds, opponentId: right.playerId, opponentName: right.nickname });
         emitTo(right.playerId, "hmp-duels:countdown", { seconds: dependencies.countdownSeconds, opponentId: left.playerId, opponentName: left.nickname });
+        // Not unref'd: each resource runs its own event loop, and libuv skips the timers of a loop with nothing referenced.
         const timer = schedule(() => {
             countdowns.delete(session.id);
             const current = activities.sessions.get(session.id);
             if (!current || active.get(left.playerId)?.opponentId !== right.playerId) return;
             live.add(pairKey(left.playerId, right.playerId));
+            dependencies.pair(left.playerId, right.playerId, DUEL);
             emitTo(left.playerId, "hmp-duels:start", { opponentId: right.playerId, opponentName: right.nickname });
             emitTo(right.playerId, "hmp-duels:start", { opponentId: left.playerId, opponentName: left.nickname });
         }, dependencies.countdownSeconds * 1000);
-        timer.unref?.(); countdowns.set(session.id, timer);
+        countdowns.set(session.id, timer);
     }
 
     async function challenge(challenger: P, target: P): Promise<HmpDuelChallenge> {
@@ -166,6 +182,13 @@ function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P
         if (activities.sessions.get(invitation.sessionId)) await activities.sessions.cancel(invitation.sessionId, { resource: "hmp-duels", reason: "challenge expired" });
     }
 
+    // The host only reports a defeat from a caster whose accepted hit could have caused it.
+    async function defeated(victim: P, killer: P): Promise<void> {
+        const victimId = Number(victim.id), killerId = Number(killer.id);
+        if (active.get(victimId)?.opponentId !== killerId || !live.has(pairKey(victimId, killerId))) return;
+        await finish(killerId, victimId, "ko");
+    }
+
     async function died(player: P): Promise<void> { const match = active.get(Number(player.id)); if (match) await finish(match.opponentId, Number(player.id), "died"); }
     async function disconnected(player: P): Promise<void> { const match = active.get(Number(player.id)); if (match) await finish(match.opponentId, Number(player.id), "disconnect"); }
     async function stop(): Promise<void> {
@@ -174,7 +197,7 @@ function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P
         await disposeDefinition(); active.clear(); live.clear(); ending.clear();
     }
 
-    return Object.freeze({ challenge, accept: (player: P) => answer(player, true), decline: (player: P, reason?: string) => answer(player, false, reason), cancel, forfeit, status: () => ({ state, pending: activities.invitations.list().filter((entry) => entry.activityId === "duel:standard").length, countdowns: countdowns.size, live: live.size, uptimeMs: now() - startedAt }), expired, died, disconnected, stop });
+    return Object.freeze({ challenge, accept: (player: P) => answer(player, true), decline: (player: P, reason?: string) => answer(player, false, reason), cancel, forfeit, status: () => ({ state, pending: activities.invitations.list().filter((entry) => entry.activityId === "duel:standard").length, countdowns: countdowns.size, live: live.size, uptimeMs: now() - startedAt }), defeated, expired, died, disconnected, stop });
 }
 
 export = { createDuelService };

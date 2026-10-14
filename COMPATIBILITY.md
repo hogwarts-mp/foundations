@@ -54,18 +54,17 @@ preserve them:
   read/write, production slot casting, and native `spellCast` events.
 - client `Progression` absolute point reconciliation and level-bound lookup, plus native `Talents`
   availability, point, purchase, grant, level, removal, refund, and reset operations.
-- server `Pvp` hit policy, live-health `minHp` floors and vitals view; client mutual targetability,
-  team relationships, duel context, opponent meter, damage immunity and near-death kneel controls.
+- server-owned `Pvp` relations: rules (`configure`, `getRules`, `pvpRulesChanged`), pair overrides
+  (`setPair`) and the `pvpDefeat` event; the hit policy with live-health `minHp` floors and the vitals
+  view; `Player.setHealthRecovery`; and the client opponent meter (mod commit `55acb616` or newer).
 - server `NPC.create`, NPC mutation/destruction, `NPCManager`, and `npcDied` events using the verified
   enemy identifiers documented by `hmp-npcs`.
 - server `Lootables` placement, contents, per-player views and the `lootableTaken` event, and
   `World.suppressLoot`, used by `hmp-loot`; a build without them leaves
   `hmp-loot` degraded with nothing placed.
 
-The current PvP host has two presentation caveats: relayed Killing Curse hits do not reproduce the
-victim-side green-bolt cosmetic, and target/team writes require the remote proxy to be streamed. Foundations
-re-fans complete snapshots for late joiners and exposes `/pvp sync` for recovery; neither caveat weakens
-server arbitration or the duel health floor.
+The current PvP host has one presentation caveat: relayed Killing Curse hits do not reproduce the
+victim-side green-bolt cosmetic. It does not weaken server arbitration or the duel health floor.
 
 Asynchronous resource lifecycle is not a requirement for Foundations `0.8.2`. The current pack still
 uses the existing synchronous lifecycle and will adopt the asynchronous contract after upstream

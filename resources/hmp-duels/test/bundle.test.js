@@ -14,17 +14,18 @@ global.PlayerManager = { getById: () => player };
 global.Events = { on: (name, handler) => serverHandlers.set(name, handler) };
 require(path.resolve(__dirname, "..", "dist", "server.js"));
 assert.deepStrictEqual([...serverExports.keys()], ["challenge", "accept", "decline", "cancel", "forfeit", "status"]);
-assert.ok(serverHandlers.has("playerDied")); assert.ok(serverHandlers.has("hmp:activities:invitation:expired"));
+assert.ok(serverHandlers.has("playerDied")); assert.ok(serverHandlers.has("pvpDefeat")); assert.ok(serverHandlers.has("hmp:activities:invitation:expired"));
 
-const clientHandlers = new Map(), calls = [];
+// The client may only use the host's current client Pvp surface: the opponent meter.
+const clientHandlers = new Map(), calls = [], meters = [];
 global.Events = { on: (name, handler) => clientHandlers.set(name, handler), emitServer() {} };
-global.Pvp = { endDuelContext() {}, setTargetable() {}, resetTeam() {}, showMeter() {}, startDuelContext() {}, setTeam() {}, kneel: () => "ok" };
-let restored = 0;
-global.Imports = { get: () => ({ mode: { restore: () => { restored++; return true; } } }) };
-global.LocalPlayer = { stateInfo: { setInvulnerableToDamage() {} } }; global.Game = { notify: (value) => calls.push(value) };
+global.Pvp = { showMeter: (id) => { meters.push(id); return "ok"; } };
+delete global.Imports; delete global.LocalPlayer; global.Game = { notify: (value) => calls.push(value) };
 require(path.resolve(__dirname, "..", "dist", "client.js"));
 assert.ok(clientHandlers.has("hmp-duels:countdown")); assert.ok(clientHandlers.has("hmp-duels:end"));
+clientHandlers.get("hmp-duels:countdown")({ seconds: 3, opponentId: 2, opponentName: "Smoke" });
+clientHandlers.get("hmp-duels:start")({ opponentId: 2, opponentName: "Smoke" });
 clientHandlers.get("hmp-duels:end")({ result: "win", opponentName: "Smoke" });
 assert.ok(calls.some((value) => String(value).includes("Victory")));
-assert.ok(restored >= 2);
+assert.deepStrictEqual(meters, [null, 2, 2, null]);
 console.log("hmp-duels bundle contract passed");
