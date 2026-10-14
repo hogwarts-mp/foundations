@@ -80,6 +80,13 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   reconnect. It needs a HogwartsMP host that reports the field; an older host leaves it out, as before.
   An override that is not a bare GearID is dropped on its own instead of failing the whole restore.
 
+### Known issues
+
+- NPC kill experience does not persist. Current hosts pay kill rewards on the killer's client without
+  telling the server the amount, so `hmp-progression` never records it and its next synchronization sets
+  the experience back. Field Guide and kill-challenge progress are unaffected. See the `hmp-progression`
+  README for a server-side workaround.
+
 ## [0.8.2] - 2026-10-12
 
 ### Changed

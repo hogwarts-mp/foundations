@@ -9,6 +9,15 @@ single-player simulation, but it cannot award itself durable Foundations XP or i
 Native level and talent-point reports are accepted only for the exact character, revision, and XP
 snapshot the server issued. Server gameplay should use this resource's profile for gates.
 
+### Known limitation: kill experience does not persist
+
+The host pays NPC kill rewards on the killer's client (the NPC `rewardPolicy`: the game's own kill reward
+and any flat `experience`). The server is not told the amount, so nothing reaches this resource's ledger:
+the experience appears in game, and the next synchronization (reconnect, character switch, or any
+progression change) sets it back to the stored total. Field Guide knowledge and kill-challenge progress
+from the same kills are unaffected. Award durable kill experience from a server resource with
+`progression.add` on `npcDied` until the host reports kill rewards to scripts.
+
 ## Exports
 
 `Imports.get("hmp-progression")` exposes:
