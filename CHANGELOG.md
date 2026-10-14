@@ -32,6 +32,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   the server, so tuning screens can apply values live and restore them on cancel.
 - `hmp-houses` ships a minimal client entry, like `hmp-mysql`'s, so client-bearing resources can
   depend on it in the shared resource dependency graph.
+- `hmp-admin` no-clip gains a slow modifier for precise positioning: holding `noclip.movement.slow`
+  (Alt by default) multiplies speed by `noclip.slow` (`0.25` by default). Slow wins over the Shift
+  boost when both are held.
+- `hmp-admin` no-clip can hide the administrator's body from their own screen while flying, keeping
+  the falling animation out of view. Set `noclip.hideLocal` to `true`; it is off by default and
+  needs HogwartsMP `1.9` (`LocalPlayer.setVisibility`). Visibility is restored whenever no-clip ends.
+- `hmp-admin` exports `noclip.isActive(player | playerId)`, so other resources can tell whether an
+  administrator is no-clipping without duplicating the state.
 
 ### Fixed
 

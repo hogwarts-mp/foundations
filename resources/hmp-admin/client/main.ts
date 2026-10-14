@@ -6,19 +6,22 @@ interface NoclipMovement {
     up: string;
     down: string;
     boost: string;
+    slow: string;
 }
 
 interface NoclipCommand {
     enabled: boolean;
     speed?: number;
     boost?: number;
+    slow?: number;
     tickMs?: number;
+    hideLocal?: boolean;
     movement?: NoclipMovement;
 }
 
 const DEFAULT_MOVEMENT: NoclipMovement = {
     forward: "w", back: "s", left: "a", right: "d",
-    up: "space", down: "ctrl", boost: "shift",
+    up: "space", down: "ctrl", boost: "shift", slow: "alt",
 };
 
 let active = false;
@@ -26,7 +29,9 @@ let position: HogwartsMpVector3 | null = null;
 let movement = DEFAULT_MOVEMENT;
 let speed = 4500;
 let boost = 3;
+let slow = 0.25;
 let tickMs = 11;
+let hiddenLocally = false;
 let lastTick = 0;
 let flightTimer: ReturnType<typeof setInterval> | null = null;
 let landingTimer: ReturnType<typeof setInterval> | null = null;
@@ -47,6 +52,14 @@ function keyDown(key: string): boolean {
 function setProtected(protectedFromDamage: boolean): void {
     try { LocalPlayer.stateInfo.setInvulnerableToDamage(protectedFromDamage); }
     catch (_) { /* no local pawn while loading */ }
+}
+
+// The platform keeps this choice through respawns and travel, so every way out of no-clip restores it.
+function setLocallyHidden(hidden: boolean): void {
+    if (hiddenLocally === hidden) return;
+    try { LocalPlayer.setVisibility(!hidden); }
+    catch (_) { /* hosts before HogwartsMP 1.9 have no self-visibility */ }
+    hiddenLocally = hidden;
 }
 
 function getViewYaw(): number {
@@ -102,7 +115,8 @@ function tick(): void {
         }
         const magnitude = Math.sqrt(x * x + y * y + z * z);
         if (magnitude > 0) {
-            const distance = speed * (keyDown(movement.boost) ? boost : 1) * elapsed / magnitude;
+            const factor = keyDown(movement.slow) ? slow : keyDown(movement.boost) ? boost : 1;
+            const distance = speed * factor * elapsed / magnitude;
             position.x += x * distance; position.y += y * distance; position.z += z * distance;
         }
         setProtected(true);
@@ -121,12 +135,14 @@ function enable(command: NoclipCommand): void {
     movement = command.movement || DEFAULT_MOVEMENT;
     speed = Math.max(100, Number(command.speed) || 4500);
     boost = Math.max(1, Number(command.boost) || 3);
+    slow = Math.max(0.05, Math.min(1, Number(command.slow) || 0.25));
     tickMs = Math.max(5, Math.trunc(Number(command.tickMs)) || 11);
     position = { x: current.x, y: current.y, z: current.z };
     lastTick = 0;
     active = true;
     LocalPlayer.setCollision(false);
     setProtected(true);
+    setLocallyHidden(command.hideLocal === true);
     if (flightTimer) clearInterval(flightTimer);
     flightTimer = setInterval(tick, tickMs);
 }
@@ -139,6 +155,7 @@ function disable(): void {
     flightTimer = null;
     try { LocalPlayer.setCollision(true); }
     catch (_) { /* no local pawn while loading */ }
+    setLocallyHidden(false);
     if (wasActive) watchForLanding();
     else if (!landingTimer) setProtected(false);
 }
@@ -150,6 +167,7 @@ function stop(): void {
     if (landingTimer) clearInterval(landingTimer); landingTimer = null;
     try { LocalPlayer.setCollision(true); }
     catch (_) { /* no local pawn while loading */ }
+    setLocallyHidden(false);
     setProtected(false);
 }
 
