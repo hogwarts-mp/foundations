@@ -1,0 +1,53 @@
+<!doctype html>
+<!--
+  hmp-gauntlet HUD — driven by dist/client.js:
+    native -> page : Web.emit(view, "hud:update", { active, wave, waves, enemies, score })
+    page -> native : callEvent("ready", "{}")
+-->
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
+      -webkit-user-select: none; user-select: none; }
+    #hud {
+      position: fixed; top: 16px; left: 16px; min-width: 132px;
+      background: rgba(16, 13, 8, 0.60);
+      border: 1px solid rgba(201, 162, 90, 0.35); border-radius: 6px;
+      padding: 8px 12px 9px; color: #d5c8a9;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.40); backdrop-filter: blur(2px);
+      opacity: 0; transform: translateY(-4px); transition: opacity .25s ease, transform .25s ease;
+    }
+    #hud.show { opacity: 1; transform: none; }
+    #hud .title { font-family: 'Cinzel', Georgia, serif; font-size: 10px; letter-spacing: .16em;
+      text-transform: uppercase; color: #c19a4e; margin-bottom: 6px; }
+    #hud .rows { display: flex; gap: 13px; }
+    #hud .cell .k { font-family: Georgia, serif; font-size: 8px; letter-spacing: .08em;
+      text-transform: uppercase; color: #9c8f74; }
+    #hud .cell .v { font-family: Consolas, 'Courier New', monospace; font-size: 15px;
+      color: #f0e3c2; line-height: 1.15; }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div class="title">The Gauntlet</div>
+    <div class="rows">
+      <div class="cell"><div class="k">Wave</div><div class="v" id="wave">–</div></div>
+      <div class="cell"><div class="k">Enemies</div><div class="v" id="enemies">–</div></div>
+      <div class="cell"><div class="k">Score</div><div class="v" id="score">–</div></div>
+    </div>
+  </div>
+  <script>
+    var hud = document.getElementById('hud');
+    function render(data) {
+      if (!data || !data.active) { hud.classList.remove('show'); return; }
+      document.getElementById('wave').textContent = data.waves ? (data.wave + '/' + data.waves) : String(data.wave);
+      document.getElementById('enemies').textContent = String(data.enemies);
+      document.getElementById('score').textContent = String(data.score);
+      hud.classList.add('show');
+    }
+    window.addEventListener('hud:update', function (event) { render(event.detail); });
+    if (typeof callEvent === 'function') callEvent('ready', '{}');
+  </script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    :root { --gold:#c9a25a; --bright:#efd58f; --panel:#18130c; --text:#e7d8b4; --muted:#9c8f74; --hair:rgba(201,162,90,.22); }
+    * { box-sizing:border-box; }
+    html,body { margin:0; width:100%; height:100%; overflow:hidden; background:transparent; color:var(--text); font-family:Georgia,serif; user-select:none; }
+    body { display:grid; place-items:center; background:radial-gradient(circle at 50% 40%,rgba(0,0,0,.3),rgba(0,0,0,.68)); }
+    .panel { width:min(760px,92vw); height:min(720px,90vh); display:flex; flex-direction:column; background:linear-gradient(145deg,#1d170e,#0e0b07); border:1px solid var(--hair); border-radius:8px; box-shadow:0 30px 90px #000; overflow:hidden; }
+    header { padding:20px 24px 16px; border-bottom:1px solid var(--hair); }
+    h1 { margin:0; color:var(--bright); font-size:22px; letter-spacing:.18em; font-weight:normal; }
+    .lead,.hint { margin:7px 0 0; color:var(--muted); font-size:13px; }
+    main { flex:1; overflow:auto; padding:18px 24px; }
+    section+section { margin-top:18px; padding-top:17px; border-top:1px solid var(--hair); }
+    h2 { margin:0 0 10px; color:var(--gold); font-size:11px; text-transform:uppercase; letter-spacing:.18em; }
+    .presets { display:flex; flex-wrap:wrap; gap:8px; }
+    button { border:1px solid var(--hair); border-radius:4px; padding:9px 14px; background:transparent; color:var(--text); font-family:inherit; cursor:pointer; }
+    button:hover,button.active { border-color:var(--gold); color:var(--bright); background:rgba(201,162,90,.10); }
+    button.primary { background:linear-gradient(#dfbd70,#b98b38); border:0; color:#1a1306; font-weight:bold; }
+    .sliders { display:grid; grid-template-columns:1fr 1fr; gap:14px 24px; }
+    label.range { display:grid; grid-template-columns:1fr auto; gap:7px; color:var(--muted); font-size:13px; }
+    label.range output { color:var(--bright); font-family:Consolas,monospace; }
+    input[type=range] { grid-column:1/-1; accent-color:var(--gold); }
+    .enemy-head { display:flex; align-items:center; gap:8px; }
+    .enemy-head h2 { margin-right:auto; }
+    .count { color:var(--muted); font-size:12px; }
+    #groups { display:grid; grid-template-columns:1fr 1fr; gap:14px 22px; margin-top:10px; }
+    .group { padding:11px; background:rgba(255,255,255,.025); border:1px solid rgba(201,162,90,.1); border-radius:5px; }
+    .group h3 { margin:0 0 7px; color:var(--gold); font-size:12px; }
+    .enemy { display:flex; align-items:flex-start; gap:8px; padding:4px 0; font-size:12px; color:#cfc09f; }
+    .enemy small { display:block; color:#6f6553; font-family:Consolas,monospace; }
+    input[type=checkbox] { margin-top:2px; accent-color:var(--gold); }
+    footer { display:flex; align-items:center; gap:10px; padding:14px 24px; border-top:1px solid var(--hair); }
+    footer .hint { margin:0 auto 0 0; max-width:430px; }
+    @media(max-width:620px){ .sliders,#groups{grid-template-columns:1fr;} }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <header><h1>THE GAUNTLET</h1><p class="lead">Configure the horde, then open a survival lobby.</p></header>
+    <main>
+      <section><h2>Difficulty</h2><div id="presets" class="presets"></div></section>
+      <section><div class="sliders">
+        <label class="range">Waves (0 = endless)<output data-for="waves"></output><input id="waves" type="range" min="0" max="30" step="1"></label>
+        <label class="range">Wave 1 enemies<output data-for="baseSpawns"></output><input id="baseSpawns" type="range" min="1" max="15" step="1"></label>
+        <label class="range">Enemies added per wave<output data-for="spawnGrowth"></output><input id="spawnGrowth" type="range" min="0" max="8" step="1"></label>
+        <label class="range">Boss every (0 = off)<output data-for="bossEvery"></output><input id="bossEvery" type="range" min="0" max="10" step="1"></label>
+      </div></section>
+      <section><div class="enemy-head"><h2>Enemy pool</h2><span id="count" class="count"></span><button id="all">All</button><button id="none">None</button></div><div id="groups"></div></section>
+    </main>
+    <footer><p class="hint">Full roster + unchanged preset is ranked. Custom runs are unranked.</p><button id="cancel">Cancel</button><button id="start" class="primary">Open Lobby</button></footer>
+  </div>
+  <script>
+    const state={model:null,preset:"",pool:new Set()};
+    const fields=["waves","baseSpawns","spawnGrowth","bossEvery"];
+    const send=(name,data={})=>{if(typeof callEvent==="function")callEvent(name,JSON.stringify(data));};
+    const syncRange=id=>{const input=document.getElementById(id);document.querySelector(`output[data-for="${id}"]`).textContent=input.value;};
+    fields.forEach(id=>document.getElementById(id).addEventListener("input",()=>syncRange(id)));
+    function choosePreset(name){const p=state.model.presetParams[name];if(!p)return;state.preset=name;fields.forEach(id=>{document.getElementById(id).value=String(p[id]);syncRange(id);});[...document.querySelectorAll("#presets button")].forEach(b=>b.classList.toggle("active",b.dataset.name===name));}
+    function count(){document.getElementById("count").textContent=`${state.pool.size} selected`;}
+    function setAll(on){document.querySelectorAll(".enemy input").forEach(box=>{box.checked=on;if(on)state.pool.add(box.value);else state.pool.delete(box.value);});count();}
+    function render(model){
+      state.model=model;state.pool=new Set(model.enemies.map(e=>e.id));
+      const presets=document.getElementById("presets");presets.replaceChildren();
+      model.presets.forEach(name=>{const b=document.createElement("button");b.textContent=name;b.dataset.name=name;b.onclick=()=>choosePreset(name);presets.appendChild(b);});
+      const grouped={};model.enemies.forEach(e=>(grouped[e.group]??=[]).push(e));const groups=document.getElementById("groups");groups.replaceChildren();
+      Object.entries(grouped).forEach(([name,enemies])=>{const box=document.createElement("div");box.className="group";const h=document.createElement("h3");h.textContent=name;box.appendChild(h);enemies.forEach(enemy=>{const label=document.createElement("label");label.className="enemy";const input=document.createElement("input");input.type="checkbox";input.value=enemy.id;input.checked=true;input.onchange=()=>{if(input.checked)state.pool.add(enemy.id);else state.pool.delete(enemy.id);count();};const text=document.createElement("span");text.textContent=enemy.label;const id=document.createElement("small");id.textContent=enemy.id;text.appendChild(id);label.append(input,text);box.appendChild(label);});groups.appendChild(box);});
+      choosePreset(model.defaultPreset);count();
+    }
+    window.addEventListener("configure",e=>render(e.detail));
+    document.getElementById("all").onclick=()=>setAll(true);document.getElementById("none").onclick=()=>setAll(false);document.getElementById("cancel").onclick=()=>send("close");
+    document.getElementById("start").onclick=()=>{if(!state.model)return;const data={preset:state.preset,pool:[...state.pool]};fields.forEach(id=>data[id]=Number(document.getElementById(id).value));send("start",data);};
+    document.addEventListener("keydown",e=>{if(e.key==="Escape")send("close");});send("ready");
+  </script>
+</body>
+</html>

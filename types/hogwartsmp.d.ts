@@ -435,6 +435,16 @@ declare global {
         getAll(): HogwartsMpPlayer[];
         getById(id: number): HogwartsMpPlayer | null;
     };
+    interface HogwartsMpChatOptions {
+        author?: string;
+        /** Packed 0xRRGGBBAA. */
+        color?: number;
+    }
+    /** Server only. */
+    const Chat: {
+        sendToAll(text: string, options?: HogwartsMpChatOptions): void;
+        sendToPlayer(player: HogwartsMpPlayer, text: string, options?: HogwartsMpChatOptions): void;
+    };
     const Web: {
         createView(url: string, options?: { width?: number; height?: number; x?: number; y?: number; zIndex?: number; visible?: boolean; focus?: boolean }): number;
         destroyView(view: number): boolean;
