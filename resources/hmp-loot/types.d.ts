@@ -61,6 +61,8 @@ export interface HmpLootFamilies {
     chests: boolean;
     moonstones: boolean;
     foragables: boolean;
+    /** The game's coin pouches ("Search Pouch"). */
+    pouches: boolean;
 }
 
 export interface HmpLootStatus {

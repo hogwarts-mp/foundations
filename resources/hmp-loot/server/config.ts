@@ -26,7 +26,7 @@ function positiveInt(value: unknown, label: string): number {
 
 function families(value: unknown, label: string): HmpLootFamilies {
     const raw = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-    const out = { chests: false, moonstones: false, foragables: false };
+    const out = { chests: false, moonstones: false, foragables: false, pouches: false };
     for (const family of Object.keys(out) as Array<keyof HmpLootFamilies>) {
         if (raw[family] === undefined) continue;
         if (typeof raw[family] !== "boolean") throw new TypeError(`${label}.${family} must be a boolean`);
@@ -75,7 +75,7 @@ function loadConfig(Hmp: HmpLibServer<HmpLootPlayer>, options: { env?: NodeJS.Pr
         command: "loot",
         enableCommands: true,
         adminGroups: [{ key: "admin", minimumGrade: 1 }],
-        suppressGameLoot: { chests: false, moonstones: false, foragables: false },
+        suppressGameLoot: { chests: false, moonstones: false, foragables: false, pouches: false },
         lootables: [],
         sweepMs: 1000,
     };

@@ -46,13 +46,13 @@ function fakeNative() {
         remove(id: number) { calls.push(`remove ${id}`); return placed.delete(id); },
     };
     const world = {
-        lootSuppressed: { chests: false, moonstones: false, foragables: false },
+        lootSuppressed: { chests: false, moonstones: false, foragables: false, pouches: false },
         suppressLoot(families: Partial<HmpLootFamilies>) { suppressedCalls.push(families); return true; },
     };
     return { lootables, world, placed, views, calls, suppressedCalls };
 }
 
-function makeConfig(lootables: HmpLootDefinition[], suppressGameLoot: HmpLootFamilies = { chests: true, moonstones: true, foragables: false }): LootConfig {
+function makeConfig(lootables: HmpLootDefinition[], suppressGameLoot: HmpLootFamilies = { chests: true, moonstones: true, foragables: false, pouches: false }): LootConfig {
     return { command: "loot", enableCommands: true, adminGroups: [], suppressGameLoot, lootables, sweepMs: 1000 };
 }
 
@@ -62,13 +62,13 @@ async function run(): Promise<void> {
     const Hmp = (loaded: Record<string, unknown>) => ({ config: { load: (_path: string, options: { defaults: Record<string, unknown> }) => ({ ...options.defaults, ...loaded }), env: { boolean: (_v: unknown, fallback: boolean) => fallback } } });
     const config = loadConfig(Hmp(defaults) as never, { env: {} as NodeJS.ProcessEnv });
     assert.strictEqual(config.command, "loot");
-    assert.deepStrictEqual(config.suppressGameLoot, { chests: false, moonstones: false, foragables: false });
+    assert.deepStrictEqual(config.suppressGameLoot, { chests: false, moonstones: false, foragables: false, pouches: false });
     assert.strictEqual(loadConfig(Hmp(defaults) as never, { env: { HMP_LOOT_COMMAND: "LOOTS" } as NodeJS.ProcessEnv }).command, "loots");
     const full = loadConfig(Hmp({
-        suppressGameLoot: { chests: true },
+        suppressGameLoot: { chests: true, pouches: true },
         lootables: [{ key: "courtyard.chest", position: { x: 1, y: 2, z: 3 }, items: [{ itemId: "AshwinderEggs" }], respawnSeconds: 60 }],
     }) as never, { env: {} as NodeJS.ProcessEnv });
-    assert.deepStrictEqual(full.suppressGameLoot, { chests: true, moonstones: false, foragables: false });
+    assert.deepStrictEqual(full.suppressGameLoot, { chests: true, moonstones: false, foragables: false, pouches: true });
     assert.deepStrictEqual(full.lootables[0], { key: "courtyard.chest", kind: "chest", position: { x: 1, y: 2, z: 3 }, yaw: 0, items: [{ itemId: "AshwinderEggs", count: 1 }], scope: "character", respawnSeconds: 60 });
     const bad = (lootables: unknown[], pattern: RegExp) => assert.throws(() => loadConfig(Hmp({ lootables }) as never, { env: {} as NodeJS.ProcessEnv }), pattern);
     bad([{ key: "a", kind: "barrel", position: { x: 0, y: 0, z: 0 } }], /kind must be/);
@@ -113,7 +113,7 @@ async function run(): Promise<void> {
     assert.strictEqual(service.status().state, "starting");
     await service.ready();
     assert.strictEqual(service.status().state, "ready");
-    assert.deepStrictEqual(native.suppressedCalls, [{ chests: true, moonstones: true, foragables: false }]);
+    assert.deepStrictEqual(native.suppressedCalls, [{ chests: true, moonstones: true, foragables: false, pouches: false }]);
     assert.ok(calls.includes("remove eggs/7"), "an expired take is deleted at startup");
     assert.ok(rows.has("gone/7"), "a take of a lootable no longer configured is kept");
     const ids = Object.fromEntries(service.lootables.list().map((entry) => [entry.key, entry.lootableId]));

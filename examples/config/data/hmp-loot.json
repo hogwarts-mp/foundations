@@ -10,7 +10,8 @@
   "suppressGameLoot": {
     "chests": true,
     "moonstones": true,
-    "foragables": true
+    "foragables": true,
+    "pouches": true
   },
   "lootables": [
     {
