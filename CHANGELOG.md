@@ -42,6 +42,13 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   administrator is no-clipping without duplicating the state.
 - `hmp-loot` `suppressGameLoot` gains `pouches`, switching off the game's coin pouches ("Search Pouch").
   It needs a host with pouch suppression; an older one ignores it.
+- New `hmp-beasts` resource: each `hmp-core` character's beast bag is kept in `hmp_beast_bags`, put back
+  into the player's game when the character loads and emptied when it unloads, so catches survive
+  reconnects and never follow a player onto another character. A beast released from the Field Guide
+  comes back where the player stood (`release.respawn`, optionally catchable again with
+  `release.capturable`). Other resources read and change bags through the `bag` export and hear
+  `hmp:beasts:captured` and `hmp:beasts:released`. Requires a host with server beast capture (mod
+  commit `249fd244` or newer).
 
 ### Changed
 

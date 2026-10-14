@@ -101,6 +101,15 @@ created test transaction after its state has been inspected.
 - Report counters that stay closed after a duty change, stock that differs between the shelf and the
   books, or a purchase that moved money without moving items.
 
+### Beasts
+
+- Catch a beast with the Nab-Sack, reconnect, and confirm it is still in the Field Guide's beast list.
+- Switch characters and confirm the first character's beasts are gone from the second, and back when
+  switching back.
+- Release a beast from the Field Guide and confirm it reappears beside you and cannot be caught at once.
+- Report a beast that doubles after a reconnect, a missing catch, or one that reappears in the bag after
+  release.
+
 ### Doors
 
 - Confirm the default policy leaves physical doors closed but allows them to be opened normally.

@@ -5,7 +5,7 @@ target.
 
 | Component | Supported baseline | Status | Notes |
 |---|---|---|---|
-| HMP Foundations | `0.8.2` pack and resources | Supported | All twenty-eight resources must use the same version. |
+| HMP Foundations | `0.8.2` pack and resources | Supported | All twenty-nine resources must use the same version. |
 | HMP Gamemodes | `0.8.2` | Supported | Optional; each gamemode must match the core pack's version. |
 | HogwartsMP scripting host | `1.9` or newer | Supported | Provides the scripting capabilities listed below. |
 | MafiaHub Framework | `16.2.0` or newer | Supported | Required for the `fw://` local resource scheme. On `16.1.x` and older every resource-served page, font, and icon fails to load. |
@@ -62,6 +62,9 @@ preserve them:
 - server `Lootables` placement, contents, per-player views and the `lootableTaken` event, and
   `World.suppressLoot`, used by `hmp-loot`; a build without them leaves
   `hmp-loot` degraded with nothing placed.
+- server beast capture: `Beast.bagOf`, `Beast.giveCaptured`, `Beast.takeCaptured` and the
+  `beastCaptured` / `beastReleased` events (mod commit `249fd244` or newer), used by `hmp-beasts`; a
+  build without them leaves `hmp-beasts` degraded with no bags kept.
 
 The current PvP host has one presentation caveat: relayed Killing Curse hits do not reproduce the
 victim-side green-bolt cosmetic. It does not weaken server arbitration or the duel health floor.

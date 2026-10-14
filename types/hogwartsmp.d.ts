@@ -450,6 +450,7 @@ declare global {
         get(name: "hmp-pvp"): import("../resources/hmp-pvp/types").HmpPvp<HogwartsMpPlayer>;
         get(name: "hmp-duels"): import("../resources/hmp-duels/types").HmpDuels<HogwartsMpPlayer>;
         get(name: "hmp-npcs"): import("../resources/hmp-npcs/types").HmpNpcs;
+        get(name: "hmp-beasts"): import("../resources/hmp-beasts/types").HmpBeastsServer<HogwartsMpPlayer>;
         get<T = unknown>(name: string): T;
     };
     const PlayerManager: {
