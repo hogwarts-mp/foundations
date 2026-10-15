@@ -23,6 +23,8 @@ Events.on("hmp:character:selected", (payload: unknown) => flow.onCharacterSelect
     logger.error(`Could not open spawn selection: ${messageOf(error)}`);
     const player = payload && typeof payload === "object" && "session" in payload && payload.session && typeof payload.session === "object" && "player" in payload.session ? payload.session.player as Player : null;
     player?.emit("hmp-spawn:failed", JSON.stringify({ status: -1, message: messageOf(error) }));
+    // Leave the character a way into the world rather than stranded behind the failed attempt.
+    if (player) flow.ui.open(player).catch((reason: unknown) => logger.warn(`Could not reopen spawn selection: ${messageOf(reason)}`));
 }));
 Events.on("hmp:character:unloading", (payload: unknown) => {
     const value = payload as CharacterSelectionPayload;
@@ -47,10 +49,10 @@ Events.onClient("hmp-spawn:select", (player, payload) => {
     });
 });
 
+// Not unref'd: each resource runs its own event loop, and libuv skips the timers of a loop with nothing referenced.
 const autoSaveTimer = config.autoSaveMs > 0
     ? setInterval(() => flow.saveAll(PlayerManager.getAll()), config.autoSaveMs)
     : null;
-if (autoSaveTimer && typeof autoSaveTimer.unref === "function") autoSaveTimer.unref();
 
 logger.info(`Spawn flow ready with ${flow.status().locations} location(s)`);
 // TypeScript source.

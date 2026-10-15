@@ -11,7 +11,7 @@ import type { Core, Player, SpawnConfig, TimerHandle } from "../server/internal"
 const { createSpawnFlow, normalizeLocation, LAST_LOCATION_KEY } = spawnModule;
 
 interface TestPlayer extends Player { teleported?: HogwartsMpVector3; teleportOptions?: HogwartsMpTeleportOptions }
-interface TestTimer extends TimerHandle { callback: () => void; milliseconds: number; cleared: boolean }
+interface TestTimer extends TimerHandle { callback: () => void; milliseconds: number; cleared: boolean; unrefed: boolean }
 interface RecordedEvent { name: string; payload: unknown }
 interface ClientEvent { name: string; payload: Record<string, unknown> }
 
@@ -70,7 +70,11 @@ function setup(overrides: Partial<SpawnConfig> = {}) {
         config,
         logger: { warn: () => true, error: () => true },
         events: { emit: (name: string, payload: unknown) => emitted.push({ name, payload }) },
-        setTimer: (callback: () => void, milliseconds: number) => { const timer: TestTimer = { callback, milliseconds, cleared: false }; timers.push(timer); return timer; },
+        setTimer: (callback: () => void, milliseconds: number) => {
+            const timer: TestTimer = { callback, milliseconds, cleared: false, unrefed: false, unref() { timer.unrefed = true; } };
+            timers.push(timer);
+            return timer;
+        },
         clearTimer: (timer: TimerHandle) => { (timer as TestTimer).cleared = true; },
     });
     return { flow, core, config, player, character, session, metadata, timers, clientEvents, emitted };
@@ -78,6 +82,15 @@ function setup(overrides: Partial<SpawnConfig> = {}) {
 
 function overlandLocation(player: TestPlayer): HogwartsMpPlayerLocation {
     return { areaId: "Overland", regionId: "Hogwarts", destinationId: null, ...player.position, yaw: 90, revision: 1 };
+}
+
+// The reported row: saved in the Entrance Hall, rejoining in the castle grounds region of the same area.
+const ENTRANCE_HALL = { areaId: "Overland", regionId: "HOG_EntranceHall", x: 367084, y: -461527, z: -82610, yaw: 90 };
+const SCOPED_HOGWARTS = [{ key: "hogwarts", label: "Hogwarts", areaId: "Overland", x: 366784, y: -461527, z: -82610 }];
+
+async function joinWithCharacter(context: ReturnType<typeof setup>): Promise<boolean | number> {
+    await context.flow.onLoadingFinished(context.player);
+    return context.flow.onCharacterSelected({ session: context.session, character: context.character });
 }
 
 test("default and example Hogwarts destinations are available in the actual Overland world", async () => {
@@ -187,6 +200,90 @@ test("scopes saved locations to the live game area and records context changes",
     const previous = { areaId: "Hogwarts", regionId: "LibraryAnnex", destinationId: null, x: 10, y: 20, z: 30, yaw: 90, revision: 1 };
     assert.strictEqual(await flow.locationChanged(player, null, previous), true);
     assert.deepStrictEqual(metadata.get(`${character.id}:${LAST_LOCATION_KEY}`), { x: 10, y: 20, z: 30, yaw: 90, areaId: "Hogwarts", regionId: "LibraryAnnex", destinationId: null });
+});
+
+test("offers and resolves a saved location from another region of the same area", async () => {
+    const { flow, player, character, metadata } = setup({ locations: SCOPED_HOGWARTS });
+    player.location = () => overlandLocation(player);
+    metadata.set(`${character.id}:${LAST_LOCATION_KEY}`, ENTRANCE_HALL);
+    const model = await flow.ui.open(player);
+    assert.deepStrictEqual(model.locations.map((location) => [location.key, location.kind]), [["last", "last"], ["hogwarts", "configured"]]);
+    assert.strictEqual(await flow.select(player, "last"), 40);
+    assert.deepStrictEqual(player.teleported, { x: 367084, y: -461527, z: -82610 });
+});
+
+test("configured destinations that name a region stay scoped to it", async () => {
+    const { flow, player } = setup({ locations: SCOPED_HOGWARTS });
+    flow.locations.register({ key: "hall", label: "Entrance Hall", areaId: "Overland", regionId: "HOG_EntranceHall", x: 1, y: 2, z: 3, resource: "hmp-castle" });
+    player.location = () => overlandLocation(player);
+    assert.deepStrictEqual((await flow.ui.open(player)).locations.map((location) => location.key), ["hogwarts"]);
+    await assert.rejects(flow.select(player, "hall"), /different game area/);
+    player.location = () => ({ ...overlandLocation(player), regionId: "HOG_EntranceHall" });
+    assert.deepStrictEqual((await flow.ui.open(player)).locations.map((location) => location.key), ["hogwarts", "hall"]);
+});
+
+test("automatic spawn uses a saved location from another region of the same area", async () => {
+    const context = setup({ showSelector: false, locations: SCOPED_HOGWARTS });
+    const { player, character, metadata, emitted } = context;
+    player.location = () => overlandLocation(player);
+    metadata.set(`${character.id}:${LAST_LOCATION_KEY}`, ENTRANCE_HALL);
+    assert.strictEqual(await joinWithCharacter(context), 40);
+    assert.deepStrictEqual(player.teleported, { x: 367084, y: -461527, z: -82610 });
+    const started = emitted.find((event) => event.name === "hmp:spawn:started")?.payload as { location: { key: string } };
+    assert.strictEqual(started.location.key, "last");
+});
+
+test("automatic spawn falls back to the default when the saved location is in another area", async () => {
+    const context = setup({ showSelector: false, locations: SCOPED_HOGWARTS });
+    const { player, character, metadata } = context;
+    player.location = () => overlandLocation(player);
+    metadata.set(`${character.id}:${LAST_LOCATION_KEY}`, { ...ENTRANCE_HALL, areaId: "Gringotts", regionId: "Gringotts" });
+    assert.strictEqual(await joinWithCharacter(context), 40);
+    assert.deepStrictEqual(player.teleported, { x: 366784, y: -461527, z: -82610 });
+});
+
+test("automatic spawn opens the selector when neither the saved location nor the default fits", async () => {
+    for (const current of ["unknown", "Gringotts"]) {
+        const context = setup({ showSelector: false, locations: SCOPED_HOGWARTS });
+        const { flow, player, character, metadata, clientEvents } = context;
+        player.location = () => current === "unknown" ? null : { ...overlandLocation(player), areaId: current };
+        metadata.set(`${character.id}:${LAST_LOCATION_KEY}`, ENTRANCE_HALL);
+        assert.strictEqual(await joinWithCharacter(context), true);
+        assert.strictEqual(player.teleported, undefined);
+        const opened = clientEvents.at(-1)!;
+        assert.strictEqual(opened.name, "hmp-spawn:open");
+        assert.deepStrictEqual(opened.payload.locations, []);
+        assert.match(String(opened.payload.emptyMessage), current === "unknown" ? /Waiting/ : /No destinations are configured/);
+        if (current !== "unknown") continue;
+        // The waiting selector fills in once the client reports its area.
+        const arrived = overlandLocation(player);
+        player.location = () => arrived;
+        await flow.locationChanged(player, arrived, null);
+        assert.deepStrictEqual((clientEvents.at(-1)!.payload.locations as Array<{ key: string }>).map((location) => location.key), ["last", "hogwarts"]);
+    }
+});
+
+test("automatic spawn opens the selector when its teleport is refused", async () => {
+    const context = setup({ showSelector: false });
+    const { player, clientEvents } = context;
+    player.teleport = () => { throw new Error("Player is not in the world"); };
+    assert.strictEqual(await joinWithCharacter(context), true);
+    assert.deepStrictEqual(clientEvents.map((event) => event.name), ["hmp-spawn:transition", "hmp-spawn:failed", "hmp-spawn:open"]);
+});
+
+test("a teleport that never completes times out on a referenced timer and reopens selection", async () => {
+    const { flow, player, timers, clientEvents, emitted } = setup();
+    await flow.spawn(player, "hogwarts");
+    assert.strictEqual(timers.length, 1);
+    assert.strictEqual(timers[0].milliseconds, 10000);
+    // An unref'd timer never fires in a resource's own event loop.
+    assert.strictEqual(timers[0].unrefed, false);
+    timers[0].callback();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.strictEqual(flow.status().pending, 0);
+    assert.ok(clientEvents.some((event) => event.name === "hmp-spawn:failed" && event.payload.status === 6));
+    assert.ok(emitted.some((event) => event.name === "hmp:spawn:failed" && (event.payload as { status: number }).status === 6));
+    assert.strictEqual(clientEvents.at(-1)?.name, "hmp-spawn:open");
 });
 
 test("uses streamed teleport completion before releasing the player", async () => {

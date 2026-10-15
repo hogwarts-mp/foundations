@@ -116,12 +116,15 @@ function createSpawnFlow(options: SpawnFlowOptions) {
         catch (_) { return null; }
     }
 
-    function matchesContext(player: Player, location: NormalizedLocation): boolean {
-        if (!location.areaId && !location.regionId) return true;
+    // areaId is the coordinate space; regionId is a sub-area that changes as the player walks. A saved
+    // position is valid anywhere in its area, so only configured destinations that name a region match it.
+    function matchesContext(player: Player, location: NormalizedLocation, matchRegion = true): boolean {
+        const regionId = matchRegion ? location.regionId : undefined;
+        if (!location.areaId && !regionId) return true;
         const current = playerLocation(player);
         if (!current) return false;
         if (location.areaId && location.areaId.toLowerCase() !== current.areaId.toLowerCase()) return false;
-        return !location.regionId || location.regionId.toLowerCase() === current.regionId.toLowerCase();
+        return !regionId || regionId.toLowerCase() === current.regionId.toLowerCase();
     }
 
     async function emit(name: string, payload: unknown): Promise<void> {
@@ -184,7 +187,7 @@ function createSpawnFlow(options: SpawnFlowOptions) {
         const { character } = sessionAndCharacter(player);
         const result: HmpSpawnLocationInfo[] = [];
         const last = await lastLocation(character.id);
-        if (last && matchesContext(player, last)) result.push(publicLocation({ ...last, key: "last" }, "last"));
+        if (last && matchesContext(player, last, false)) result.push(publicLocation({ ...last, key: "last" }, "last"));
         for (const location of locations.values()) if (matchesContext(player, location)) result.push(publicLocation(location));
         return result;
     }
@@ -200,7 +203,7 @@ function createSpawnFlow(options: SpawnFlowOptions) {
         const key = String(destination || "").trim().toLowerCase();
         if (key === "last") {
             const saved = await lastLocation(character.id);
-            if (saved && matchesContext(player, saved)) return { ...saved, key: "last", label: "Last Location" };
+            if (saved && matchesContext(player, saved, false)) return { ...saved, key: "last", label: "Last Location" };
             throw spawnError("HMP_SPAWN_LOCATION_MISSING", "No saved location is available for this character");
         }
         const configured = locations.get(key);
@@ -307,7 +310,7 @@ function createSpawnFlow(options: SpawnFlowOptions) {
                 if (logger && typeof logger.error === "function") logger.error(`Spawn timeout recovery failed: ${error instanceof Error ? error.message : String(error)}`);
             });
         }, Number(config.teleportTimeoutMs || 120000));
-        if (context.timer && typeof context.timer.unref === "function") context.timer.unref();
+        // Not unref'd: each resource runs its own event loop, and libuv skips the timers of a loop with nothing referenced.
         pendingByRequest.set(requestId, context);
         pendingByPlayer.set(playerId, context);
         await emit("hmp:spawn:started", { session, character, location: publicLocation(location), requestId });
@@ -361,6 +364,24 @@ function createSpawnFlow(options: SpawnFlowOptions) {
         return spawn(player, String(key || ""));
     }
 
+    // Without a selector nothing else can land the character: the saved location when it fits the live area,
+    // else the default, else the selector, which waits for location context and refreshes as it arrives.
+    async function autoSpawn(player: Player, characterId: number): Promise<boolean | number> {
+        const last = await lastLocation(characterId);
+        const fallback = locations.get(String(config.defaultLocation || "").toLowerCase());
+        const key = last && matchesContext(player, last, false) ? "last"
+            : fallback && matchesContext(player, fallback) ? fallback.key
+                : null;
+        if (key) {
+            try { return await spawn(player, key); }
+            catch (error) {
+                if (logger && typeof logger.warn === "function") logger.warn(`Automatic spawn at '${key}' failed, opening selection: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
+        await open(player);
+        return true;
+    }
+
     async function onCharacterSelected(payload: CharacterSelectionPayload): Promise<boolean | number> {
         const player = payload?.session?.player;
         if (!player) return false;
@@ -371,10 +392,7 @@ function createSpawnFlow(options: SpawnFlowOptions) {
             queuedSelection.set(id, payload);
             return false;
         }
-        if (config.showSelector === false) {
-            const last = await lastLocation(payload.character.id);
-            return spawn(player, last ? "last" : config.defaultLocation);
-        }
+        if (config.showSelector === false) return autoSpawn(player, payload.character.id);
         await open(player);
         return true;
     }

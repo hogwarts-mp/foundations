@@ -33,9 +33,18 @@ global.Events = {
     emit: async () => {},
 };
 global.PlayerManager = { getAll: () => [] };
+const intervals = [];
+global.setInterval = (handler, milliseconds) => {
+    const timer = { handler, milliseconds, unrefed: false, unref() { timer.unrefed = true; return timer; } };
+    intervals.push(timer);
+    return timer;
+};
+global.clearInterval = () => {};
 
 require(path.resolve(__dirname, "..", "dist", "server.js"));
 assert.deepStrictEqual([...exportsSeen.keys()], ["locations", "ui", "spawn", "status"]);
+// An unref'd autosave would never fire in the resource's own event loop.
+assert.deepStrictEqual(intervals.map((timer) => [timer.milliseconds, timer.unrefed]), [[60000, false]]);
 assert.ok(serverHandlers.has("hmp:character:selected"));
 assert.ok(serverHandlers.has("playerTeleportComplete"));
 assert.ok(serverHandlers.has("loadingFinished"));

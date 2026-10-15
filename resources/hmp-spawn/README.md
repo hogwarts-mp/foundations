@@ -54,13 +54,16 @@ Optional `data/hmp-spawn.json`:
 Environment overrides: `HMP_SPAWN_CONFIG`, `HMP_SPAWN_SELECTOR`,
 `HMP_SPAWN_LAST_LOCATION`, `HMP_SPAWN_SAVE_LOCATION`, and `HMP_SPAWN_DEFAULT`.
 
-If `showSelector` is false, the character spawns at their last location when available and otherwise
-at `defaultLocation`.
+If `showSelector` is false, the character spawns at their last location when it is in the player's
+current area, and otherwise at `defaultLocation`. When neither fits, for example before the client
+has reported its area, the selector opens instead and fills in once the area is known.
 
-Set `areaId` (and optionally `regionId`) on configured destinations. Scoped destinations are shown
-only while the player is in that game-authored coordinate space. Saved locations retain this context
-and are not offered as same-area teleports from a different map. During world travel,
-`playerLocationChanged` supplies the last valid snapshot before location becomes unavailable.
+Set `areaId` on configured destinations; a scoped destination is shown only while the player is in
+that game-authored coordinate space. `regionId` is a sub-area within it that changes as a player
+walks, such as `HOG_EntranceHall` inside `Overland`; set it only to offer a destination from that
+region alone. Saved locations record both, but match on `areaId` only, so a character saved in the
+Entrance Hall is offered Last Location anywhere in `Overland` and never from a different map. During
+world travel, `playerLocationChanged` supplies the last valid snapshot before location becomes unavailable.
 
 `areaId` is the game's world/map name: the castle grounds use `Overland`, not `Hogwarts`.
 The selector refreshes when location context arrives or changes. While context is unavailable it

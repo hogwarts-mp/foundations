@@ -13,6 +13,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   saves the authoritative rows too. The autosave timer is no longer unreferenced, which had kept it
   from ever firing. A character whose saved inventory failed to load is never saved over with the rows
   still live.
+- `hmp-spawn` matches a saved last location on `areaId` alone. Its saved `regionId`, a sub-area that
+  changes as a character walks, no longer hides it: a character saved in the Entrance Hall rejoining
+  in the castle grounds is offered Last Location again, and with `showSelector: false` it spawns there
+  instead of failing with `HMP_SPAWN_LOCATION_MISSING` and never spawning. Configured destinations
+  that set a `regionId` still match it. Without a selector, a saved location from another area now
+  falls back to `defaultLocation`, and when neither fits, or the automatic spawn fails, the selector
+  opens. The autosave and teleport timeout timers are no longer unreferenced, which had kept them
+  from ever firing.
 
 ## [0.9.0] - 2026-10-14
 
