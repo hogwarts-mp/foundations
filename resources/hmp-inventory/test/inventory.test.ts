@@ -87,6 +87,7 @@ function setup() {
         async attach() { return true; },
         async save() { return true; },
         async onUpdated() { return true; },
+        async onChanged() { return true; },
         detach() { return true; },
         async flush() {},
         status: () => ({ active: 0, pendingWrites: 0 }),
@@ -359,6 +360,102 @@ test("a worn item's appearance override survives a save and restore, and a non-G
     await bridge.onUpdated(player, inventory.rows);
     await bridge.flush();
     assert.deepStrictEqual(saved.at(-1), [{ ...cloak, appearanceOverride: "Back_010_Rare" }, robe]);
+});
+
+function changedReportHarness(options: { saveNative?: (characterId: number, rows: HmpNativeInventoryRow[]) => Promise<HmpNativeInventoryRow[]> } = {}) {
+    const saved: Array<{ characterId: number; rows: HmpNativeInventoryRow[] }> = [];
+    let release: (rows: HmpNativeInventoryRow[]) => void = () => {};
+    const loaded = new Promise<HmpNativeInventoryRow[]>((resolve) => { release = resolve; });
+    let revision = 0;
+    const inventory = {
+        rows: [] as HmpNativeInventoryRow[],
+        get revision() { return revision; },
+        replace(rows: HmpNativeInventoryRow[], callback?: (error: null, result: { revision: number; rows: number }) => void) {
+            inventory.rows = clone(rows);
+            revision++;
+            callback?.(null, { revision, rows: rows.length });
+        },
+        list: () => clone(inventory.rows),
+        waitForRevision: async (applied: number) => ({ items: clone(inventory.rows), sequence: 1, appliedRevision: applied, applyErrors: [] }),
+    };
+    const player = { id: 6, nickname: "Natsai", position: { x: 0, y: 0, z: 0 }, emit() {}, teleport: () => 0, inventory } as unknown as Player;
+    const repository = {
+        loadNative: () => loaded,
+        saveNative: options.saveNative ?? (async (characterId: number, rows: HmpNativeInventoryRow[]) => { saved.push({ characterId, rows: clone(rows) }); return rows; }),
+    } as unknown as Repository;
+    let character: { id: number } | null = null;
+    const core = { characters: { active: () => character } } as unknown as Core;
+    const bridge = createNativeBridge({ repository, core, logger: { info: () => true, warn: () => true, error: () => true } });
+    return { bridge, inventory, player, saved, release, setRevision: (value: number) => { revision = value; }, setCharacter: (value: { id: number } | null) => { character = value; } };
+}
+
+test("gear changed in game menus is saved from the authoritative rows when the client reports it", async () => {
+    const { bridge, inventory, player, saved, release, setRevision, setCharacter } = changedReportHarness();
+    const cloak = { itemId: "Back_002_Rare", holder: "ActorBackpack", count: 1, variation: "v1", kind: "gear" as const, identified: true, equipped: true, appearanceOverride: "Back_112_Legendary" };
+
+    assert.strictEqual(await bridge.onChanged(player), false, "nothing is saved before a character is attached");
+    const attaching = bridge.attach(player, { id: 9 });
+    assert.strictEqual(await bridge.onChanged(player), false, "nothing is saved while the attach is in flight");
+    release([cloak]);
+    assert.strictEqual(await attaching, true);
+    assert.deepStrictEqual(saved, []);
+
+    // What Observe adopts with no Commit: the look picked in the Equipment menu, then the cloak taken off.
+    inventory.rows = [{ ...cloak, appearanceOverride: "Back_010_Rare" }];
+    assert.strictEqual(await bridge.onChanged(player), true);
+    const { equipped: _worn, ...unworn } = cloak;
+    inventory.rows = [{ ...unworn, appearanceOverride: "Back_010_Rare", equipped: false }];
+    assert.strictEqual(await bridge.onChanged(player), true);
+    assert.deepStrictEqual(saved, [
+        { characterId: 9, rows: [{ ...cloak, appearanceOverride: "Back_010_Rare" }] },
+        { characterId: 9, rows: [{ ...unworn, appearanceOverride: "Back_010_Rare" }] },
+    ]);
+
+    // The host clears a leaving player's inventory before anything else hears about it.
+    setRevision(0);
+    inventory.rows = [];
+    assert.strictEqual(await bridge.onChanged(player), false);
+    assert.strictEqual(saved.length, 2);
+
+    bridge.detach(player);
+    setRevision(4);
+    assert.strictEqual(await bridge.onChanged(player), false, "a detached player with no active character is not saved");
+    setCharacter({ id: 11 });
+    inventory.rows = [cloak];
+    assert.strictEqual(await bridge.onChanged(player), true, "an active character is saved even if this resource restarted after it loaded");
+    assert.deepStrictEqual(saved.at(-1), { characterId: 11, rows: [cloak] });
+});
+
+test("a burst of native reports writes the newest rows once behind the write in flight", async () => {
+    const writes: HmpNativeInventoryRow[][] = [];
+    const gates: Array<() => void> = [];
+    const { bridge, inventory, player, release } = changedReportHarness({
+        saveNative: (_characterId, rows) => new Promise((resolve) => {
+            writes.push(clone(rows));
+            gates.push(() => resolve(rows));
+        }),
+    });
+    const potion = (count: number) => ({ itemId: "WoundCleaning", holder: "HealthPotionStorage", count, kind: "item" as const });
+    release([potion(5)]);
+    await bridge.attach(player, { id: 9 });
+
+    const first = bridge.onUpdated(player, [potion(4)]);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepStrictEqual(writes, [[potion(4)]]);
+    inventory.rows = [potion(3)];
+    const second = bridge.onChanged(player);
+    const third = bridge.onUpdated(player, [potion(2)]);
+    inventory.rows = [potion(1)];
+    const fourth = bridge.onChanged(player);
+    assert.deepStrictEqual(bridge.status().pendingWrites, 1);
+
+    gates.shift()!();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepStrictEqual(writes, [[potion(4)], [potion(1)]]);
+    gates.shift()!();
+    assert.deepStrictEqual(await Promise.all([first, second, third, fourth]), [true, true, true, true]);
+    await bridge.flush();
+    assert.strictEqual(writes.length, 2);
 });
 
 test("inventory UI opens through the public service without relying on flattened methods", async () => {

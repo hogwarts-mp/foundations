@@ -112,6 +112,7 @@ export interface NativeBridge {
     attach(player: Player, character: Character): Promise<boolean>;
     save(player: Player, character?: Character | null): Promise<boolean>;
     onUpdated(player: Player, rows: unknown): Promise<boolean>;
+    onChanged(player: Player): Promise<boolean>;
     detach(player?: Player | null): boolean;
     give(player: Player, definition: HmpItemDefinition<Player> | null, amount: number, options?: HmpInventoryItemOptions): Promise<number>;
     remove(player: Player, definition: HmpItemDefinition<Player> | null, amount: number, options?: HmpInventoryItemOptions): Promise<number>;

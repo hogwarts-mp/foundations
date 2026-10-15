@@ -5,6 +5,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+### Fixed
+
+- `hmp-inventory` keeps gear changed in the game's own menus across a reconnect. HogwartsMP 1.9
+  adopts what a player wears, the look picked in the Equipment menu, the hood and a per-item identify
+  without raising `playerInventoryUpdated`, so none of it was saved. Each changed native report now
+  saves the authoritative rows too. The autosave timer is no longer unreferenced, which had kept it
+  from ever firing.
+
 ## [0.9.0] - 2026-10-14
 
 ### Added

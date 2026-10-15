@@ -53,10 +53,23 @@ global.InventoryCatalog = {
     holderPair: () => null,
 };
 
+const intervals = [];
+const realSetInterval = global.setInterval;
+global.setInterval = (...args) => {
+    const timer = realSetInterval(...args);
+    intervals.push(timer);
+    return timer;
+};
 require(path.resolve(__dirname, "..", "dist", "server.js"));
+global.setInterval = realSetInterval;
 assert.deepStrictEqual([...exportsSeen.keys()], ["items", "inventory", "containers", "transfers", "native", "ui", "status"]);
 assert.ok(serverHandlers.has("hmp:character:loading"));
 assert.ok(serverHandlers.has("playerInventoryUpdated"));
+assert.ok(serverHandlers.has("playerInventoryChanged"));
+// A resource's own loop never runs an unref'd timer, so the autosave has to stay referenced.
+assert.strictEqual(intervals.length, 1);
+assert.strictEqual(intervals[0].hasRef(), true);
+serverHandlers.get("resourceStop")("hmp-inventory");
 assert.ok(serverHandlers.has("client:hmp-inventory:use"));
 assert.strictEqual(exportsSeen.get("items").get("native:galleons").nativeId, "Knuts");
 assert.strictEqual(exportsSeen.get("items").get("native:knuts").name, "native:galleons");

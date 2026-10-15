@@ -164,6 +164,7 @@ function createInventoryResource(options: InventoryResourceOptions) {
         onCharacterLoading,
         onCharacterUnloading,
         onNativeUpdated: native.onUpdated,
+        onNativeChanged: native.onChanged,
         disconnect,
         removeForResource: (resource: string) => registry.removeForResource(resource),
         saveAll,

@@ -76,6 +76,8 @@ function createNativeBridge(options: { repository: Repository; core: Core; logge
     const active = new Map<number, number>();
     const loading = new Set<number>();
     const writes = new Map<number, Promise<HmpNativeInventoryRow[]>>();
+    // A save still waiting its turn is the last in its chain, so it takes newer rows instead of queueing another.
+    const waiting = new Map<number, { rows: NativeRowInternal[] }>();
 
     function list(player: Player): HmpNativeInventoryRow[] {
         try { return sanitizeRows(player?.inventory?.list?.() || []); }
@@ -83,8 +85,18 @@ function createNativeBridge(options: { repository: Repository; core: Core; logge
     }
 
     function queueSave(characterId: number, rows: unknown): Promise<HmpNativeInventoryRow[]> {
-        const previous = writes.get(characterId) || Promise.resolve();
-        const next = previous.catch(() => {}).then(() => repository.saveNative(characterId, sanitizeRows(rows)));
+        const queued = waiting.get(characterId);
+        const tail = writes.get(characterId);
+        if (queued && tail) {
+            queued.rows = sanitizeRows(rows);
+            return tail;
+        }
+        const pending = { rows: sanitizeRows(rows) };
+        const next: Promise<HmpNativeInventoryRow[]> = (tail || Promise.resolve()).catch(() => {}).then(() => {
+            waiting.delete(characterId);
+            return repository.saveNative(characterId, pending.rows);
+        });
+        waiting.set(characterId, pending);
         writes.set(characterId, next);
         next.then(
             () => { if (writes.get(characterId) === next) writes.delete(characterId); },
@@ -119,6 +131,15 @@ function createNativeBridge(options: { repository: Repository; core: Core; logge
         if (!characterId) return false;
         await queueSave(Number(characterId), rows);
         return true;
+    }
+
+    // The host adopts what the player changed in game menus (worn gear, its look, hood, identify) without
+    // raising playerInventoryUpdated. The report itself is the client's, so save the authoritative rows.
+    async function onChanged(player: Player): Promise<boolean> {
+        if (!player || loading.has(player.id)) return false;
+        const characterId = active.get(player.id) ?? core.characters.active(player)?.id;
+        if (!characterId) return false;
+        return save(player, { id: Number(characterId) });
     }
 
     function detach(player?: Player | null): boolean {
@@ -160,7 +181,7 @@ function createNativeBridge(options: { repository: Repository; core: Core; logge
         await Promise.allSettled([...writes.values()]);
     }
 
-    return Object.freeze({ list, attach, save, onUpdated, detach, give, remove, use, flush, sanitizeRows, status: () => ({ active: active.size, pendingWrites: writes.size }) });
+    return Object.freeze({ list, attach, save, onUpdated, onChanged, detach, give, remove, use, flush, sanitizeRows, status: () => ({ active: active.size, pendingWrites: writes.size }) });
 }
 
 export = { createNativeBridge, sanitizeRows };

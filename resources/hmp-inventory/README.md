@@ -190,8 +190,11 @@ The Framework inventory belongs to the live connection and starts empty on every
 calls `player.inventory.replace()`. Character loading does not continue until the Framework confirms
 that exact inventory revision reached a terminal native state. Grants and removals use the same
 revision acknowledgement, while native use retains its exact one-item decrement proof. Every
-authoritative native update—including accepted potion consumption—is queued back to MySQL. Custom
-rows are already character-scoped.
+authoritative native update—including accepted potion consumption—is queued back to MySQL. So is
+each changed client report, because the host adopts gear changed in the game's own menus (what is
+worn, the Equipment menu look, the hood, a per-item identify) without an update event. Saves for a
+character run in order, and a burst collapses to its newest rows. `autoSaveMs` also saves every
+active character on a timer. Custom rows are already character-scoped.
 
 This gives each HMP character an independent inventory today. When MafiaHub supplies server-validatable identities later, the account linkage in `hmp-core` can become verified without changing inventory ownership.
 

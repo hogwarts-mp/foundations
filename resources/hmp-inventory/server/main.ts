@@ -57,6 +57,7 @@ Events.on("hmp:character:loaded", (payload: unknown) => {
 Events.on("hmp:character:deleted", (payload: unknown) => startingItems.deleted(payload as CharacterPayload));
 Events.on("hmp:session:ended", (session: unknown) => resource.disconnect((session as HmpCoreSession<Player>).player));
 Events.on("playerInventoryUpdated", (player: unknown, rows: unknown) => resource.onNativeUpdated(player as Player, rows).catch((error: unknown) => logger.warn(`Could not persist native inventory: ${messageOf(error)}`)));
+Events.on("playerInventoryChanged", (player: unknown) => resource.onNativeChanged(player as Player).catch((error: unknown) => logger.warn(`Could not persist native inventory: ${messageOf(error)}`)));
 Events.on("hmp:inventory:changed", (payload: unknown) => {
     const player = payload && typeof payload === "object" && "player" in payload ? payload.player as Player : null;
     if (player && resource.ui.isOpen(player)) resource.ui.refresh(player).catch((error: unknown) => logger.warn(`Could not refresh inventory: ${messageOf(error)}`));
@@ -90,8 +91,8 @@ if (config.allowInventoryCommand) Events.on("chatCommand", (player: unknown, _me
     });
 });
 
+// Not unref'd: each resource runs its own event loop, and libuv skips the timers of a loop with nothing referenced.
 let autoSaveTimer = config.autoSaveMs > 0 ? setInterval(() => resource.saveAll().catch((error: unknown) => logger.warn(`Inventory autosave failed: ${messageOf(error)}`)), config.autoSaveMs) : null;
-if (autoSaveTimer && typeof autoSaveTimer.unref === "function") autoSaveTimer.unref();
 
 Events.on("resourceStop", (name: unknown) => {
     if (name && name !== "hmp-inventory") { resource.removeForResource(name as string); return; }
