@@ -106,7 +106,14 @@ function setup() {
             location() { return { areaId: "Hogwarts", regionId: "LibraryAnnex", destinationId: null, x: this.position.x, y: this.position.y, z: this.position.z, yaw: 0, revision: 1 }; },
             kick(reason = "") { kicked.set(id, reason); },
             teleport() { return nextTeleport++; },
-            hold(input) { if (!holds.has(id)) holds.set(id, new Set()); holds.get(id)!.add(input.owner); return true; },
+            hold(input) {
+                // Mirrors the host binding, which throws rather than returning false.
+                const extra = input as { rigid?: boolean; anchorId?: number };
+                if (extra.rigid && !extra.anchorId) throw new TypeError("hold(options).rigid needs an anchorId — there is nothing to attach to");
+                if (!holds.has(id)) holds.set(id, new Set());
+                holds.get(id)!.add(input.owner);
+                return true;
+            },
             release(owner) { return holds.get(id)?.delete(owner) || false; },
             holds() { return [...holds.get(id) || []].map((owner) => ({ owner })); },
             setVisible(visible: boolean) { visibility.set(id, visible); },
@@ -350,12 +357,28 @@ test("inspects, freezes, warns, kicks, and audits player actions", async () => {
     assert.strictEqual(await state.service.actions.freeze(state.verifiedAdmin, state.verifiedTarget, "investigation"), true);
     assert.strictEqual((await state.service.players.get(state.verifiedAdmin, state.verifiedTarget)).frozen, true);
     assert.strictEqual(await state.service.actions.release(state.verifiedAdmin, state.verifiedTarget, "clear"), true);
+    assert.strictEqual((await state.service.players.get(state.verifiedAdmin, state.verifiedTarget)).frozen, false);
+    assert.deepStrictEqual(state.emitted.get(state.verifiedTarget.id)?.filter((entry) => entry.event === "hmp-admin:freeze").map((entry) => JSON.parse(String(entry.payload)).frozen), [true, false]);
     await state.service.moderation.warn(state.verifiedAdmin, state.verifiedTarget, "Please stop");
     await state.service.actions.kick(state.verifiedAdmin, state.verifiedTarget, "Testing kick");
     assert.strictEqual(state.warnings.length, 1);
     assert.strictEqual(state.kicked.get(state.verifiedTarget.id), "Testing kick");
     assert.ok(state.audit.every((entry) => entry.status === "completed"));
     assert.deepStrictEqual(state.audit.map((entry) => entry.action), ["player.freeze", "player.release", "moderation.warn", "player.kick"]);
+});
+
+test("restores a frozen player's input when the host ends the hold and releases holds on stop", async () => {
+    const state = setup();
+    const freezeCommands = () => state.emitted.get(state.verifiedTarget.id)?.filter((entry) => entry.event === "hmp-admin:freeze").map((entry) => JSON.parse(String(entry.payload)).frozen);
+    await state.service.actions.freeze(state.verifiedAdmin, state.verifiedTarget, "investigation");
+    assert.strictEqual(state.service.onHoldEnded(state.verifiedTarget, "rp-custody", "expired"), false);
+    assert.strictEqual(state.service.onHoldEnded(state.verifiedTarget, "hmp-admin", "expired"), true);
+    assert.deepStrictEqual(freezeCommands(), [true, false]);
+    state.service.onHoldEnded(state.verifiedTarget, "hmp-admin", "disconnect");
+    assert.deepStrictEqual(freezeCommands(), [true, false], "a disconnected client has nothing to restore");
+    await state.service.actions.freeze(state.verifiedAdmin, state.verifiedTarget, "investigation");
+    await state.service.stop();
+    assert.strictEqual(state.holds.get(state.verifiedTarget.id)?.has("hmp-admin"), false);
 });
 
 test("waits for matching player-local streamed teleport completion", async () => {

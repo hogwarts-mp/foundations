@@ -32,7 +32,7 @@ export interface HmpAdminPlayer {
     emit(eventName: string, payload?: unknown): void;
     kick?(reason?: string): void;
     teleport(x: number, y: number, z: number, options?: { yaw?: number; snapToGround?: boolean; groundSnapDistance?: number }): number;
-    hold?(options: { owner: string; x?: number; y?: number; z?: number; radius?: number; radiusZ?: number; mode?: "clamp" | "reject"; rigid?: boolean; ttlMs?: number }): boolean;
+    hold?(options: { owner: string; x?: number; y?: number; z?: number; radius?: number; radiusZ?: number; mode?: "clamp" | "reject"; ttlMs?: number }): boolean;
     release?(owner: string): boolean;
     holds?(): Array<{ owner: string }>;
     location?(): HogwartsMpPlayerLocation | null;

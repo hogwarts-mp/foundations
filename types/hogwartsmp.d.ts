@@ -255,7 +255,7 @@ declare global {
         sendChat?(message: string): void;
         kick?(reason?: string): void;
         getIP?(): string;
-        hold?(options: { owner: string; x?: number; y?: number; z?: number; radius?: number; radiusZ?: number; mode?: "clamp" | "reject"; rigid?: boolean; ttlMs?: number }): boolean;
+        hold?(options: { owner: string; x?: number; y?: number; z?: number; radius?: number; radiusZ?: number; mode?: "clamp" | "reject"; ttlMs?: number }): boolean;
         release?(owner: string): boolean;
         holds?(): Array<{ owner: string }>;
         location?(): HogwartsMpPlayerLocation | null;
@@ -300,6 +300,7 @@ declare global {
         on(eventName: "playerGearChanged", listener: (player: HogwartsMpPlayer) => unknown): void;
         on(eventName: "playerAppearanceChanged", listener: (player: HogwartsMpPlayer, look: HogwartsMpLook, revision: number) => unknown): void;
         on(eventName: "playerTeleportComplete", listener: (player: HogwartsMpPlayer, requestId: number, status: number, completion: HogwartsMpTeleportCompletion) => unknown): void;
+        on(eventName: "playerHoldEnded", listener: (player: HogwartsMpPlayer, owner: string, reason: string) => unknown): void;
         on(eventName: "playerLocationChanged", listener: (player: HogwartsMpPlayer, current: HogwartsMpPlayerLocation | null, previous: HogwartsMpPlayerLocation | null) => unknown): void;
         on(eventName: "resourceStop", listener: (name?: string) => unknown): void;
         on(eventName: "pvpDefeat", listener: (victim: HogwartsMpPlayer, killer: HogwartsMpPlayer, kind: "death" | "kneel") => unknown): void;
@@ -511,6 +512,9 @@ declare global {
         /** Shows or hides the local body, wand and held prop on this screen only. Holds through respawns and travel. */
         setVisibility(visible: boolean): boolean;
         clearVelocity(): boolean;
+        /** Freezes movement and actions through the game's own suppressor; camera look stays. `null` without a pawn. */
+        stopPlayerInput(): boolean | null;
+        restorePlayerInput(): boolean | null;
         getRotation(): { pitch: number; yaw: number; roll: number } | null;
         getControlRotation(): { pitch: number; yaw: number; roll: number } | null;
         /** Equippable gear slots from the game's GearSlotTypes table; empty until the GearManager is up. */

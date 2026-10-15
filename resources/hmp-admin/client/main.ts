@@ -36,12 +36,22 @@ let lastTick = 0;
 let flightTimer: ReturnType<typeof setInterval> | null = null;
 let landingTimer: ReturnType<typeof setInterval> | null = null;
 
-function parse(raw: unknown): NoclipCommand {
+let inputFrozen = false;
+
+function parse<T extends object>(raw: unknown, fallback: T): T {
     if (typeof raw === "string") {
-        try { return JSON.parse(raw) as NoclipCommand; }
-        catch (_) { return { enabled: false }; }
+        try { return JSON.parse(raw) as T; }
+        catch (_) { return fallback; }
     }
-    return raw && typeof raw === "object" ? raw as NoclipCommand : { enabled: false };
+    return raw && typeof raw === "object" ? raw as T : fallback;
+}
+
+// The game keeps one flag, not a count: restore only what we stopped, or we'd undo an emote placement's.
+function setInputFrozen(frozen: boolean): void {
+    if (!frozen && !inputFrozen) return;
+    inputFrozen = frozen;
+    try { if (frozen) LocalPlayer.stopPlayerInput(); else LocalPlayer.restorePlayerInput(); }
+    catch (_) { /* no local pawn while loading; the server hold still pins them */ }
 }
 
 function keyDown(key: string): boolean {
@@ -169,12 +179,14 @@ function stop(): void {
     catch (_) { /* no local pawn while loading */ }
     setLocallyHidden(false);
     setProtected(false);
+    setInputFrozen(false);
 }
 
 Events.on("hmp-admin:noclip", (raw: unknown) => {
-    const command = parse(raw);
+    const command = parse<NoclipCommand>(raw, { enabled: false });
     if (command.enabled) enable(command); else disable();
 });
+Events.on("hmp-admin:freeze", (raw: unknown) => setInputFrozen(parse<{ frozen?: boolean }>(raw, {}).frozen === true));
 Events.on("resourceStop", (name?: string) => { if (!name || name === "hmp-admin") stop(); });
 
 console.info("[hmp-admin] no-clip client ready");

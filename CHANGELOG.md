@@ -31,6 +31,11 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   teleport that never arrived never timed out. `hmp-webhooks` delivered a destination's first message
   and then only queued the rest, because its cooldown (`minIntervalMs`) and retry backoff never ended.
   Stopping `hmp-webhooks` now also ends a pending cooldown or backoff.
+- `hmp-admin` Freeze player works. It asked the host for a `rigid` hold, which only attaches a player
+  to another entity and is refused without one, so every freeze failed. Freeze is now a plain fixed-point
+  hold, which pins the player for everyone else, and it also stops their own input so they cannot walk
+  off it on their screen. Release, a hold the host ends and stopping the resource restore that input.
+  Stopping `hmp-admin` also releases its holds.
 
 ## [0.9.0] - 2026-10-14
 

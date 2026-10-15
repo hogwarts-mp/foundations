@@ -23,6 +23,8 @@ interface TeleportWaiter {
     timer: ReturnType<typeof setTimeout>;
 }
 
+const ADMIN_HOLD = "hmp-admin";
+
 function adminError(code: string, message: string): Error & { code: string } {
     return Object.assign(new Error(message), { code });
 }
@@ -128,7 +130,7 @@ function createAdminService(options: {
             position,
             location: locationOf(target),
             virtualWorld: Number(target.virtualWorld) || 0,
-            frozen: Boolean(target.holds?.().some((hold) => hold.owner === "hmp-admin")),
+            frozen: Boolean(target.holds?.().some((hold) => hold.owner === ADMIN_HOLD)),
         };
     }
 
@@ -254,6 +256,18 @@ function createAdminService(options: {
         catch (error) { logger.warn(`Could not ${hidden ? "hide" : "reveal"} player #${player?.id}: ${error instanceof Error ? error.message : String(error)}`); }
     }
 
+    // The hold already pins them for everyone else; this only stops their own client walking off it.
+    function setInputFrozen(player: Player | null | undefined, frozen: boolean): void {
+        try { player?.emit("hmp-admin:freeze", JSON.stringify({ frozen })); }
+        catch (error) { logger.warn(`Could not ${frozen ? "freeze" : "restore"} input for player #${player?.id}: ${error instanceof Error ? error.message : String(error)}`); }
+    }
+
+    function onHoldEnded(player: Player, owner: string, reason: string): boolean {
+        if (owner !== ADMIN_HOLD) return false;
+        if (reason !== "disconnect") setInputFrozen(player, false);
+        return true;
+    }
+
     const noclip = Object.freeze({
         isActive(player: Player | number): boolean {
             const id = typeof player === "number" ? Math.trunc(player) : player?.id;
@@ -298,14 +312,18 @@ function createAdminService(options: {
             const player = targetPlayer(target);
             return audited(actor, "admin.freeze", "player.freeze", player, reason, {}, () => {
                 if (typeof player.hold !== "function") throw adminError("HMP_ADMIN_ACTION_UNAVAILABLE", "Server-authoritative player holds are unavailable.");
-                return player.hold({ owner: "hmp-admin", x: player.position.x, y: player.position.y, z: player.position.z, radius: 25, radiusZ: 100, mode: "clamp", rigid: true });
+                const held = player.hold({ owner: ADMIN_HOLD, x: player.position.x, y: player.position.y, z: player.position.z, radius: 25, radiusZ: 100, mode: "clamp" });
+                if (held) setInputFrozen(player, true);
+                return held;
             });
         },
         async release(actor: Player, target: Player | number, reason = "Release player") {
             const player = targetPlayer(target);
             return audited(actor, "admin.freeze", "player.release", player, reason, {}, () => {
                 if (typeof player.release !== "function") throw adminError("HMP_ADMIN_ACTION_UNAVAILABLE", "Server-authoritative player holds are unavailable.");
-                return player.release("hmp-admin");
+                const released = player.release(ADMIN_HOLD);
+                setInputFrozen(player, false);
+                return released;
             });
         },
         async inventory(actor: Player, target: Player | number, operation: "give" | "remove", item: string, amount: number, reason = "") {
@@ -495,6 +513,12 @@ function createAdminService(options: {
             catch (_) { /* client cleanup also restores collision during resource stop */ }
         }
         activeNoclip.clear();
+        // Clients restore their own input on resourceStop, so a hold left behind would pin them silently.
+        for (const player of listPlayers()) {
+            if (!player.holds?.().some((hold) => hold.owner === ADMIN_HOLD)) continue;
+            try { player.release?.(ADMIN_HOLD); }
+            catch (error) { logger.warn(`Could not release player #${player.id} on shutdown: ${error instanceof Error ? error.message : String(error)}`); }
+        }
         for (const [key, pending] of pendingTeleports) {
             clearTimeout(pending.timer);
             pendingTeleports.delete(key);
@@ -512,6 +536,7 @@ function createAdminService(options: {
         ready: () => startPromise,
         onSessionReady,
         onTeleportComplete,
+        onHoldEnded,
         revalidateNoclip,
         disconnect,
         stop,

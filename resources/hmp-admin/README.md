@@ -54,7 +54,8 @@ accepts `HMP_ADMIN_COMMAND`, `HMP_ADMIN_REQUIRE_VERIFIED`, and `HMP_ADMIN_CONFIG
 - Connected-player inspection: account, character, identity trust, groups, world, game area/region, ping, position,
   and administrative freeze state.
 - Moderation: durable warnings, kick, verified-identity timed or permanent bans, ban review/revoke.
-- Intervention: acknowledged streamed go-to/bring and Framework-authoritative freeze/release.
+- Intervention: acknowledged streamed go-to/bring and Framework-authoritative freeze/release. A frozen
+  player's own input is stopped too, so they stay put on their screen; camera look still works.
 - Staff movement: audited, server-authorized no-clip from the main menu, with camera-relative WASD,
   Space/Ctrl vertical movement, Shift boost, Alt slow movement for precise positioning, collision
   bypass, and protected landing. While flying the admin is hidden from every other player (body,

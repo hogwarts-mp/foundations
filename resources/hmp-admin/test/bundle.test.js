@@ -60,6 +60,7 @@ assert.ok(handlers.has("hmp:session:ended"));
 assert.ok(handlers.has("hmp:groups:changed"));
 assert.ok(handlers.has("playerDisconnect"));
 assert.ok(handlers.has("playerTeleportComplete"));
+assert.ok(handlers.has("playerHoldEnded"));
 assert.ok(handlers.has("chatCommand"));
 assert.ok(handlers.has("resourceStart"));
 assert.ok(handlers.has("resourceStop"));
@@ -68,6 +69,7 @@ const intervals = [];
 const keys = new Set();
 const positions = [];
 const visibility = [];
+const input = [];
 global.Events = { on: (name, handler) => clientHandlers.set(name, handler) };
 global.setInterval = (callback, ms) => { intervals.push({ callback, ms }); return intervals.length; };
 global.clearInterval = () => {};
@@ -81,11 +83,21 @@ global.LocalPlayer = {
     clearVelocity: () => true,
     getControlRotation: () => ({ pitch: 0, yaw: 0, roll: 0 }),
     setVisibility: (visible) => { visibility.push(visible); return true; },
+    stopPlayerInput: () => { input.push("stop"); return true; },
+    restorePlayerInput: () => { input.push("restore"); return true; },
     stateInfo: { setInvulnerableToDamage: () => true },
 };
 require(path.resolve(__dirname, "..", "dist", "client.js"));
 assert.ok(clientHandlers.has("hmp-admin:noclip"));
+assert.ok(clientHandlers.has("hmp-admin:freeze"));
 assert.ok(clientHandlers.has("resourceStop"));
+clientHandlers.get("hmp-admin:freeze")(JSON.stringify({ frozen: false }));
+assert.deepStrictEqual(input, [], "an unfrozen client leaves another resource's input stop alone");
+clientHandlers.get("hmp-admin:freeze")(JSON.stringify({ frozen: true }));
+clientHandlers.get("hmp-admin:freeze")(JSON.stringify({ frozen: false }));
+clientHandlers.get("hmp-admin:freeze")(JSON.stringify({ frozen: false }));
+assert.deepStrictEqual(input, ["stop", "restore"]);
+clientHandlers.get("hmp-admin:freeze")(JSON.stringify({ frozen: true }));
 const movement = { forward: "w", back: "s", left: "a", right: "d", up: "space", down: "ctrl", boost: "shift", slow: "alt" };
 function flyOneTick(held, options = {}) {
     clientHandlers.get("hmp-admin:noclip")(JSON.stringify({ enabled: true, speed: 1000, boost: 3, slow: 0.25, tickMs: 10, movement, ...options }));
@@ -107,6 +119,7 @@ assert.deepStrictEqual(visibility, [false, true]);
 flyOneTick([], { hideLocal: true });
 clientHandlers.get("resourceStop")("hmp-admin");
 assert.deepStrictEqual(visibility, [false, true, false, true]);
+assert.deepStrictEqual(input, ["stop", "restore", "stop", "restore"], "stopping the resource restores a frozen client's input");
 
 void (async () => {
     await handlers.get("resourceStart")("hmp-admin");
