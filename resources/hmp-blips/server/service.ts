@@ -243,10 +243,7 @@ function createBlipsService<P extends HmpBlipPlayer>(dependencies: ServiceDepend
             publishToken: existing?.publishToken || 0,
         };
         markers.set(definition.key, record);
-        if (definition.ttl > 0) {
-            record.timer = setTimer(() => removeMarker(definition.id, definition.resource), Math.ceil(definition.ttl * 1000));
-            record.timer.unref?.();
-        }
+        if (definition.ttl > 0) record.timer = setTimer(() => removeMarker(definition.id, definition.resource), Math.ceil(definition.ttl * 1000));
         await publishMarker(record);
         return markerInfo(record);
     }

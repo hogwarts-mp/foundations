@@ -130,7 +130,6 @@ function createUiService<P extends HmpUiPlayer>(options: { logger: Logger; now?:
                 record.onChange = onChange;
                 record.changedAt = new Map();
             }
-            record.timer.unref?.();
             track(record);
             try { player.emit("hmp-ui:request", envelope); }
             catch (error) { forget(record); reject(error); }

@@ -155,10 +155,8 @@ function createJobsService(dependencies: JobsDependencies): JobsService {
                 await repository.migrate(migrations);
                 state = "ready";
                 lastError = "";
-                if (!payrollTimer) {
-                    payrollTimer = makeInterval(() => { runPayroll().catch((error) => logger.error(`[hmp-jobs] payroll cycle failed: ${messageOf(error)}`)); }, 60_000);
-                    payrollTimer.unref?.();
-                }
+                // Not unref'd: each resource runs its own event loop, and libuv skips the timers of a loop with nothing referenced.
+                if (!payrollTimer) payrollTimer = makeInterval(() => { runPayroll().catch((error) => logger.error(`[hmp-jobs] payroll cycle failed: ${messageOf(error)}`)); }, 60_000);
             } catch (error) {
                 state = "degraded";
                 lastError = messageOf(error);

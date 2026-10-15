@@ -118,6 +118,25 @@ function visit(name) {
 }
 for (const name of manifests.keys()) visit(name);
 
+// Each server resource runs in its own Node runtime, whose loop the Framework ticks with UV_RUN_NOWAIT. libuv runs
+// no timers while nothing referenced is pending, so an unref'd timer there never fires.
+for (const entry of entries) {
+    const offenders = [];
+    for (const part of ["server", "shared"]) {
+        const base = path.join(root, entry.dir, entry.name, part);
+        const files = await readdir(base, { recursive: true }).catch((error) => {
+            if (error.code === "ENOENT") return [];
+            throw error;
+        });
+        for (const file of files.filter((name) => /\.(?:[cm]?js|ts)$/.test(name))) {
+            if (/\.unref\s*(?:\?\.)?\s*\(/.test(await readFile(path.join(base, file), "utf8"))) {
+                offenders.push(`${entry.dir}/${entry.name}/${part}/${file.replaceAll("\\", "/")}`);
+            }
+        }
+    }
+    if (offenders.length) throw new Error(`An unref'd timer never fires in a resource's own event loop; drop unref() in ${offenders.join(", ")}`);
+}
+
 const lock = await json("package-lock.json");
 for (const name of manifests.keys()) {
     const locked = lock.packages?.[`${locations.get(name).dir}/${name}`]?.version;

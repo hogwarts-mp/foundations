@@ -60,7 +60,7 @@ async function run(): Promise<void> {
         setTimer: (handler) => {
             const timer = { handler, cleared: false };
             timers.push(timer);
-            return Object.assign(timer, { unref() {} }) as unknown as ReturnType<typeof setTimeout>;
+            return timer as unknown as ReturnType<typeof setTimeout>;
         },
         clearTimer: (timer) => { (timer as unknown as { cleared: boolean }).cleared = true; },
     });

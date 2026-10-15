@@ -52,10 +52,10 @@ Events.on("playerDisconnect", (player: HmpActivityPlayer) => {
     activities.disconnect(player).catch((error) => logger.warn(`Disconnect cleanup failed for #${player.id}: ${error instanceof Error ? error.message : String(error)}`));
 });
 
+// Not unref'd: each resource runs its own event loop, and libuv skips the timers of a loop with nothing referenced.
 const sweeper = setInterval(() => {
     activities.sweep().catch((error) => logger.warn(`Expiry sweep failed: ${error instanceof Error ? error.message : String(error)}`));
 }, config.sweepIntervalSeconds * 1000);
-sweeper.unref?.();
 
 Events.on("resourceStop", (name?: string) => {
     if (!name || name === "hmp-activities") {

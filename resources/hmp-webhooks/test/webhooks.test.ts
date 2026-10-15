@@ -118,6 +118,21 @@ async function run(): Promise<void> {
     assert.strictEqual(bounded.status().destinations[0].accepted, 4);
     assert.strictEqual(bounded.status().destinations[0].dropped, 1);
 
+    // The built-in sleep: stop() must wake a pending backoff rather than leave its timer running.
+    let offlineAttempts = 0;
+    const offline = createWebhookService({
+        config: serviceConfig({ retryBaseMs: 60000 }), logger, providers: [provider],
+        fetch: (async () => { offlineAttempts++; throw new Error("offline"); }) as typeof fetch,
+    });
+    offline.send("discord", { content: "backs off for a minute" });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.strictEqual(offlineAttempts, 1);
+    const stoppedAt = Date.now();
+    offline.stop();
+    await offline.idle();
+    assert.ok(Date.now() - stoppedAt < 1000, "stop() left the backoff sleeping");
+    assert.strictEqual(offlineAttempts, 1);
+
     const handlers = new Map<string, (...args: unknown[]) => unknown>();
     const routed: Array<{ destination: string; message: HmpWebhookMessage }> = [];
     registerRoutes({

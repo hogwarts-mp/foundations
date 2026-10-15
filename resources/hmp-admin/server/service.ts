@@ -161,7 +161,6 @@ function createAdminService(options: {
                 pendingTeleports.delete(key);
                 reject(adminError("HMP_ADMIN_TELEPORT_TIMEOUT", "The administrative teleport timed out."));
             }, config.teleportTimeoutMs);
-            timer.unref?.();
             pendingTeleports.set(key, { playerId: player.id, resolve, reject, timer });
         });
     }

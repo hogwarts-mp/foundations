@@ -22,10 +22,6 @@ interface DestinationRuntime {
 }
 
 const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error);
-const defaultSleep = (milliseconds: number): Promise<void> => new Promise((resolve) => {
-    const timer = setTimeout(resolve, milliseconds);
-    timer.unref?.();
-});
 
 function normalizeField(value: unknown): HmpWebhookField | null {
     if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -57,7 +53,12 @@ function normalizeMessage(value: unknown): HmpWebhookMessage | null {
 function createWebhookService(options: ServiceOptions): WebhookService {
     const { config, logger } = options;
     const fetchRequest = options.fetch || fetch;
-    const sleep = options.sleep || defaultSleep;
+    // Backoff and cooldown waits; stop() wakes them so no timer outlives the resource.
+    const sleeping = new Map<ReturnType<typeof setTimeout>, () => void>();
+    const sleep = options.sleep || ((milliseconds: number): Promise<void> => new Promise((resolve) => {
+        const timer = setTimeout(() => { sleeping.delete(timer); resolve(); }, milliseconds);
+        sleeping.set(timer, resolve);
+    }));
     const now = options.now || Date.now;
     const startedAt = now();
     let state: "ready" | "stopped" = "ready";
@@ -94,7 +95,6 @@ function createWebhookService(options: ServiceOptions): WebhookService {
             const controller = new AbortController();
             runtime.controllers.add(controller);
             const timer = setTimeout(() => controller.abort(), destination.requestTimeoutMs);
-            timer.unref?.();
             try {
                 const outgoing = provider.request(destination, message);
                 const response = await fetchRequest(destination.url, {
@@ -228,6 +228,8 @@ function createWebhookService(options: ServiceOptions): WebhookService {
             runtime.queue.length = 0;
             for (const controller of runtime.controllers) controller.abort();
         }
+        for (const [timer, wake] of sleeping) { clearTimeout(timer); wake(); }
+        sleeping.clear();
         return discarded;
     }
 

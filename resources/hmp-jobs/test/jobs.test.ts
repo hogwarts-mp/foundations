@@ -152,7 +152,7 @@ function setup() {
         events: { emit(name, payload) { emitted.push({ name, payload }); } },
         logger: { info: () => true, warn: () => true, error: () => true },
         migrations: [], now: () => clock,
-        setInterval: (() => ({ unref() {} })) as never,
+        setInterval: (() => ({})) as never,
         clearInterval: (() => undefined) as never,
     });
 

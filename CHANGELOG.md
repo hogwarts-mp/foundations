@@ -22,6 +22,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   opens. A teleport the host rejects now clears the spawn fade, so that selector no longer opens
   over a dark screen, and a manual selection reports the rejection once instead of twice. The autosave
   and teleport timeout timers are no longer unreferenced, which had kept them from ever firing.
+- Server timers in `hmp-jobs`, `hmp-activities`, `hmp-ui`, `hmp-blips`, `hmp-webhooks` and `hmp-admin`
+  fire again. Each server resource runs its own event loop, where an unreferenced timer never fires, so
+  `hmp-jobs` payroll never paid anyone and the `hmp-activities` expiry sweep never expired invitations
+  or forming lobbies. `hmp-ui` dialogs, context menus and progress bars never timed out, staying pending
+  until the player answered or left. `hmp-blips` markers outlived their `ttl`, and an `hmp-admin`
+  teleport that never arrived never timed out. `hmp-webhooks` delivered a destination's first message
+  and then only queued the rest, because its cooldown (`minIntervalMs`) and retry backoff never ended.
+  Stopping `hmp-webhooks` now also ends a pending cooldown or backoff.
 
 ## [0.9.0] - 2026-10-14
 
