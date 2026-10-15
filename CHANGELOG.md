@@ -26,7 +26,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   fire again. Each server resource runs its own event loop, where an unreferenced timer never fires, so
   `hmp-jobs` payroll never paid anyone and the `hmp-activities` expiry sweep never expired invitations
   or forming lobbies. `hmp-ui` dialogs, context menus and progress bars never timed out, staying pending
-  until the player answered or left. `hmp-blips` markers outlived their `ttl`, and an `hmp-admin`
+  until the player answered or left. One that times out now also closes on the player's screen instead
+  of holding up the dialogs queued behind it. `hmp-blips` markers outlived their `ttl`, and an `hmp-admin`
   teleport that never arrived never timed out. `hmp-webhooks` delivered a destination's first message
   and then only queued the rest, because its cooldown (`minIntervalMs`) and retry backoff never ended.
   Stopping `hmp-webhooks` now also ends a pending cooldown or backoff.

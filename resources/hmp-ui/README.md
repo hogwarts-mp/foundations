@@ -132,7 +132,8 @@ Client resources receive the same export names and promise shapes through `Impor
 - One player can have multiple server requests pending, but the client presents them sequentially.
 - Every response carries an opaque request ID and is accepted only from its intended player.
 - Input values and context selections are validated again on the server, live edits included.
-- Timeouts and disconnects settle Promises rather than leaving gameplay coroutines hanging.
+- Timeouts and disconnects settle Promises rather than leaving gameplay coroutines hanging. A request that
+  times out also leaves the player's screen, so the requests queued behind it are shown.
 - A full `close(player)` settles and clears that player's outstanding requests.
 
 ## Exports

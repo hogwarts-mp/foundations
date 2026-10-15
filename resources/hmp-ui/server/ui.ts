@@ -123,6 +123,9 @@ function createUiService<P extends HmpUiPlayer>(options: { logger: Logger; now?:
                 reject,
                 timer: setTimeout(() => {
                     forget(record);
+                    // Take it off the player's screen too, or the dead dialog would hold up the client's queue.
+                    try { player.emit("hmp-ui:close", JSON.stringify({ id, reason: "timed out" })); }
+                    catch (_) { /* the player has left */ }
                     resolve((type === "progress" ? false : null) as T);
                 }, timeoutMs),
             };

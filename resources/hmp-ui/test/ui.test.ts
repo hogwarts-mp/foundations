@@ -134,6 +134,51 @@ test("server notifications are fire-and-forget and disconnect settles pending wo
     assert.strictEqual(await progress, false);
 });
 
+test("server closes a timed-out request on the client too", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const sent: Array<{ name: string; payload: unknown }> = [];
+    const player: HmpUiPlayer = { id: 3, emit: (name, payload) => sent.push({ name, payload }) };
+    const ui = createUiService<HmpUiPlayer>({ logger });
+    const answer = ui.alert(player, { title: "Still there?", timeoutMs: 5000 });
+    const id = parse(sent[0].payload).id;
+    t.mock.timers.tick(5000);
+    assert.strictEqual(await answer, null);
+    assert.strictEqual(sent.at(-1)?.name, "hmp-ui:close");
+    assert.deepStrictEqual(parse(sent.at(-1)?.payload), { id, reason: "timed out" });
+    assert.strictEqual(ui.status().pending, 0);
+});
+
+test("client drops a timed-out server request unanswered and shows the next", () => {
+    const handlers = new Map<string, (payload?: unknown) => unknown>();
+    const pageEvents: Array<{ name: string; payload: unknown }> = [];
+    const serverEvents: Array<{ name: string; payload: unknown }> = [];
+    const web = {
+        createView: () => 5,
+        destroyView: () => true,
+        showView: () => true,
+        hideView: () => true,
+        focusView: () => true,
+        emit: (_view: number, name: string, payload?: unknown) => { pageEvents.push({ name, payload }); return true; },
+        on: (_view: number, name: string, listener: (payload?: unknown) => unknown) => handlers.set(name, listener),
+    };
+    const ui = createUiClient({ web, events: { emitServer: (name, payload) => serverEvents.push({ name, payload }) }, transitionGraceMs: 0 });
+    ui.receiveRequest({ id: "remote:old", type: "alert", payload: { title: "Old" } });
+    ui.receiveRequest({ id: "remote:queued", type: "alert", payload: { title: "Queued" } });
+    ui.receiveRequest({ id: "remote:next", type: "alert", payload: { title: "Next" } });
+    handlers.get("ready")?.();
+
+    assert.strictEqual(ui.receiveClose(JSON.stringify({ id: "remote:queued", reason: "timed out" })), true);
+    assert.strictEqual(ui.status().queued, 1);
+    // The page shows one request at a time, so the expired one must be cleared before the next is sent.
+    assert.strictEqual(ui.receiveClose(JSON.stringify({ id: "remote:old", reason: "timed out" })), true);
+    assert.deepStrictEqual(pageEvents.slice(-2).map((event) => event.name), ["clear", "request"]);
+    assert.strictEqual((pageEvents.at(-1)?.payload as { id: string }).id, "remote:next");
+    assert.strictEqual(ui.status().queued, 0);
+    assert.strictEqual(ui.receiveClose(JSON.stringify({ id: "remote:gone", reason: "timed out" })), false);
+    assert.strictEqual(ui.status().active, "alert");
+    assert.strictEqual(serverEvents.length, 0);
+});
+
 test("client queues until the page is ready and balances focus on completion", async () => {
     const handlers = new Map<string, (payload?: unknown) => unknown>();
     const pageEvents: Array<{ name: string; payload: unknown }> = [];

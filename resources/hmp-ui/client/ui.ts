@@ -267,7 +267,23 @@ function createUiClient(options: UiClientOptions): HmpUiClient & {
         catch (_) { return false; }
     }
 
-    function receiveClose(_raw?: unknown): boolean {
+    // The server stopped waiting for this request (it timed out): drop it unanswered and keep the rest.
+    function expire(id: string): boolean {
+        if (active?.id === id) {
+            active = null;
+            endPresentation(id);
+            pump();
+            return true;
+        }
+        const index = queue.findIndex((record) => record.id === id);
+        if (index < 0) return false;
+        queue.splice(index, 1);
+        return true;
+    }
+
+    function receiveClose(raw?: unknown): boolean {
+        const id = String(parse(raw).id || "");
+        if (id) return expire(id);
         cancelTransition();
         if (active) {
             const current = active;
