@@ -16,6 +16,12 @@ function spawnError(code: string, message: string): Error & { code: string } {
     return Object.assign(error, { code });
 }
 
+// Failures spawn() has already sent to the client as hmp-spawn:failed, so callers do not send them twice.
+const notifiedFailures = new WeakSet<Error>();
+function clientNotified(error: unknown): boolean {
+    return error instanceof Error && notifiedFailures.has(error);
+}
+
 function normalizeLocation(value: unknown, options: { key?: string; resource?: string } = {}): NormalizedLocation {
     if (!value || typeof value !== "object") throw spawnError("HMP_SPAWN_INVALID_LOCATION", "Spawn location must be an object");
     const record = value as Record<string, unknown>;
@@ -298,12 +304,15 @@ function createSpawnFlow(options: SpawnFlowOptions) {
                 snapToGround: location.snapToGround,
                 groundSnapDistance: location.groundSnapDistance,
             }));
+            if (!Number.isSafeInteger(requestId) || requestId < 1) throw spawnError("HMP_SPAWN_TELEPORT_REJECTED", "The streamed teleport was not accepted");
         }
         catch (error) {
-            send(player, "hmp-spawn:failed", { status: -1, message: error instanceof Error ? error.message : String(error) });
-            throw error;
+            // The transition already faded the screen; release it before any caller reopens selection.
+            const failure = error instanceof Error ? error : new Error(String(error));
+            send(player, "hmp-spawn:failed", { status: -1, message: failure.message });
+            notifiedFailures.add(failure);
+            throw failure;
         }
-        if (!Number.isSafeInteger(requestId) || requestId < 1) throw spawnError("HMP_SPAWN_TELEPORT_REJECTED", "The streamed teleport was not accepted");
         const context: SpawnContext = { requestId, playerId, player, session, character, location, timer: null };
         context.timer = setTimer(() => {
             failContext(context, 6, "The destination took too long to load.").catch((error) => {
@@ -451,5 +460,5 @@ function createSpawnFlow(options: SpawnFlowOptions) {
     });
 }
 
-export = { createSpawnFlow, normalizeLocation, LAST_LOCATION_KEY };
+export = { createSpawnFlow, normalizeLocation, clientNotified, LAST_LOCATION_KEY };
 // TypeScript source.

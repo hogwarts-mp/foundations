@@ -263,12 +263,36 @@ test("automatic spawn opens the selector when neither the saved location nor the
     }
 });
 
-test("automatic spawn opens the selector when its teleport is refused", async () => {
-    const context = setup({ showSelector: false });
-    const { player, clientEvents } = context;
-    player.teleport = () => { throw new Error("Player is not in the world"); };
-    assert.strictEqual(await joinWithCharacter(context), true);
-    assert.deepStrictEqual(clientEvents.map((event) => event.name), ["hmp-spawn:transition", "hmp-spawn:failed", "hmp-spawn:open"]);
+test("automatic spawn releases the faded screen and opens the selector when its teleport is refused", async () => {
+    const refusals: Array<[string, () => number]> = [
+        ["Player is not in the world", () => { throw new Error("Player is not in the world"); }],
+        ["The streamed teleport was not accepted", () => 0],
+    ];
+    for (const [message, teleport] of refusals) {
+        const context = setup({ showSelector: false });
+        const { player, clientEvents } = context;
+        player.teleport = teleport;
+        assert.strictEqual(await joinWithCharacter(context), true);
+        assert.deepStrictEqual(clientEvents.map((event) => event.name), ["hmp-spawn:transition", "hmp-spawn:failed", "hmp-spawn:open"]);
+        assert.strictEqual(clientEvents[1].payload.message, message);
+    }
+});
+
+test("a rejected teleport is reported to the client once, and only after its transition", async () => {
+    const { flow, player, clientEvents } = setup({ locations: SCOPED_HOGWARTS });
+    player.location = () => overlandLocation(player);
+    player.teleport = () => 0;
+    const rejected = await flow.select(player, "hogwarts").catch((error: unknown) => error);
+    assert.match(String(rejected), /not accepted/);
+    assert.strictEqual(spawnModule.clientNotified(rejected), true);
+    assert.deepStrictEqual(clientEvents.map((event) => event.name), ["hmp-spawn:transition", "hmp-spawn:failed"]);
+    assert.strictEqual(flow.status().pending, 0);
+    // A destination that never got as far as the transition is still the caller's to report.
+    player.location = () => ({ ...overlandLocation(player), areaId: "Gringotts" });
+    const mismatch = await flow.select(player, "hogwarts").catch((error: unknown) => error);
+    assert.match(String(mismatch), /different game area/);
+    assert.strictEqual(spawnModule.clientNotified(mismatch), false);
+    assert.strictEqual(clientEvents.length, 2);
 });
 
 test("a teleport that never completes times out on a referenced timer and reopens selection", async () => {

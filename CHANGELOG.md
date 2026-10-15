@@ -19,8 +19,9 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   instead of failing with `HMP_SPAWN_LOCATION_MISSING` and never spawning. Configured destinations
   that set a `regionId` still match it. Without a selector, a saved location from another area now
   falls back to `defaultLocation`, and when neither fits, or the automatic spawn fails, the selector
-  opens. The autosave and teleport timeout timers are no longer unreferenced, which had kept them
-  from ever firing.
+  opens. A teleport the host rejects now clears the spawn fade, so that selector no longer opens
+  over a dark screen, and a manual selection reports the rejection once instead of twice. The autosave
+  and teleport timeout timers are no longer unreferenced, which had kept them from ever firing.
 
 ## [0.9.0] - 2026-10-14
 

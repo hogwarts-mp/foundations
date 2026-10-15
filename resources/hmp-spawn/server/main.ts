@@ -4,8 +4,11 @@ import type { HmpCoreSession } from "../../hmp-core/types";
 import type { CharacterSelectionPayload, Player } from "./internal";
 
 const { loadConfig } = configModule;
-const { createSpawnFlow } = spawnModule;
+const { createSpawnFlow, clientNotified } = spawnModule;
 const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);
+const reportFailure = (player: Player, error: unknown): void => {
+    if (!clientNotified(error)) player.emit("hmp-spawn:failed", JSON.stringify({ status: -1, message: messageOf(error) }));
+};
 
 const Hmp = Imports.get("hmp-lib");
 const core = Imports.get("hmp-core");
@@ -22,7 +25,7 @@ Exports.register("status", flow.status);
 Events.on("hmp:character:selected", (payload: unknown) => flow.onCharacterSelected(payload as CharacterSelectionPayload).catch((error: unknown) => {
     logger.error(`Could not open spawn selection: ${messageOf(error)}`);
     const player = payload && typeof payload === "object" && "session" in payload && payload.session && typeof payload.session === "object" && "player" in payload.session ? payload.session.player as Player : null;
-    player?.emit("hmp-spawn:failed", JSON.stringify({ status: -1, message: messageOf(error) }));
+    if (player) reportFailure(player, error);
     // Leave the character a way into the world rather than stranded behind the failed attempt.
     if (player) flow.ui.open(player).catch((reason: unknown) => logger.warn(`Could not reopen spawn selection: ${messageOf(reason)}`));
 }));
@@ -45,7 +48,7 @@ Events.onClient("hmp-spawn:select", (player, payload) => {
     const key = payload && typeof payload === "object" && "key" in payload ? payload.key : undefined;
     flow.select(player, key).catch((error: unknown) => {
         logger.warn(`Spawn selection for #${player.id} failed: ${messageOf(error)}`);
-        player.emit("hmp-spawn:failed", JSON.stringify({ status: -1, message: messageOf(error) }));
+        reportFailure(player, error);
     });
 });
 
