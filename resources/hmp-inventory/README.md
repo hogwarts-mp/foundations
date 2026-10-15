@@ -194,7 +194,9 @@ authoritative native update—including accepted potion consumption—is queued 
 each changed client report, because the host adopts gear changed in the game's own menus (what is
 worn, the Equipment menu look, the hood, a per-item identify) without an update event. Saves for a
 character run in order, and a burst collapses to its newest rows. `autoSaveMs` also saves every
-active character on a timer. Custom rows are already character-scoped.
+active character on a timer. If a character's snapshot fails to load, nothing is saved for that
+player until a later load succeeds, so the rows still live never overwrite it. Custom rows are
+already character-scoped.
 
 This gives each HMP character an independent inventory today. When MafiaHub supplies server-validatable identities later, the account linkage in `hmp-core` can become verified without changing inventory ownership.
 

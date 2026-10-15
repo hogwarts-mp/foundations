@@ -78,6 +78,18 @@ function createNativeBridge(options: { repository: Repository; core: Core; logge
     const writes = new Map<number, Promise<HmpNativeInventoryRow[]>>();
     // A save still waiting its turn is the last in its chain, so it takes newer rows instead of queueing another.
     const waiting = new Map<number, { rows: NativeRowInternal[] }>();
+    // Players whose live rows may not be their character's: set by an attach until its replace lands, so a failed
+    // load or replace never saves the previous character's (or the pre-join) rows. The value says whether we warned.
+    const unattached = new Map<number, boolean>();
+
+    function savable(player: Player): boolean {
+        if (!unattached.has(player.id)) return true;
+        if (!loading.has(player.id) && !unattached.get(player.id)) {
+            unattached.set(player.id, true);
+            logger.warn(`Not saving #${player.id}'s native inventory: the character's saved inventory never loaded`);
+        }
+        return false;
+    }
 
     function list(player: Player): HmpNativeInventoryRow[] {
         try { return sanitizeRows(player?.inventory?.list?.() || []); }
@@ -108,11 +120,14 @@ function createNativeBridge(options: { repository: Repository; core: Core; logge
     async function attach(player: Player, character: Character): Promise<boolean> {
         if (!player || !character) return false;
         loading.add(player.id);
+        unattached.set(player.id, false);
         try {
             const rows = sanitizeRows(await repository.loadNative(character.id));
             const replaced = await callbackCall(player, "replace", rows);
-            await waitForApplied(player, replaced);
+            // The authoritative rows are this character's from here, whether or not the client confirms them.
+            unattached.delete(player.id);
             active.set(player.id, Number(character.id));
+            await waitForApplied(player, replaced);
             return true;
         } finally { loading.delete(player.id); }
     }
@@ -120,13 +135,13 @@ function createNativeBridge(options: { repository: Repository; core: Core; logge
     async function save(player: Player, character?: Character | null): Promise<boolean> {
         const characterId = Number(character?.id ?? active.get(player?.id));
         if (!player || !Number.isSafeInteger(characterId) || characterId <= 0) return false;
-        if (player.inventory?.revision === 0) return false;
+        if (player.inventory?.revision === 0 || !savable(player)) return false;
         await queueSave(characterId, list(player));
         return true;
     }
 
     async function onUpdated(player: Player, rows: unknown): Promise<boolean> {
-        if (!player || loading.has(player.id)) return false;
+        if (!player || loading.has(player.id) || !savable(player)) return false;
         const characterId = active.get(player.id) ?? core.characters.active(player)?.id;
         if (!characterId) return false;
         await queueSave(Number(characterId), rows);
@@ -145,6 +160,7 @@ function createNativeBridge(options: { repository: Repository; core: Core; logge
     function detach(player?: Player | null): boolean {
         if (!player) return false;
         loading.delete(player.id);
+        unattached.delete(player.id);
         return active.delete(player.id);
     }
 

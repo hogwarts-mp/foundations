@@ -364,29 +364,45 @@ test("a worn item's appearance override survives a save and restore, and a non-G
 
 function changedReportHarness(options: { saveNative?: (characterId: number, rows: HmpNativeInventoryRow[]) => Promise<HmpNativeInventoryRow[]> } = {}) {
     const saved: Array<{ characterId: number; rows: HmpNativeInventoryRow[] }> = [];
+    const warnings: string[] = [];
     let release: (rows: HmpNativeInventoryRow[]) => void = () => {};
     const loaded = new Promise<HmpNativeInventoryRow[]>((resolve) => { release = resolve; });
+    let load = () => loaded;
+    let replaceError: Error | null = null;
+    let waitError: Error | null = null;
     let revision = 0;
     const inventory = {
         rows: [] as HmpNativeInventoryRow[],
         get revision() { return revision; },
-        replace(rows: HmpNativeInventoryRow[], callback?: (error: null, result: { revision: number; rows: number }) => void) {
+        replace(rows: HmpNativeInventoryRow[], callback?: (error: Error | null, result: { revision: number; rows: number } | null) => void) {
+            if (replaceError) return callback?.(replaceError, null);
             inventory.rows = clone(rows);
             revision++;
             callback?.(null, { revision, rows: rows.length });
         },
         list: () => clone(inventory.rows),
-        waitForRevision: async (applied: number) => ({ items: clone(inventory.rows), sequence: 1, appliedRevision: applied, applyErrors: [] }),
+        waitForRevision: async (applied: number) => {
+            if (waitError) throw waitError;
+            return { items: clone(inventory.rows), sequence: 1, appliedRevision: applied, applyErrors: [] };
+        },
     };
     const player = { id: 6, nickname: "Natsai", position: { x: 0, y: 0, z: 0 }, emit() {}, teleport: () => 0, inventory } as unknown as Player;
     const repository = {
-        loadNative: () => loaded,
+        loadNative: () => load(),
         saveNative: options.saveNative ?? (async (characterId: number, rows: HmpNativeInventoryRow[]) => { saved.push({ characterId, rows: clone(rows) }); return rows; }),
     } as unknown as Repository;
     let character: { id: number } | null = null;
     const core = { characters: { active: () => character } } as unknown as Core;
-    const bridge = createNativeBridge({ repository, core, logger: { info: () => true, warn: () => true, error: () => true } });
-    return { bridge, inventory, player, saved, release, setRevision: (value: number) => { revision = value; }, setCharacter: (value: { id: number } | null) => { character = value; } };
+    const logger = { info: () => true, warn: (message: string) => { warnings.push(message); return true; }, error: () => true };
+    const bridge = createNativeBridge({ repository, core, logger });
+    return {
+        bridge, inventory, player, saved, warnings, release,
+        setRevision: (value: number) => { revision = value; },
+        setCharacter: (value: { id: number } | null) => { character = value; },
+        setLoad: (next: () => Promise<HmpNativeInventoryRow[]>) => { load = next; },
+        failReplace: (error: Error | null) => { replaceError = error; },
+        failWait: (error: Error | null) => { waitError = error; },
+    };
 }
 
 test("gear changed in game menus is saved from the authoritative rows when the client reports it", async () => {
@@ -424,6 +440,42 @@ test("gear changed in game menus is saved from the authoritative rows when the c
     inventory.rows = [cloak];
     assert.strictEqual(await bridge.onChanged(player), true, "an active character is saved even if this resource restarted after it loaded");
     assert.deepStrictEqual(saved.at(-1), { characterId: 11, rows: [cloak] });
+});
+
+test("a character whose saved inventory never loaded is not saved over with the rows still live", async () => {
+    const harness = changedReportHarness();
+    const { bridge, inventory, player, saved, warnings } = harness;
+    const cloak = { itemId: "Back_002_Rare", holder: "ActorBackpack", count: 1, variation: "v1", kind: "gear" as const, identified: true, equipped: true };
+    const potion = { itemId: "WoundCleaning", holder: "HealthPotionStorage", count: 3, kind: "item" as const };
+    harness.release([cloak]);
+    await bridge.attach(player, { id: 9 });
+
+    // Switching to character 11: hmp-core makes it active even when this resource fails to load it.
+    bridge.detach(player);
+    harness.setCharacter({ id: 11 });
+    harness.setLoad(() => Promise.reject(new Error("database unavailable")));
+    await assert.rejects(bridge.attach(player, { id: 11 }), /database unavailable/);
+    assert.strictEqual(await bridge.onChanged(player), false);
+    assert.strictEqual(await bridge.onUpdated(player, inventory.rows), false);
+    assert.strictEqual(await bridge.save(player, { id: 11 }), false, "the autosave passes hmp-core's active character");
+    assert.deepStrictEqual(saved, []);
+    assert.strictEqual(warnings.length, 1);
+    assert.match(warnings[0], /#6's native inventory/);
+
+    harness.setLoad(async () => [potion]);
+    harness.failReplace(new Error("replace refused"));
+    await assert.rejects(bridge.attach(player, { id: 11 }), /replace refused/);
+    assert.strictEqual(await bridge.onChanged(player), false);
+    assert.deepStrictEqual(saved, []);
+    assert.strictEqual(warnings.length, 2);
+
+    // Once the replace lands the rows are character 11's, so an unconfirmed client changes nothing.
+    harness.failReplace(null);
+    harness.failWait(new Error("revision timed out"));
+    await assert.rejects(bridge.attach(player, { id: 11 }), /revision timed out/);
+    assert.strictEqual(await bridge.onChanged(player), true);
+    assert.deepStrictEqual(saved, [{ characterId: 11, rows: [potion] }]);
+    assert.strictEqual(warnings.length, 2);
 });
 
 test("a burst of native reports writes the newest rows once behind the write in flight", async () => {
