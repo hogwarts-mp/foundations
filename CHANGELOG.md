@@ -5,6 +5,13 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-10-16
+
+### Changed
+
+- Set the pack, all twenty-nine resources, both gamemodes, and internal dependency pins to lockstep
+  version `0.9.1`.
+
 ### Fixed
 
 - `hmp-inventory` keeps gear changed in the game's own menus across a reconnect. HogwartsMP 1.9
@@ -565,6 +572,7 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - The initial admin resource focuses on moderation and corrective operations; spectate, noclip, and
   god mode are not included.
 
+[0.9.1]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.9.1
 [0.9.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.9.0
 [0.8.2]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.8.2
 [0.8.1]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.8.1
