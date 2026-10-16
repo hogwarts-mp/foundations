@@ -51,6 +51,8 @@ export interface AdminConfig extends Record<string, unknown> {
     teleportTimeoutMs: number;
     auditPageSize: number;
     roleRules: HmpAdminRoleRule[];
+    /** Staff groups beyond those in roleRules, such as one another resource's adminGroups names. */
+    protectedGroups: string[];
     bootstrapSecret: string;
     noclip: AdminNoclipConfig;
 }

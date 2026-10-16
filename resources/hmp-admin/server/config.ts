@@ -24,6 +24,7 @@ function loadConfig(Hmp: HmpLibServer<Player>, options: { env?: NodeJS.ProcessEn
             { group: "admin", minimumGrade: 2, capabilities: ["admin.groups", "admin.jobs", "admin.inventory", "admin.appearance", "admin.spells", "admin.banking", "admin.treasury", "admin.audit", "admin.environment"] },
             { group: "admin", minimumGrade: 3, capabilities: ["admin.ban", "admin.reconcile"] },
         ],
+        protectedGroups: [],
     };
     const config = Hmp.config.load<AdminConfig>(env.HMP_ADMIN_CONFIG || "data/hmp-admin.json", { cwd: options.cwd || process.cwd(), defaults });
     config.command = String(env.HMP_ADMIN_COMMAND || config.command || "admin").trim().toLowerCase();
@@ -56,6 +57,9 @@ function loadConfig(Hmp: HmpLibServer<Player>, options: { env?: NodeJS.ProcessEn
         },
     };
     if (!Array.isArray(config.roleRules)) throw new TypeError("hmp-admin roleRules must be an array");
+    const protectedGroups = config.protectedGroups ?? [];
+    if (!Array.isArray(protectedGroups)) throw new TypeError("hmp-admin protectedGroups must be an array of group keys");
+    config.protectedGroups = protectedGroups.map((group) => String(group).trim().toLowerCase()).filter(Boolean);
     return config;
 }
 

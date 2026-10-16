@@ -74,7 +74,7 @@ test("builds searchable transmog choices with friendly labels and exact native i
     ]);
 });
 
-function setup() {
+function setup(overrides: Partial<AdminConfig> = {}) {
     let nextAudit = 1;
     let nextWarning = 1;
     let nextBan = 1;
@@ -132,16 +132,41 @@ function setup() {
         character: { id: entry.id * 100, accountId: entry.id * 10, slot: 1, name: entry.nickname, status: "active", createdAt: new Date(0), updatedAt: new Date(0), deletedAt: null },
         connectedAt: new Date(0).toISOString(),
     }]));
-    const groupGrades = new Map<number, number>([[verifiedAdmin.id, 3], [assertedAdmin.id, 3]]);
+    // hmp-core group rows, keyed "<scope>:<ownerId>:<group>".
+    const groupRows = new Map<string, number>([[`account:${verifiedAdmin.id * 10}:admin`, 3], [`account:${assertedAdmin.id * 10}:admin`, 3]]);
+    function listGroups(scope: "account" | "character", ownerId: number) {
+        const prefix = `${scope}:${ownerId}:`;
+        return [...groupRows].filter(([row]) => row.startsWith(prefix)).map(([row, grade]) => ({ scope, key: row.slice(prefix.length), grade, metadata: {} }));
+    }
+    function connect(id: number, nickname: string, accountId: number): Player {
+        const entry = player(id, nickname);
+        players.push(entry);
+        sessions.set(id, {
+            player: entry, playerId: id,
+            account: { id: accountId, displayName: nickname, createdAt: new Date(0), lastSeenAt: new Date(0) },
+            principal: { provider: "test", subject: `subject-${accountId}`, trust: "verified" },
+            character: { id: id * 100, accountId, slot: 2, name: nickname, status: "active", createdAt: new Date(0), updatedAt: new Date(0), deletedAt: null },
+            connectedAt: new Date(0).toISOString(),
+        });
+        return entry;
+    }
 
     const core = {
         sessions: { get(value: Player | number) { return sessions.get(typeof value === "number" ? value : value.id) || null; }, all: () => [...sessions.values()] },
         groups: {
-            async effective(value: Player | number) { const id = typeof value === "number" ? value : value.id; const grade = groupGrades.get(id); return grade === undefined ? [] : [{ scope: "account", key: "admin", grade, metadata: {} }]; },
-            async setAccount(...args: unknown[]) { groupMutations.push(["setAccount", ...args]); return { scope: "account", key: String(args[1]), grade: Number(args[2]), metadata: {} }; },
-            async removeAccount(...args: unknown[]) { groupMutations.push(["removeAccount", ...args]); return true; },
-            async setCharacter(...args: unknown[]) { groupMutations.push(["setCharacter", ...args]); return { scope: "character", key: String(args[1]), grade: Number(args[2]), metadata: {} }; },
-            async removeCharacter(...args: unknown[]) { groupMutations.push(["removeCharacter", ...args]); return true; },
+            async listAccount(accountId: number) { return listGroups("account", accountId); },
+            async listCharacter(characterId: number) { return listGroups("character", characterId); },
+            // Mirrors hmp-core: the active character's row wins over the account's when its grade is not lower.
+            async effective(value: Player | number) {
+                const current = sessions.get(typeof value === "number" ? value : value.id)!;
+                const merged = new Map(listGroups("account", current.account.id).map((group) => [group.key, group]));
+                for (const group of current.character ? listGroups("character", current.character.id) : []) if (group.grade >= (merged.get(group.key)?.grade ?? -Infinity)) merged.set(group.key, group);
+                return [...merged.values()];
+            },
+            async setAccount(...args: unknown[]) { groupMutations.push(["setAccount", ...args]); groupRows.set(`account:${args[0]}:${args[1]}`, Number(args[2])); return { scope: "account", key: String(args[1]), grade: Number(args[2]), metadata: {} }; },
+            async removeAccount(...args: unknown[]) { groupMutations.push(["removeAccount", ...args]); return groupRows.delete(`account:${args[0]}:${args[1]}`); },
+            async setCharacter(...args: unknown[]) { groupMutations.push(["setCharacter", ...args]); groupRows.set(`character:${args[0]}:${args[1]}`, Number(args[2])); return { scope: "character", key: String(args[1]), grade: Number(args[2]), metadata: {} }; },
+            async removeCharacter(...args: unknown[]) { groupMutations.push(["removeCharacter", ...args]); return groupRows.delete(`character:${args[0]}:${args[1]}`); },
         },
     };
 
@@ -170,6 +195,8 @@ function setup() {
             { group: "admin", minimumGrade: 2, capabilities: ["admin.groups", "admin.jobs", "admin.inventory", "admin.appearance", "admin.spells", "admin.banking", "admin.treasury", "admin.audit", "admin.environment"] },
             { group: "admin", minimumGrade: 3, capabilities: ["admin.ban", "admin.reconcile"] },
         ],
+        protectedGroups: [],
+        ...overrides,
     };
     const permissions = createPermissions({ core: core as never, config });
     const banking = {
@@ -262,7 +289,7 @@ function setup() {
         config, logger: { debug: () => true, info: () => true, warn: () => true, error: () => true }, migrations: [],
         listPlayers: () => players, getPlayer: (id) => players.find((entry) => entry.id === id) || null,
     });
-    return { service, permissions, config, verifiedAdmin, assertedAdmin, verifiedTarget, assertedTarget, audit, warnings, bans, kicked, holds, emitted, visibility, groupGrades, inventoryMutations, groupMutations, jobMutations, bankMutations, spellMutations, transmogMutations, environmentMutations };
+    return { service, permissions, config, connect, verifiedAdmin, assertedAdmin, verifiedTarget, assertedTarget, audit, warnings, bans, kicked, holds, emitted, visibility, groupRows, inventoryMutations, groupMutations, jobMutations, bankMutations, spellMutations, transmogMutations, environmentMutations };
 }
 
 test("requires verified staff identity but supports session-only closed-test bootstrap", async () => {
@@ -335,14 +362,14 @@ test("toggles and revokes audited administrator no-clip", async () => {
     assert.deepStrictEqual(state.audit.map((entry) => entry.action), ["player.noclip.enable", "player.noclip.disable"]);
 
     await state.service.actions.noclip(state.verifiedAdmin);
-    state.groupGrades.delete(state.verifiedAdmin.id);
+    state.groupRows.delete("account:10:admin");
     assert.strictEqual(await state.service.revalidateNoclip(), 1);
     assert.strictEqual(state.service.status().activeNoclip, 0);
     assert.strictEqual(state.service.noclip.isActive(state.verifiedAdmin.id), false);
     assert.strictEqual(state.visibility.get(state.verifiedAdmin.id), true);
     assert.deepStrictEqual(JSON.parse(String(state.emitted.get(state.verifiedAdmin.id)!.at(-1)!.payload)), { enabled: false });
 
-    state.groupGrades.set(state.verifiedAdmin.id, 3);
+    state.groupRows.set("account:10:admin", 3);
     await state.service.actions.noclip(state.verifiedAdmin);
     assert.strictEqual(state.service.noclip.isActive(state.verifiedAdmin), true);
     state.service.disconnect(state.verifiedAdmin);
@@ -413,6 +440,75 @@ test("routes corrective mutations through foundations services with completed au
     assert.strictEqual(state.bankMutations.length, 2);
     assert.strictEqual(state.audit[0].reason, "inventory.give");
     assert.ok(state.audit.every((entry) => entry.status === "completed"));
+});
+
+const SELF = { code: "HMP_ADMIN_SELF_TARGET" };
+const HIERARCHY = { code: "HMP_ADMIN_GRADE_HIERARCHY" };
+
+test("keeps a staff grade change below the acting administrator's own grade", async () => {
+    const state = setup();
+    const { verifiedAdmin: senior, verifiedTarget: staff, assertedTarget: guest } = state;
+    // A grade-2 admin through their character, which still grants admin.groups.
+    state.groupRows.set("character:300:admin", 2);
+    const sameAccount = state.connect(5, "Harry's alt", 30);
+    const owner = state.connect(6, "Albus", 60);
+    state.groupRows.set("character:600:admin", 4);
+    const admin = (actor: Player, target: Player, operation: "set" | "remove", scope: "account" | "character", grade = 0) =>
+        state.service.actions.group(actor, target, operation, scope, "admin", grade, "test");
+
+    await assert.rejects(admin(staff, staff, "set", "account", 3), SELF);
+    await assert.rejects(admin(staff, staff, "set", "character", 99), SELF);
+    await assert.rejects(admin(staff, sameAccount, "set", "character", 1), SELF, "another character on the same account");
+    await assert.rejects(admin(staff, guest, "set", "account", 2), HIERARCHY, "their own grade");
+    await assert.rejects(admin(staff, guest, "set", "character", 4), HIERARCHY, "above their own grade");
+    await assert.rejects(admin(staff, senior, "set", "account", 1), HIERARCHY, "demoting a superior");
+    await assert.rejects(admin(staff, senior, "remove", "account"), HIERARCHY, "removing a superior");
+    await assert.rejects(admin(senior, owner, "remove", "account"), HIERARCHY, "a superior's character grade counts on either scope");
+    assert.strictEqual(state.groupMutations.length, 0);
+    assert.ok(state.audit.every((entry) => entry.status === "failed"), "refused attempts stay in the audit trail");
+
+    assert.strictEqual(await admin(staff, guest, "set", "character", 1), true);
+    assert.strictEqual(await admin(staff, guest, "remove", "character"), true);
+    assert.strictEqual(await state.service.actions.group(staff, staff, "set", "character", "prefect", 9, "not a staff group"), true);
+    assert.strictEqual(await admin(senior, staff, "set", "character", 1), true);
+    assert.strictEqual(await admin(senior, staff, "remove", "character"), true);
+    assert.deepStrictEqual(state.groupMutations.map((entry) => entry.slice(0, 4)), [
+        ["setCharacter", 400, "admin", 1], ["removeCharacter", 400, "admin"],
+        ["setCharacter", 300, "prefect", 9],
+        ["setCharacter", 300, "admin", 1], ["removeCharacter", 300, "admin"],
+    ]);
+});
+
+test("holds role-rule groups and configured protected groups to the staff hierarchy", async () => {
+    const state = setup({ protectedGroups: ["staff"] });
+    state.config.roleRules.push({ group: "Moderator", minimumGrade: 1, capabilities: ["admin.view"] });
+    const { verifiedAdmin: senior, verifiedTarget: target } = state;
+    await assert.rejects(state.service.actions.group(senior, target, "set", "character", "moderator", 1, "no moderator grade"), HIERARCHY);
+    await assert.rejects(state.service.actions.group(senior, target, "set", "account", " STAFF ", 0, "no staff grade"), HIERARCHY);
+    assert.strictEqual(state.groupMutations.length, 0);
+    const Hmp = { config: { load: () => ({ roleRules: [], protectedGroups: [" Staff ", ""] }), env: { boolean: (_value: unknown, fallback: boolean) => fallback } } };
+    assert.deepStrictEqual(loadConfig(Hmp as never, { env: {} }).protectedGroups, ["staff"]);
+    assert.throws(() => loadConfig({ config: { ...Hmp.config, load: () => ({ roleRules: [], protectedGroups: "staff" }) } } as never, { env: {} }), /protectedGroups must be an array/);
+});
+
+test("lets a bootstrapped owner assign any staff grade, their own included", async () => {
+    const state = setup();
+    state.groupRows.delete("account:20:admin");
+    assert.strictEqual(await state.permissions.authenticate(state.assertedAdmin, "closed-test-secret"), true);
+    assert.strictEqual(await state.service.actions.group(state.assertedAdmin, state.assertedAdmin, "set", "account", "admin", 5, "provision owner"), true);
+    assert.strictEqual(await state.service.actions.group(state.assertedAdmin, state.verifiedAdmin, "set", "account", "admin", 5, "second owner"), true);
+    assert.strictEqual(state.groupRows.get("account:20:admin"), 5);
+    assert.strictEqual(state.groupRows.get("account:10:admin"), 5);
+});
+
+test("applies a demotion queued ahead of the demoted admin's own group change", async () => {
+    const state = setup();
+    state.groupRows.set("account:30:admin", 2);
+    const demotion = state.service.actions.group(state.verifiedAdmin, state.verifiedTarget, "remove", "account", "admin", 0, "demoted");
+    const grant = state.service.actions.group(state.verifiedTarget, state.assertedTarget, "set", "account", "admin", 1, "raced grant");
+    assert.strictEqual(await demotion, true);
+    await assert.rejects(grant, { code: "HMP_ADMIN_FORBIDDEN" });
+    assert.strictEqual(state.groupRows.has("account:40:admin"), false);
 });
 
 test("sets and unsets a connected character's persistent transmog with audit", async () => {

@@ -49,6 +49,21 @@ The role mapping can be changed in `data/hmp-admin.json` with `roleRules`. Each 
 minimum grade, and capability list. `"*"` grants all known admin capabilities. The resource also
 accepts `HMP_ADMIN_COMMAND`, `HMP_ADMIN_REQUIRE_VERIFIED`, and `HMP_ADMIN_CONFIG`.
 
+Every group named in `roleRules` is a staff group, and the Groups action holds it to a hierarchy.
+An administrator can change a staff group only for a player whose grade in it is below their own,
+only to a grade below their own, and never on their own account. A grade-3 admin can make grade-2
+admins and demote them, but cannot make another grade-3 or touch a grade-4. Other groups, such as
+houses or prefects, stay open to anyone with `admin.groups`. If another resource gates staff tools
+on a group that `roleRules` does not name, for example an `adminGroups` entry keyed `staff`, list it
+in `protectedGroups` so it gets the same hierarchy:
+
+```json
+{ "protectedGroups": ["staff"] }
+```
+
+A session unlocked with the bootstrap secret is exempt. Use it, or a trusted server-side resource
+as shown above, to appoint the highest grade.
+
 ## Tester-facing tools
 
 - Connected-player inspection: account, character, identity trust, groups, world, game area/region, ping, position,

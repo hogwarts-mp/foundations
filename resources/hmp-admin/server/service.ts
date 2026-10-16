@@ -14,6 +14,7 @@ import type {
     Spells,
     World,
 } from "./internal";
+import type { HmpCoreGroup, HmpCoreSession } from "../../hmp-core/types";
 import type { HmpWorldSeason } from "../../hmp-world/types";
 
 interface TeleportWaiter {
@@ -48,6 +49,7 @@ function createAdminService(options: {
     const { repository, permissions, core, inventory, banking, characters, jobs, spells, world, config, logger, migrations, listPlayers, getPlayer } = options;
     const pendingTeleports = new Map<string, TeleportWaiter>();
     const activeNoclip = new Set<number>();
+    let groupChanges: Promise<unknown> = Promise.resolve();
     const startedAt = Date.now();
     let state: "starting" | "ready" | "degraded" | "stopped" = "starting";
     let lastError = "";
@@ -150,6 +152,36 @@ function createAdminService(options: {
             catch (auditError) { logger.error(`Could not fail admin audit #${id}: ${auditError instanceof Error ? auditError.message : String(auditError)}`); }
             throw error;
         }
+    }
+
+    function gradeIn(groups: HmpCoreGroup[], key: string): number | null {
+        return groups.reduce<number | null>((grade, group) => group.key === key && (grade === null || group.grade > grade) ? group.grade : grade, null);
+    }
+
+    function isStaffGroup(key: string): boolean {
+        return config.roleRules.some((rule) => String(rule.group).trim().toLowerCase() === key) || config.protectedGroups.includes(key);
+    }
+
+    // admin.groups alone would let staff raise themselves or an ally to any grade. In a staff group,
+    // staff may only change someone ranked below them, only to a grade below their own, and never
+    // their own account. A bootstrapped session stands in for the server owner and is exempt.
+    async function requireGroupAuthority(actor: Player, target: HmpCoreSession<Player>, key: string, grade: number | null): Promise<void> {
+        if (!isStaffGroup(key) || permissions.isBootstrapped(actor)) return;
+        if (session(actor).account.id === target.account.id) throw adminError("HMP_ADMIN_SELF_TARGET", "You cannot change your own staff groups.");
+        const own = gradeIn(await core.groups.effective(actor), key);
+        if (own === null) throw adminError("HMP_ADMIN_GRADE_HIERARCHY", `You hold no '${key}' grade, so you cannot change anyone's.`);
+        // The rows about to change, not the target's live session, which may have switched character since.
+        const rows = [...await core.groups.listAccount(target.account.id), ...target.character ? await core.groups.listCharacter(target.character.id) : []];
+        const current = gradeIn(rows, key);
+        if (current !== null && current >= own) throw adminError("HMP_ADMIN_GRADE_HIERARCHY", `That player's '${key}' grade (${current}) is not below yours (${own}).`);
+        if (grade !== null && grade >= own) throw adminError("HMP_ADMIN_GRADE_HIERARCHY", `You can only assign '${key}' grades below your own (${own}).`);
+    }
+
+    // One group change at a time, so each authority check sees every change queued ahead of it.
+    function serially<T>(work: () => Promise<T>): Promise<T> {
+        const result = groupChanges.then(work);
+        groupChanges = result.catch(() => undefined);
+        return result;
     }
 
     function waitForTeleport(player: Player, destination: { x: number; y: number; z: number }): Promise<number> {
@@ -376,17 +408,21 @@ function createAdminService(options: {
             const targetSession = session(player);
             const key = String(group || "").trim().toLowerCase();
             if (!key) throw new TypeError("group is required");
-            return audited(actor, "admin.groups", `group.${operation}`, player, reason, { scope, group: key, grade }, async () => {
+            const value = Math.max(0, Math.trunc(Number(grade)) || 0);
+            return audited(actor, "admin.groups", `group.${operation}`, player, reason, { scope, group: key, grade: value }, () => serially(async () => {
+                // Again in turn: a demotion queued ahead of this change may have taken admin.groups away.
+                await permissions.require(actor, "admin.groups");
+                if (scope !== "account" && !targetSession.character) throw adminError("HMP_ADMIN_CHARACTER_MISSING", "The target has no active character.");
+                await requireGroupAuthority(actor, targetSession, key, operation === "set" ? value : null);
                 if (scope === "account") {
-                    if (operation === "set") await core.groups.setAccount(targetSession.account.id, key, Math.max(0, Math.trunc(Number(grade)) || 0), { source: "hmp-admin" });
+                    if (operation === "set") await core.groups.setAccount(targetSession.account.id, key, value, { source: "hmp-admin" });
                     else await core.groups.removeAccount(targetSession.account.id, key);
                 } else {
-                    if (!targetSession.character) throw adminError("HMP_ADMIN_CHARACTER_MISSING", "The target has no active character.");
-                    if (operation === "set") await core.groups.setCharacter(targetSession.character.id, key, Math.max(0, Math.trunc(Number(grade)) || 0), { source: "hmp-admin" });
-                    else await core.groups.removeCharacter(targetSession.character.id, key);
+                    if (operation === "set") await core.groups.setCharacter(targetSession.character!.id, key, value, { source: "hmp-admin" });
+                    else await core.groups.removeCharacter(targetSession.character!.id, key);
                 }
                 return true;
-            });
+            }));
         },
         async job(actor: Player, target: Player | number, operation: "hire" | "fire" | "grade", job: string, grade: number, reason: string) {
             const player = targetPlayer(target);
