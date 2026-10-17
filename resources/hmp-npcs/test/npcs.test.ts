@@ -37,8 +37,13 @@ assert.strictEqual(service.destroy(other.id, "arena"), false);
 assert.strictEqual(service.died(first.id), true);
 assert.strictEqual(service.clear("arena"), 1);
 assert.deepStrictEqual(destroyed, [2]);
+// An id that crosses a resource boundary as a string still finds the NPC; it must leave the registry too.
+const loose = service.spawn({ resource: "quest", enemyId: "Wolf", position: { x: 1, y: 2, z: 3 } });
+assert.strictEqual(service.destroy(String(loose.id) as unknown as number, "quest"), true);
+assert.strictEqual(service.status().managed, 1);
+assert.strictEqual(service.destroy(loose.id, "quest"), false);
 service.stop();
-assert.deepStrictEqual(destroyed, [2, 3]);
+assert.deepStrictEqual(destroyed, [2, 4, 3]);
 assert.throws(() => service.catalog.list().push({ id: "x", label: "x" }) && service.spawn({ resource: "x", enemyId: "Wolf", position: { x: 0, y: 0, z: 0 } }), /stopped/);
 
 console.log("hmp-npcs tests passed");
