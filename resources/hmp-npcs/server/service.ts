@@ -63,9 +63,10 @@ export function createNpcsService(options: NpcsServiceOptions): NpcsService {
     function destroy(id: number, resource: string): boolean {
         ensureReady();
         const owner = resourceName(resource);
-        const entry = managed.get(integer(id, "NPC id", 0));
+        const key = integer(id, "NPC id", 0);
+        const entry = managed.get(key);
         if (!entry || entry.resource !== owner) return false;
-        managed.delete(id);
+        managed.delete(key);
         try { entry.npc.destroy(); } catch { /* Native actor may already be gone. */ }
         return true;
     }
