@@ -5,6 +5,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+### Fixed
+
+- `hmp-npcs` `destroy` removes the NPC from the registry when its id arrives as a numeric string. It
+  looked the entry up by the normalized id but deleted it by the raw one, so the destroyed NPC stayed
+  counted against the resource's limit and was destroyed again by `clear` and on stop.
+
 ## [0.9.1] - 2026-10-16
 
 ### Changed
