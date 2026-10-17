@@ -14,6 +14,9 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   roof 20 m above where it began, or 10 m up in the air, was fatal. Leaving no-clip now calls
   `LocalPlayer.resetFall`, so the landing costs no health. It needs a HogwartsMP host with
   `LocalPlayer.resetFall`; on an older host the landing is unchanged.
+- `hmp-npcs` `destroy` removes the NPC from the registry when its id arrives as a numeric string. It
+  looked the entry up by the normalized id but deleted it by the raw one, so the destroyed NPC stayed
+  counted against the resource's limit and was destroyed again by `clear` and on stop.
 
 ## [0.9.1] - 2026-10-16
 
