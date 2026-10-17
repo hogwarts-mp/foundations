@@ -73,8 +73,9 @@ as shown above, to appoint the highest grade.
   player's own input is stopped too, so they stay put on their screen; camera look still works.
 - Staff movement: audited, server-authorized no-clip from the main menu, with camera-relative WASD,
   Space/Ctrl vertical movement, Shift boost, Alt slow movement for precise positioning, collision
-  bypass, and protected landing. While flying the admin is hidden from every other player (body,
-  nametag, minimap blip) by the server, and can optionally be hidden from their own screen too.
+  bypass, and protected landing: leaving no-clip on the ground or in mid-air costs no health. While
+  flying the admin is hidden from every other player (body, nametag, minimap blip) by the server, and
+  can optionally be hidden from their own screen too.
 - World environment: audited global weather, season, calendar date, 24-hour time, and clock-speed controls, including a
   searchable dropdown of 34 known native weather profiles and a confirmation-gated reset to the
   configured `hmp-world` baseline. A custom live or baseline profile is added to the dropdown
@@ -118,6 +119,13 @@ visible to other players while flying; a server without `player.setVisible` alwa
 `"hideLocal": true` to also hide the admin's body, wand, and held prop on their own screen while
 flying, which keeps the falling animation out of view. It needs HogwartsMP `1.9` or newer
 (`LocalPlayer.setVisibility`) and is restored when no-clip ends.
+
+The protected landing needs a HogwartsMP host with `LocalPlayer.resetFall`. No-clip moves the admin
+in short teleports, and the game skips a landing's fall damage only after a teleport of more than
+1 m, so it counts the flight as a fall. The landing then reads about the height gained since no-clip
+began plus the real drop, and past 16 m the game kills outright, invulnerable or not. On a host
+without `resetFall`, leaving no-clip on a roof 20 m above where it began, or 10 m up in the air,
+still kills the admin.
 
 ## Suggested closed-test feedback
 

@@ -70,6 +70,8 @@ const keys = new Set();
 const positions = [];
 const visibility = [];
 const input = [];
+let collision = true;
+const fallResets = [];
 global.Events = { on: (name, handler) => clientHandlers.set(name, handler) };
 global.setInterval = (callback, ms) => { intervals.push({ callback, ms }); return intervals.length; };
 global.clearInterval = () => {};
@@ -79,8 +81,9 @@ global.Camera = { capture: () => ({ rotation: { pitch: 0, yaw: 0, roll: 0 } }) }
 global.LocalPlayer = {
     getPosition: () => ({ x: 0, y: 0, z: 0 }),
     setPosition: (x, y, z) => { positions.push({ x, y, z }); return true; },
-    setCollision: () => true,
+    setCollision: (enabled) => { collision = enabled; return true; },
     clearVelocity: () => true,
+    resetFall: () => { fallResets.push({ collision }); return true; },
     getControlRotation: () => ({ pitch: 0, yaw: 0, roll: 0 }),
     setVisibility: (visible) => { visibility.push(visible); return true; },
     stopPlayerInput: () => { input.push("stop"); return true; },
@@ -91,6 +94,8 @@ require(path.resolve(__dirname, "..", "dist", "client.js"));
 assert.ok(clientHandlers.has("hmp-admin:noclip"));
 assert.ok(clientHandlers.has("hmp-admin:freeze"));
 assert.ok(clientHandlers.has("resourceStop"));
+clientHandlers.get("hmp-admin:noclip")(JSON.stringify({ enabled: false }));
+assert.deepStrictEqual(fallResets, [], "a disable outside no-clip leaves the game's fall alone");
 clientHandlers.get("hmp-admin:freeze")(JSON.stringify({ frozen: false }));
 assert.deepStrictEqual(input, [], "an unfrozen client leaves another resource's input stop alone");
 clientHandlers.get("hmp-admin:freeze")(JSON.stringify({ frozen: true }));
@@ -120,6 +125,8 @@ flyOneTick([], { hideLocal: true });
 clientHandlers.get("resourceStop")("hmp-admin");
 assert.deepStrictEqual(visibility, [false, true, false, true]);
 assert.deepStrictEqual(input, ["stop", "restore", "stop", "restore"], "stopping the resource restores a frozen client's input");
+assert.deepStrictEqual(fallResets, [{ collision: false }, { collision: false }, { collision: false }], "every way out of no-clip resets the fall before collision returns");
+assert.strictEqual(collision, true);
 
 void (async () => {
     await handlers.get("resourceStart")("hmp-admin");

@@ -72,6 +72,13 @@ function setLocallyHidden(hidden: boolean): void {
     hiddenLocally = hidden;
 }
 
+// The game skips a landing's fall damage only after a teleport past 1 m, so it counts a flight of shorter hops as a
+// fall and reads the height gained on top of the real drop, which past 16 m kills through the invulnerable flag.
+function endFall(): void {
+    try { LocalPlayer.resetFall(); }
+    catch (_) { /* no local pawn while loading, or a host without resetFall */ }
+}
+
 function getViewYaw(): number {
     try {
         const yaw = Number(Camera.capture()?.rotation.yaw);
@@ -163,6 +170,7 @@ function disable(): void {
     position = null;
     if (flightTimer) clearInterval(flightTimer);
     flightTimer = null;
+    if (wasActive) endFall();
     try { LocalPlayer.setCollision(true); }
     catch (_) { /* no local pawn while loading */ }
     setLocallyHidden(false);
@@ -171,6 +179,7 @@ function disable(): void {
 }
 
 function stop(): void {
+    if (active) endFall();
     active = false;
     position = null;
     if (flightTimer) clearInterval(flightTimer); flightTimer = null;

@@ -5,6 +5,16 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+### Fixed
+
+- `hmp-admin` no-clip no longer kills an admin when they leave it. The game skips a landing's fall
+  damage only after a teleport of more than 1 m, so it counted a no-clip flight of shorter steps as a
+  fall, and the landing read about the height gained since no-clip began plus the real drop. Past 16 m
+  that killed the admin through the invulnerable flag that guards the landing: leaving no-clip on a
+  roof 20 m above where it began, or 10 m up in the air, was fatal. Leaving no-clip now calls
+  `LocalPlayer.resetFall`, so the landing costs no health. It needs a HogwartsMP host with
+  `LocalPlayer.resetFall`; on an older host the landing is unchanged.
+
 ## [0.9.1] - 2026-10-16
 
 ### Changed

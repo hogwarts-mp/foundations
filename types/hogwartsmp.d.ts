@@ -512,6 +512,8 @@ declare global {
         /** Shows or hides the local body, wand and held prop on this screen only. Holds through respawns and travel. */
         setVisibility(visible: boolean): boolean;
         clearVelocity(): boolean;
+        /** Skips the next landing's fall damage and measures a fall from here, as the game does after a teleport past 1 m. */
+        resetFall(): boolean;
         /** Freezes movement and actions through the game's own suppressor; camera look stays. `null` without a pawn. */
         stopPlayerInput(): boolean | null;
         restorePlayerInput(): boolean | null;
