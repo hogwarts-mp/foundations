@@ -110,6 +110,9 @@ const chat = (player, ...args) => handlers.get("chatCommand")(player, `/quidditc
     const rings = [...objects.values()].filter((o) => o.model === RING);
     assert.strictEqual(rings.length, CONFIG.pitch.hoopGeometry.heights.length * 2);
     assert.ok(![...objects.values()].some((o) => o.model === SNITCH), "practice released a snitch");
+    // Seen from anywhere on the pitch: every object carries the configured draw distance.
+    const drawsWrong = () => [...objects.values()].filter((o) => o.opts.drawDistance !== CONFIG.pitch.propDrawDistance).map((o) => o.key);
+    assert.deepStrictEqual(drawsWrong(), [], "a practice object missed pitch.propDrawDistance");
 
     stop("test");
     await flush();
@@ -122,6 +125,7 @@ const chat = (player, ...args) => handlers.get("chatCommand")(player, `/quidditc
     assert.ok(snitch, "the snitch hunt released no snitch");
     assert.strictEqual(snitch.opts.simulated, true);
     assert.strictEqual([...objects.values()].filter((o) => o.model === CONFIG.bludgers.mesh).length, CONFIG.bludgers.count);
+    assert.deepStrictEqual(drawsWrong(), [], "a snitch-hunt object missed pitch.propDrawDistance");
 
     // The marker follows the snitch its simulator flies, not the server's steering point.
     handlers.get("client:quidditch:snitchCmd")(admin, { blip: true });

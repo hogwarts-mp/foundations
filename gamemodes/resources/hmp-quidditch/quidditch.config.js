@@ -24,6 +24,11 @@ module.exports = {
         // inside this and a dropped ball still has something to land on.
         envelope: { xy: 25000, up: 5500, down: 1500 },
 
+        // drawDistance (cm) for every pitch object: banners, hoops, bludgers, quaffle and snitch.
+        // 0 never culls, so a ball is visible from anywhere it streams to (500 m), across the whole
+        // pitch and stands. Small props otherwise vanish past ~15-20 m.
+        propDrawDistance: 0,
+
         // cm ABOVE THE DECK that a player is placed at kickoff. Zero, because there is no way to
         // put someone on a broom from script: the local mount runs through ABroomItemTool ->
         // AFlyingBroom.PlayerMountAbility and nothing we expose reaches it. Spawning in the air

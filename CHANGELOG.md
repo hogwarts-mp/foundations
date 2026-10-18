@@ -17,6 +17,11 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - `hmp-npcs` `destroy` removes the NPC from the registry when its id arrives as a numeric string. It
   looked the entry up by the normalized id but deleted it by the raw one, so the destroyed NPC stayed
   counted against the resource's limit and was destroyed again by `clear` and on stop.
+- `hmp-quidditch` pitch objects stay visible across the whole pitch. The game gave a WorldObject mesh
+  the smallest cull distance in its world table, so the quaffle and banners vanished past about 20 m.
+  Every pitch object (banners, hoops, bludgers, quaffle and snitch) is now created with
+  `drawDistance: pitch.propDrawDistance` (default 0, never cull). It needs a HogwartsMP host with
+  WorldObject `drawDistance`; an older host ignores it and keeps the limit.
 
 ## [0.9.1] - 2026-10-16
 

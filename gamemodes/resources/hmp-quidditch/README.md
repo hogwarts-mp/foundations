@@ -19,6 +19,12 @@ Everything on the pitch is a server `WorldObject`:
 
 No client reports where anything is, so no client can move the ball or the snitch for anyone else.
 
+Every pitch object is created with `drawDistance: pitch.propDrawDistance`, which defaults to **0**:
+never cull. A client draws it from anywhere it streams to (every player within 500 m), so the ball,
+snitch, bludgers, hoops and banners stay visible across the whole pitch and stands. Without it the
+game hides a small spawned prop past about 15 to 20 m. It needs a HogwartsMP host whose
+`WorldObject.create` takes `drawDistance`; an older host ignores the option and keeps that limit.
+
 ## Foundations integration
 
 - `hmp-activities` mirrors forming and running sessions for discovery, exclusivity, and lifecycle.

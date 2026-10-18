@@ -49,6 +49,8 @@ const AUDIO_OWNER = { resource: RESOURCE, id: "match" };
 logger.info("Server loading");
 
 const CONFIG = require("../quidditch.config.js");
+// Every pitch object shares one client draw distance; see pitch.propDrawDistance.
+const drawDistance = () => CONFIG.pitch.propDrawDistance ?? 0;
 
 // Subcommands that start, stop, retune or re-place the match. The rest (state, team, role, join,
 // pitch, results, why, ballwhere) are the documented player surface and stay open.
@@ -266,7 +268,7 @@ function placeBanners(banners) {
     banners.forEach((b, i) => {
         const key = `quidditch:banner:${i}`;
         try {
-            if (WorldObject.create(key, b.mesh, { x: b.x, y: b.y, z: b.z, yaw: b.yaw, scale: b.scale, collision: false })) bannerKeys.push(key);
+            if (WorldObject.create(key, b.mesh, { x: b.x, y: b.y, z: b.z, yaw: b.yaw, scale: b.scale, collision: false, drawDistance: drawDistance() })) bannerKeys.push(key);
         } catch (e) {
             console.log(`[QUIDDITCH] banner ${b.mesh} did not spawn: ${e.message}`);
         }
@@ -281,7 +283,7 @@ function placeBludger(b, i) {
     try {
         b.obj = WorldObject.create(bludgerKey(i), CONFIG.bludgers.mesh, {
             x: b.pos.x, y: b.pos.y, z: b.pos.z, scale: CONFIG.bludgers.scale || 1, collision: false,
-            fx: CONFIG.bludgers.trail, fxSocket: CONFIG.bludgers.trailSocket,
+            fx: CONFIG.bludgers.trail, fxSocket: CONFIG.bludgers.trailSocket, drawDistance: drawDistance(),
         }) || null;
     } catch (e) {
         b.obj = null;
@@ -300,7 +302,7 @@ function spawnQuaffle(key, at) {
     const b = CONFIG.ball || {};
     if (!b.mesh) return null;
     try {
-        return WorldObject.create(key, b.mesh, { x: at.x, y: at.y, z: at.z, physics: true, massKg: b.massKg || 2 }) || null;
+        return WorldObject.create(key, b.mesh, { x: at.x, y: at.y, z: at.z, physics: true, massKg: b.massKg || 2, drawDistance: drawDistance() }) || null;
     } catch (e) {
         console.log(`[QUIDDITCH] quaffle did not spawn: ${e.message}`);
         return null;
@@ -321,7 +323,7 @@ function clearHoopObjects() {
 function placeHoops() {
     clearHoopObjects();
     HOOPS.forEach((h, i) => {
-        try { WorldObject.create(hoopKey(i), RING_CLASS, { x: h.pos.x, y: h.pos.y, z: h.pos.z, yaw: h.yaw }); }
+        try { WorldObject.create(hoopKey(i), RING_CLASS, { x: h.pos.x, y: h.pos.y, z: h.pos.z, yaw: h.yaw, drawDistance: drawDistance() }); }
         catch (e) { console.log(`[QUIDDITCH] hoop ${i} did not spawn: ${e.message}`); }
     });
     hoopCount = HOOPS.length;
@@ -339,7 +341,7 @@ function spawnSnitch() {
     try {
         S.snitch.obj = WorldObject.create(SNITCH_KEY, SNITCH_CLASS, {
             x: at.x, y: at.y, z: at.z, scale: c.scale || 1, simulated: true,
-            fx: (c.trailScale || 0) > 0 ? c.trail : "",
+            fx: (c.trailScale || 0) > 0 ? c.trail : "", drawDistance: drawDistance(),
         }) || null;
     } catch (e) {
         S.snitch.obj = null;
