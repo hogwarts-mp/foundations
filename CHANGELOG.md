@@ -29,6 +29,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   for themselves are left alone, and the host drops it when `hmp-world` stops. Both default to `true`,
   as before. The client `policy.current()` and `status()` carry them too. They need a HogwartsMP host
   with `LocalPlayer.setJumpEnabled` and `setSprintEnabled`; an older host ignores them.
+- `hmp-duels` `cosmeticGear` (default `false`) makes both duelists' worn gear cosmetic for the duel:
+  from the countdown on, its Offense, Defense and Cooldown and its traits count for nothing, as if
+  neither wore any. However the duel ends (a knock-out, a forfeit, a death, a disconnect or `hmp-duels`
+  stopping), each player gets back the gear rules they had before it. It needs a HogwartsMP host with
+  `player.setGearStatMultiplier` and `player.setGearTraits`; an older host ignores the option and worn
+  gear counts as usual.
 
 ### Changed
 

@@ -13,7 +13,7 @@ const activities = Imports.get<HmpActivities<HmpDuelPlayer>>("hmp-activities");
 const pvp = Imports.get<HmpPvp>("hmp-pvp");
 const ui = Imports.get<HmpUiServer<HmpDuelPlayer>>("hmp-ui");
 const logger = Hmp.logger.create("hmp-duels");
-const loaded = Hmp.config.load<{ command: string; enableCommands: boolean; countdownSeconds: number; invitationTtlSeconds: number; koHp: number } & Record<string, unknown>>(process.env.HMP_DUELS_CONFIG || "data/hmp-duels.json", { defaults: { command: "duel", enableCommands: true, countdownSeconds: 3, invitationTtlSeconds: 30, koHp: 1 } });
+const loaded = Hmp.config.load<{ command: string; enableCommands: boolean; countdownSeconds: number; invitationTtlSeconds: number; koHp: number; cosmeticGear: boolean } & Record<string, unknown>>(process.env.HMP_DUELS_CONFIG || "data/hmp-duels.json", { defaults: { command: "duel", enableCommands: true, countdownSeconds: 3, invitationTtlSeconds: 30, koHp: 1, cosmeticGear: false } });
 const command = String(loaded.command || "duel").trim().toLowerCase();
 const countdownSeconds = Math.max(1, Math.min(10, Math.floor(Number(loaded.countdownSeconds) || 3)));
 const invitationTtlSeconds = Math.max(10, Math.min(300, Math.floor(Number(loaded.invitationTtlSeconds) || 30)));
@@ -26,6 +26,18 @@ const duels = createDuelService({
     // An older host's rules have no kneelSeconds, and its kneel always ends by itself.
     kneelHeld: () => Pvp.getRules().kneelSeconds === 0,
     endKneel: (id) => { try { PlayerManager.getById(id)?.endKneel?.(); } catch (_) { /* left while kneeling */ } },
+    cosmeticGear: loaded.cosmeticGear === true,
+    // An older host has no gear rules, and worn gear counts as it always has.
+    gearRules: (id) => {
+        const player = PlayerManager.getById(id);
+        if (typeof player?.setGearStatMultiplier !== "function" || typeof player.setGearTraits !== "function") return null;
+        return { multiplier: Number(player.gearStatMultiplier ?? 1), traits: player.gearTraits !== false };
+    },
+    setGearRules: (id, rules) => {
+        const player = PlayerManager.getById(id);
+        try { player?.setGearStatMultiplier?.(rules.multiplier); player?.setGearTraits?.(rules.traits); }
+        catch (_) { /* left mid-duel */ }
+    },
     emit: (player, event, payload) => player.emit(event, JSON.stringify(payload)),
     notify: (player, message, tone = "inform") => { ui.notify(player, { title: "Wizard's duel", description: message, tone }); },
     warn: (message) => logger.warn(message),

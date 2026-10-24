@@ -253,6 +253,14 @@ declare global {
         ip?: string;
         inventory?: HogwartsMpNativeInventory;
         gear?: HogwartsMpPlayerGear;
+        /** How much of their worn gear's Offense, Defense and Cooldown this player gets, 0-1 (see setGearStatMultiplier). */
+        readonly gearStatMultiplier?: number;
+        /** 0 makes worn gear cosmetic, 1 is native; null restores server.json's `mod.gearStatMultiplier`. Throws outside 0-1. */
+        setGearStatMultiplier?(multiplier: number | null): void;
+        /** Whether this player's worn gear traits apply (see setGearTraits). */
+        readonly gearTraits?: boolean;
+        /** false strips the traits of this player's worn gear; null restores server.json's `mod.gearTraits`. */
+        setGearTraits?(on: boolean | null): void;
         readonly appearanceRevision?: number;
         getLook?(): HogwartsMpLook | null;
         setLook?(look: HogwartsMpLook | string, callback?: HogwartsMpAppearanceCallback): number;

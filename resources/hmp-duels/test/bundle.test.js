@@ -1,18 +1,25 @@
 const assert = require("node:assert"); const path = require("node:path");
 const serverExports = new Map(), serverHandlers = new Map();
-const kneels = [], timers = [];
-const player = { id: 1, nickname: "Smoke", emit() {}, sendChat() {}, endKneel: () => { kneels.push(1); return true; } };
-let definition = null, rules = {};
+const kneels = [], timers = [], gearCalls = [];
+const player = {
+  id: 1, nickname: "Smoke", emit() {}, sendChat() {}, endKneel: () => { kneels.push(1); return true; },
+  gearStatMultiplier: 0.75, gearTraits: true,
+  setGearStatMultiplier(value) { this.gearStatMultiplier = value; gearCalls.push(["multiplier", value]); },
+  setGearTraits(value) { this.gearTraits = value; gearCalls.push(["traits", value]); },
+};
+const rival = { id: 2, nickname: "Rival", emit() {}, sendChat() {} }; // an older host's player: no gear rules
+const session = { id: "s", participants: [{ playerId: 1, nickname: "Smoke" }, { playerId: 2, nickname: "Rival" }] };
+let definition = null, rules = {}, defaults = null;
 const activity = {
   definitions: { register: (value) => { definition = value; return async () => 0; } },
-  sessions: { forPlayer: () => [], get: () => null, create: async () => { throw new Error("unused"); }, cancel: async () => {}, complete: async () => {}, start: async () => {} },
-  invitations: { list: () => [], invite: async () => {}, accept: async () => {}, decline: async () => {}, cancel: async () => {} },
+  sessions: { forPlayer: () => [], get: () => null, create: async () => { throw new Error("unused"); }, cancel: async () => {}, complete: async () => {}, start: async () => session },
+  invitations: { list: () => [{ id: "i", sessionId: "s", activityId: "duel:standard" }], invite: async () => {}, accept: async () => session, decline: async () => {}, cancel: async () => {} },
 };
 const pvp = { policy: { register: () => () => true }, status: () => ({}) };
 const ui = { notify() {}, alert: async () => null, close() {} };
 global.Exports = { register: (name, value) => serverExports.set(name, value) };
-global.Imports = { get: (name) => name === "hmp-lib" ? { logger: { create: () => ({ info() {}, warn() {}, error() {} }) }, config: { load: (_p, o) => o.defaults }, player: { find: () => null } } : name === "hmp-core" ? {} : name === "hmp-activities" ? activity : name === "hmp-pvp" ? pvp : ui };
-global.PlayerManager = { getById: () => player };
+global.Imports = { get: (name) => name === "hmp-lib" ? { logger: { create: () => ({ info() {}, warn() {}, error() {} }) }, config: { load: (_p, o) => { defaults = o.defaults; return { ...o.defaults, cosmeticGear: true }; } }, player: { find: () => null } } : name === "hmp-core" ? {} : name === "hmp-activities" ? activity : name === "hmp-pvp" ? pvp : ui };
+global.PlayerManager = { getById: (id) => id === 2 ? rival : player };
 global.Events = { on: (name, handler) => serverHandlers.set(name, handler) };
 global.Pvp = { getRules: () => rules };
 const realSetTimeout = global.setTimeout;
@@ -45,4 +52,15 @@ clientHandlers.get("hmp-duels:start")({ opponentId: 2, opponentName: "Smoke" });
 clientHandlers.get("hmp-duels:end")({ result: "win", opponentName: "Smoke" });
 assert.ok(calls.some((value) => String(value).includes("Victory")));
 assert.deepStrictEqual(meters, [null, 2, 2, null]);
-console.log("hmp-duels bundle contract passed");
+
+// cosmeticGear, off by default, makes a new host's duelist's gear cosmetic for the duel and gives their own rules back
+// when it ends; an older host's player is left alone.
+void (async () => {
+  assert.strictEqual(defaults.cosmeticGear, false);
+  global.Pvp = { setPair: () => true, getRules: () => rules };
+  assert.strictEqual(await serverExports.get("accept")(rival), true);
+  assert.deepStrictEqual(gearCalls, [["multiplier", 0], ["traits", false]]);
+  definition.onCompleted({ session, result: { winnerId: 1, loserId: 2, reason: "forfeit" } });
+  assert.deepStrictEqual(gearCalls.slice(2), [["multiplier", 0.75], ["traits", true]]);
+  console.log("hmp-duels bundle contract passed");
+})();

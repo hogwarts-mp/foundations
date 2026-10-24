@@ -2,6 +2,8 @@ import type { HmpActivities, HmpActivityInvitation, HmpActivitySession } from ".
 import type { HmpPvp, HmpPvpHit } from "../../hmp-pvp/types";
 import type { HmpDuelChallenge, HmpDuelPlayer, HmpDuels } from "../types";
 
+interface GearRules { multiplier: number; traits: boolean }
+
 interface Dependencies<P extends HmpDuelPlayer> {
     activities: HmpActivities<P>;
     pvp: HmpPvp;
@@ -13,6 +15,11 @@ interface Dependencies<P extends HmpDuelPlayer> {
     kneelHeld?(): boolean;
     /** Stands a kneeling player up (player.endKneel); nothing for a player who left or a host without it. */
     endKneel?(playerId: number): void;
+    /** Both duelists' worn gear counts for nothing until the duel ends. */
+    cosmeticGear?: boolean;
+    /** What a player's worn gear is worth (player.gearStatMultiplier, gearTraits); null on a host without gear rules. */
+    gearRules?(playerId: number): GearRules | null;
+    setGearRules?(playerId: number, rules: GearRules): void;
     emit(player: P, event: string, payload: Record<string, unknown>): void;
     notify(player: P, message: string, tone?: "inform" | "success" | "warning" | "error"): void;
     countdownSeconds: number;
@@ -30,6 +37,8 @@ const DUEL = { hostile: true, aim: "lock", defeat: "kneel" } as const;
 const COUNTDOWN = { hostile: false } as const;
 // How long a loser kneels on a server whose rules hold kneels (kneelSeconds 0): the rules' own default.
 const KNEEL_MS = 4000;
+// Worn gear adds no Offense, Defense or Cooldown and grants no traits: the duelists fight as if they wore none.
+const COSMETIC: GearRules = { multiplier: 0, traits: false };
 
 function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P>): HmpDuels<P> & {
     defeated(victim: P, killer: P): Promise<void>;
@@ -48,6 +57,8 @@ function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P
     const ending = new Set<string>();
     const countdowns = new Map<string, ReturnType<typeof setTimeout>>();
     const standUps = new Map<number, ReturnType<typeof setTimeout>>();
+    // Each duelist's own gear rules from before the duel made their gear cosmetic.
+    const gear = new Map<number, GearRules>();
     let state: "ready" | "stopped" = "ready";
     const pairKey = (a: number, b: number) => a < b ? `${a}:${b}` : `${b}:${a}`;
     const duelInvitations = (playerId: number, direction: "incoming" | "outgoing") => activities.invitations.list({ playerId, direction }).filter((invite) => invite.activityId === "duel:standard");
@@ -61,6 +72,17 @@ function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P
         standUps.set(playerId, schedule(() => { standUps.delete(playerId); dependencies.endKneel?.(playerId); }, KNEEL_MS));
     }
 
+    function makeGearCosmetic(playerId: number): void {
+        const previous = dependencies.cosmeticGear && !gear.has(playerId) ? dependencies.gearRules?.(playerId) : null;
+        if (!previous) return;
+        gear.set(playerId, previous); dependencies.setGearRules?.(playerId, COSMETIC);
+    }
+
+    function restoreGear(playerId: number): void {
+        const previous = gear.get(playerId); if (!previous) return;
+        gear.delete(playerId); dependencies.setGearRules?.(playerId, previous);
+    }
+
     function teardown(session: HmpActivitySession, result?: Record<string, unknown>, reason = "cancelled"): void {
         const timer = countdowns.get(session.id); if (timer) unschedule(timer);
         countdowns.delete(session.id);
@@ -72,7 +94,7 @@ function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P
         // Only a duel that began holds a pair and recovery; a refused or expired challenge never touched either.
         const began = ids.filter((id) => active.has(id));
         for (const id of ids) active.delete(id);
-        for (const id of began) dependencies.setRecovery(id, true);
+        for (const id of began) { dependencies.setRecovery(id, true); restoreGear(id); }
         if (ids.length >= 2) {
             live.delete(pairKey(ids[0], ids[1])); ending.delete(pairKey(ids[0], ids[1]));
             if (began.length) dependencies.pair(ids[0], ids[1], null);
@@ -126,6 +148,7 @@ function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P
         active.set(right.playerId, { opponentId: left.playerId, sessionId: session.id });
         dependencies.setRecovery(left.playerId, false);
         dependencies.setRecovery(right.playerId, false);
+        makeGearCosmetic(left.playerId); makeGearCosmetic(right.playerId);
         emitTo(left.playerId, "hmp-duels:countdown", { seconds: dependencies.countdownSeconds, opponentId: right.playerId, opponentName: right.nickname });
         emitTo(right.playerId, "hmp-duels:countdown", { seconds: dependencies.countdownSeconds, opponentId: left.playerId, opponentName: left.nickname });
         // Not unref'd: each resource runs its own event loop, and libuv skips the timers of a loop with nothing referenced.
@@ -204,13 +227,16 @@ function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P
     }
 
     async function died(player: P): Promise<void> { const match = active.get(Number(player.id)); if (match) await finish(match.opponentId, Number(player.id), "died"); }
-    async function disconnected(player: P): Promise<void> { const match = active.get(Number(player.id)); if (match) await finish(match.opponentId, Number(player.id), "disconnect"); }
+    // A departed player's gear rules leave with them, and their id may come back as someone else.
+    async function disconnected(player: P): Promise<void> { gear.delete(Number(player.id)); const match = active.get(Number(player.id)); if (match) await finish(match.opponentId, Number(player.id), "disconnect"); }
     async function stop(): Promise<void> {
         if (state === "stopped") return; state = "stopped"; disposePolicy();
         for (const timer of countdowns.values()) unschedule(timer); countdowns.clear();
         // The resource's timers stop with it, so a loser still held down stands up now.
         for (const [id, timer] of standUps) { unschedule(timer); dependencies.endKneel?.(id); }
         standUps.clear();
+        // Gear counts again now, not after the sessions' teardown, which waits its turn in hmp-activities.
+        for (const id of [...gear.keys()]) restoreGear(id);
         await disposeDefinition(); active.clear(); live.clear(); ending.clear();
     }
 

@@ -23,18 +23,24 @@ async function run(): Promise<void> {
     const recovery: Array<[number, boolean]> = [];
     const delays: number[] = [];
     const stoodUp: number[] = [];
+    const gearSets: Array<[number, { multiplier: number; traits: boolean }]> = [];
     let pairRoom = true;
     let kneelHeld = false;
+    let gearHost = true;
     const duels = createDuelService<Player>({
         activities, pvp, player: (id) => players.find((entry) => entry.id === id) || null,
         pair: (a, b, options) => { pairs.push([a, b, options]); return pairRoom || options === null; },
         setRecovery: (id, on) => { recovery.push([id, on]); },
         kneelHeld: () => kneelHeld, endKneel: (id) => { stoodUp.push(id); },
+        cosmeticGear: true,
+        gearRules: (id) => !gearHost ? null : id === 2 ? { multiplier: 0.5, traits: false } : { multiplier: 1, traits: true },
+        setGearRules: (id, rules) => { gearSets.push([id, rules]); },
         emit: (player, event, payload) => emitted.push({ player: player.id, event, payload }), notify() {},
         countdownSeconds: 3, invitationTtlSeconds: 30, koHp: 1,
         setTimer: ((handler: () => void, ms: number) => { timers.push(handler); delays.push(ms); return {} as NodeJS.Timeout; }), clearTimer() {},
     });
-    const duel = async () => { await duels.challenge(players[0], players[1]); await duels.accept(players[1]); timers.shift()!(); };
+    const duel = async (a = players[0], b = players[1]) => { await duels.challenge(a, b); await duels.accept(b); timers.pop()!(); };
+    const cosmetic = { multiplier: 0, traits: false };
 
     const challenge = await duels.challenge(players[0], players[1]);
     assert.strictEqual(activities.invitations.list().length, 1);
@@ -45,6 +51,8 @@ async function run(): Promise<void> {
     // The countdown reserves the pair peaceful and holds recovery off.
     assert.deepStrictEqual(pairs, [[1, 2, { hostile: false }]]);
     assert.deepStrictEqual(recovery, [[1, false], [2, false]]);
+    // With cosmetic gear on, it also makes both duelists' gear count for nothing.
+    assert.deepStrictEqual(gearSets, [[1, cosmetic], [2, cosmetic]]);
     const hit = { casterId: 1, victimId: 2, spellId: 1, spell: "BasicCast", damage: 10, duration: 0, victimHp: 20 };
     assert.strictEqual(nativePolicy!(hit), false);
     timers.shift()!();
@@ -61,6 +69,8 @@ async function run(): Promise<void> {
     assert.ok(emitted.some((entry) => entry.event === "hmp-duels:end" && entry.payload.result === "lose"));
     assert.deepStrictEqual(pairs.at(-1), [1, 2, null]);
     assert.deepStrictEqual(recovery.slice(-2), [[1, true], [2, true]]);
+    // The end puts back each duelist's own gear rules.
+    assert.deepStrictEqual(gearSets.slice(2), [[1, { multiplier: 1, traits: true }], [2, { multiplier: 0.5, traits: false }]]);
     // Rules whose kneel ends by itself, an older host's among them, leave the loser to it.
     assert.strictEqual(timers.length, 0);
 
@@ -74,6 +84,20 @@ async function run(): Promise<void> {
     await duels.challenge(players[0], players[1]);
     assert.strictEqual(await duels.decline(players[1]), true);
     assert.strictEqual(activities.sessions.forPlayer(players[0]).length, 0);
+    // Neither a refused nor a declined challenge touched anyone's gear.
+    assert.strictEqual(gearSets.length, 4);
+
+    // A disconnected duelist's gear rules leave with them; the one still here gets theirs back.
+    gearSets.length = 0;
+    await duel();
+    await duels.disconnected(players[1]);
+    assert.deepStrictEqual(gearSets, [[1, cosmetic], [2, cosmetic], [1, { multiplier: 1, traits: true }]]);
+    // A host without gear rules leaves gear as it is.
+    gearHost = false; gearSets.length = 0;
+    await duel();
+    await duels.forfeit(players[0]);
+    assert.deepStrictEqual(gearSets, []);
+    gearHost = true;
 
     // Rules that hold kneels leave the duel to stand its loser up, after the rules' default kneel.
     kneelHeld = true;
@@ -86,12 +110,15 @@ async function run(): Promise<void> {
     await duel();
     await duels.forfeit(players[1]);
     assert.strictEqual(timers.length, 0);
-    // Stopping the resource stands a loser still held down up at once.
+    // Stopping the resource stands a loser still held down up at once, and gives a running duel's gear back.
     await duel();
     await duels.defeated(players[1], players[0]);
     assert.strictEqual(timers.length, 1);
+    await duel(players[0], players[2]);
+    gearSets.length = 0;
     await duels.stop(); await activities.stop(); pvp.stop();
     assert.deepStrictEqual(stoodUp, [1, 2]);
+    assert.deepStrictEqual(gearSets, [[1, { multiplier: 1, traits: true }], [3, { multiplier: 1, traits: true }]]);
     assert.strictEqual(duels.status().state, "stopped");
 }
 run().then(() => console.log("hmp-duels tests passed"));
