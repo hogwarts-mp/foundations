@@ -5,6 +5,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-24
+
 ### Added
 
 - `hmp-world` `policy.playerCollision` makes players block each other's movement on every client
@@ -164,6 +166,8 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ### Changed
 
+- Set the pack, all thirty resources, both gamemodes, and internal dependency pins to lockstep version
+  `0.10.0`.
 - Set the supported HogwartsMP scripting-host baseline to `1.10` or newer. Most features added in this
   release need it; each entry says what an older host does instead.
 - `hmp-admin` holds staff groups to a hierarchy. `admin.groups` let an administrator set any grade in
@@ -773,6 +777,7 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - The initial admin resource focuses on moderation and corrective operations; spectate, noclip, and
   god mode are not included.
 
+[0.10.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.10.0
 [0.9.1]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.9.1
 [0.9.0]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.9.0
 [0.8.2]: https://github.com/hogwarts-mp/foundations/releases/tag/v0.8.2

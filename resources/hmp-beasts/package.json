@@ -1,6 +1,6 @@
 {
   "name": "hmp-beasts",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "private": true,
   "author": "HogwartsMP",
   "description": "Character-scoped beast bags kept across reconnects and character switches, with released beasts returning to the world.",
@@ -28,19 +28,19 @@
     "resourceDependencies": [
       {
         "name": "hmp-mysql",
-        "version": "0.9.1"
+        "version": "0.10.0"
       },
       {
         "name": "hmp-lib",
-        "version": "0.9.1"
+        "version": "0.10.0"
       },
       {
         "name": "hmp-core",
-        "version": "0.9.1"
+        "version": "0.10.0"
       },
       {
         "name": "hmp-ui",
-        "version": "0.9.1"
+        "version": "0.10.0"
       }
     ],
     "errorBehavior": "stop",
