@@ -209,8 +209,8 @@ Interact.register({
   when `hmp-interact` stops. Death, a kneel, mounting, a server hold or teleport, a fast travel and a
   map load end the seat on the host's side, and the seat is free again.
 
-Seats need a HogwartsMP host with `LocalPlayer.anchor`. On an older host the interaction still runs
-its handler, the player stays standing, and the seat is free again at once.
+Seats need HogwartsMP `1.10` or newer for `LocalPlayer.anchor`. On an older host the interaction still
+runs its handler, the player stays standing, and the seat is free again at once.
 
 ## Selection and concurrency
 
@@ -255,8 +255,9 @@ which turns `enableCommands` on, or set `HMP_INTERACT_COMMANDS=true`; `command` 
 `HMP_INTERACT_CONFIG` and `HMP_INTERACT_COMMAND` override the file. A client receives the activation
 radius only while its outlines are on. Turn `enableCommands` off after testing.
 
-Outlines need a HogwartsMP host with `Shapes`. On an older host the client shows a notice and draws
-nothing. A host draws at most 1024 shapes per client, so a crowded area can leave some zones unringed.
+Outlines need HogwartsMP `1.10` or newer for `Shapes`. On an older host the client shows a notice and
+draws nothing. A host draws at most 1024 shapes per client, so a crowded area can leave some
+zones unringed.
 
 ## Migrating the mod's `interactables` resource
 

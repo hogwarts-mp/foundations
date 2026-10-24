@@ -174,7 +174,7 @@ removed when its resource stops, and all of them when `hmp-spells` stops. The ho
 spell on connected clients until they reconnect, so its lock stays in the policy and is still
 re-locked for anyone not allowed it.
 
-Defined spells need a HogwartsMP host with `Spells.define`. On an older host `hmp-spells` starts
+Defined spells need HogwartsMP `1.10` or newer for `Spells.define`. On an older host `hmp-spells` starts
 with a warning and skips its configured definitions, `definitions.supported()` is false and
 `register` throws; a rule naming a configured spell by id is harmless there.
 
@@ -217,8 +217,8 @@ The host tells only the client that a lesson was completed, so a modified client
 itself. It still learns only what the server offered: the server decides what can be learned, and
 the lesson paces when.
 
-Lessons need a HogwartsMP host with `SpellLearning.define`. On an older host an offered lesson fails
-at once as `unsupported`, the player is told so, and nothing is granted.
+Lessons need HogwartsMP `1.10` or newer for `SpellLearning.define`. On an older host an offered lesson
+fails at once as `unsupported`, the player is told so, and nothing is granted.
 
 ## Catalog and policy APIs
 
@@ -250,7 +250,7 @@ verdict, and `advisory: true`.
 A server-defined spell's cast is reported by the host's own `playerSpellCast` instead, which fires for
 defined spells only and adds `cast: { aimYaw, wand }`: the aim's world yaw in degrees and the wand tip as
 the cast began. `spell` and `name` are its id. The client still names such a cast in `spellCast`, but
-the server drops that relay, so each cast is reported once. This needs a HogwartsMP host with
+the server drops that relay, so each cast is reported once. This needs HogwartsMP `1.10` or newer for
 `playerSpellCast`, which came with `Spells.define`; an older host has no defined spells, and every report
 comes from the client relay.
 

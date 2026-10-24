@@ -40,7 +40,7 @@ the Overland's enemy encounters:
 
 `encounters` decides who spawns the Overland's enemy camps and roaming world events: `"suppressed"`
 (the default) spawns none, and `"server"` spawns them on the server as NPCs every player shares. What
-happens to the game's other enemies depends on the host. A HogwartsMP host newer than `1.9.2` keeps
+happens to the game's other enemies depends on the host. HogwartsMP `1.10` and newer keep
 every native spawner shut under both policies, quest ones included, so no client spawns an enemy of its
 own: quest fights, the waves a dungeon's script opens and the beast-cage rescue's poachers never spawn,
 and a quest whose objective waits on defeating them stalls at that step. HogwartsMP `1.9` through
@@ -51,7 +51,7 @@ included (`World.setPlayerCollision`). Only a player's own movement is blocked: 
 and NPCs, spells and the world are unaffected. Two players who end up inside each other pass through
 until they separate, and hidden, mounted, dead, disillusioned and animal-form players never block. The
 default `false` lets players walk through each other, as before. Another resource can take one player
-out of it with the host's `player.setCollidable(false)`. It needs a HogwartsMP host with
+out of it with the host's `player.setCollidable(false)`. It needs HogwartsMP `1.10` or newer for
 `World.setPlayerCollision`; an older host ignores it and players keep walking through each other.
 
 `fastTravel: false` stops players fast travelling from their own map (`player.setFastTravelEnabled`):
@@ -59,7 +59,7 @@ their game dims every Floo flame and refuses a pick. Story travel and the server
 still go. It reaches each player as they connect, and everyone online when `policy.set` changes it;
 stopping `hmp-world` gives online players their fast travel back. The default `true` leaves it as
 before. To refuse only some trips, another resource handles the host's `playerFastTravelRequest` event
-and returns `false`: every handler runs, and any `false` refuses. It needs a HogwartsMP host with
+and returns `false`: every handler runs, and any `false` refuses. It needs HogwartsMP `1.10` or newer for
 `player.setFastTravelEnabled`; an older host ignores it, raises no `playerFastTravelRequest`, and
 players keep fast travelling.
 
@@ -67,8 +67,8 @@ players keep fast travelling.
 dungeon, instead of the full health a fresh body starts with (`player.setKeepHealthOnTravel`). A
 respawn after a death still starts full. It reaches players as `fastTravel` does, and stopping
 `hmp-world` switches it off for those online. The default `false` keeps the full-health reset. It needs
-a HogwartsMP host with `player.setKeepHealthOnTravel`; an older host ignores it and every map load
-still heals to full.
+HogwartsMP `1.10` or newer for `player.setKeepHealthOnTravel`; an older host ignores it and every map
+load still heals to full.
 
 `jump: false` and `sprint: false` keep players from jumping or sprinting (`LocalPlayer.setJumpEnabled`,
 `LocalPlayer.setSprintEnabled`): the button does nothing, a jump already in the air lands normally,
@@ -76,8 +76,8 @@ and a running sprint stops. Each client takes them as `hmp-world`'s own hold, so
 takes stays, and the host drops `hmp-world`'s when it stops. Both default to `true`, as before.
 `policy.set` changes them for everyone; a resource that needs them off for its own reasons, such as for
 one player, calls those `LocalPlayer` functions itself and gets a hold of its own, dropped when it stops.
-They need a HogwartsMP host with `LocalPlayer.setJumpEnabled` and `setSprintEnabled`; an older host
-ignores them and players keep jumping and sprinting.
+They need HogwartsMP `1.10` or newer for `LocalPlayer.setJumpEnabled` and `setSprintEnabled`; an older
+host ignores them and players keep jumping and sprinting.
 
 `time.scale` is in-game minutes per real second: `1` gives a 24-minute in-game day and `0` freezes
 the clock. `date.year: 0` preserves the game's native year. Seasons accept `spring`, `summer`,

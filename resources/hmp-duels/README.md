@@ -18,15 +18,15 @@ The client only presents the countdown, the opponent's health meter and the resu
 
 The loser's kneel lasts as long as the server's PvP rules say (`kneelSeconds`, 4 s by default) and ends
 by itself. On a server whose rules hold kneels (`kneelSeconds: 0`, down until `player.endKneel`), the duel
-stands its loser up 4 s after the knock-out, or at once if `hmp-duels` stops first. This needs a
-HogwartsMP host with `kneelSeconds` and `player.endKneel`; an older host's kneel always ends by itself.
+stands its loser up 4 s after the knock-out, or at once if `hmp-duels` stops first. This needs HogwartsMP
+`1.10` or newer for `kneelSeconds` and `player.endKneel`; an older host's kneel always ends by itself.
 
 `cosmeticGear: true` in `data/hmp-duels.json` (default `false`) makes both duelists' worn gear cosmetic
 for the duel: from the countdown on, its Offense, Defense and Cooldown and its traits count for nothing,
 as if neither wore any. However the duel ends (a knock-out, a forfeit, a death, a disconnect or
-`hmp-duels` stopping), each player gets back the gear rules they had before it. This needs a HogwartsMP
-host with `player.setGearStatMultiplier` and `player.setGearTraits`; an older host ignores the option and
-worn gear counts as usual.
+`hmp-duels` stopping), each player gets back the gear rules they had before it. This needs HogwartsMP
+`1.10` or newer for `player.setGearStatMultiplier` and `player.setGearTraits`; an older host ignores the
+option and worn gear counts as usual.
 
 Commands (a player id takes a `#`, as in `/duel #5`):
 

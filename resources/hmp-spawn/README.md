@@ -88,7 +88,7 @@ host's spawn points around it, both off by default:
   character clears it until that one lands, and a landing outside `Overland` clears it. Leave it off
   when another resource sets players' spawn points.
 
-Both need a HogwartsMP host with `World.setSpawn` and `player.setSpawn`. On an older host,
+Both need HogwartsMP `1.10` or newer for `World.setSpawn` and `player.setSpawn`. On an older host,
 `worldSpawn` logs a warning and players load into the dormitory, `respawnAtSpawn` does nothing, and
 the selector, last location and teleport work as before.
 

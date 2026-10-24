@@ -10,31 +10,32 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - `hmp-world` `policy.playerCollision` makes players block each other's movement on every client
   through `World.setPlayerCollision`, from the JSON baseline or `policy.set`. Nobody can push anyone,
   and NPCs, spells and the world are unaffected. It defaults to `false`, so players still walk through
-  each other. It needs a HogwartsMP host with `World.setPlayerCollision`; an older host ignores it.
+  each other. It needs HogwartsMP `1.10` or newer for `World.setPlayerCollision`; an older host
+  ignores it.
 - `hmp-world` `policy.fastTravel: false` stops players fast travelling from their own map through
   `player.setFastTravelEnabled`: their game dims every Floo flame and refuses a pick, while story travel
   and `player.fastTravel` still go. It reaches each player on connect and everyone online when
   `policy.set` changes it, and stopping `hmp-world` gives it back. It defaults to `true`, as before. A
   resource that refuses only some trips handles the host's `playerFastTravelRequest` and returns
-  `false`, now in the shared typings. It needs a HogwartsMP host with `player.setFastTravelEnabled`; an
-  older host ignores it.
+  `false`, now in the shared typings. It needs HogwartsMP `1.10` or newer for
+  `player.setFastTravelEnabled`; an older host ignores it.
 - `hmp-world` `policy.keepHealthOnTravel: true` carries each player's health over a map load, such as
   entering or leaving a dungeon, through `player.setKeepHealthOnTravel`, instead of the full health a
   fresh body starts with. A respawn after a death still starts full. It reaches players as
   `policy.fastTravel` does, and stopping `hmp-world` switches it off. It defaults to `false`, as before.
-  It needs a HogwartsMP host with `player.setKeepHealthOnTravel`; an older host ignores it.
+  It needs HogwartsMP `1.10` or newer for `player.setKeepHealthOnTravel`; an older host ignores it.
 - `hmp-world` `policy.jump` and `policy.sprint` set to `false` keep every player from jumping or
   sprinting through `LocalPlayer.setJumpEnabled` and `setSprintEnabled`: the button does nothing, and a
   running sprint stops. Each client takes them as `hmp-world`'s own hold, so holds other resources take
   for themselves are left alone, and the host drops it when `hmp-world` stops. Both default to `true`,
-  as before. The client `policy.current()` and `status()` carry them too. They need a HogwartsMP host
-  with `LocalPlayer.setJumpEnabled` and `setSprintEnabled`; an older host ignores them.
+  as before. The client `policy.current()` and `status()` carry them too. They need HogwartsMP `1.10` or
+  newer for `LocalPlayer.setJumpEnabled` and `setSprintEnabled`; an older host ignores them.
 - `hmp-duels` `cosmeticGear` (default `false`) makes both duelists' worn gear cosmetic for the duel:
   from the countdown on, its Offense, Defense and Cooldown and its traits count for nothing, as if
   neither wore any. However the duel ends (a knock-out, a forfeit, a death, a disconnect or `hmp-duels`
-  stopping), each player gets back the gear rules they had before it. It needs a HogwartsMP host with
-  `player.setGearStatMultiplier` and `player.setGearTraits`; an older host ignores the option and worn
-  gear counts as usual.
+  stopping), each player gets back the gear rules they had before it. It needs HogwartsMP `1.10` or newer
+  for `player.setGearStatMultiplier` and `player.setGearTraits`; an older host ignores the option and
+  worn gear counts as usual.
 - `hmp-spawn` can use the host's spawn points, both off by default. `worldSpawn` names a configured
   `Overland` location that every connect load stands players on (`World.setSpawn`), instead of the
   house dormitory, and that a respawn without a position falls back to; stopping `hmp-spawn` puts back
@@ -42,33 +43,33 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   (`player.setSpawn`), so a respawn without a position, such as the automatic one after a death, stands
   them there instead of in the dormitory; choosing another character clears it. A character is chosen
   only after the connect load, so the selector, last location and teleport still bring them to their
-  destination. It needs a HogwartsMP host with `World.setSpawn` and `player.setSpawn`; on an older host
-  players load into the dormitory and respawn as before, and `worldSpawn` logs a warning.
+  destination. It needs HogwartsMP `1.10` or newer for `World.setSpawn` and `player.setSpawn`; on an
+  older host players load into the dormitory and respawn as before, and `worldSpawn` logs a warning.
 - `hmp-admin` Revive player stands a dead player up where they lie, at full health and with no
   reload, through the game's own get-up. The player menu offers it only while the target is dead, to
   staff with `admin.freeze`, and the attempt is audited. A death the server respawns on its own already
   has that respawn on its way, so Revive stands up a death held with server.json
-  `"mod": { "autoRespawn": false }` or `player.setAutoRespawn(false)`. It needs a HogwartsMP host with
-  `player.revive`; on an older host the action reports that the host cannot revive.
+  `"mod": { "autoRespawn": false }` or `player.setAutoRespawn(false)`. It needs HogwartsMP `1.10` or
+  newer for `player.revive`; on an older host the action reports that the host cannot revive.
 - `hmp-admin` Send to a map loads another map on a player's client, or on the admin's own: Overland,
   the intro's Gringotts lobby, vault and cliffside, or any map by package path, a mod's included, at
   its own start or a PlayerStart tag. It is granted with `admin.teleport` and audited. The menu waits
   until the player is playable there, then reports the area they arrived in or why they did not, such
-  as a map their client does not have installed. It needs a HogwartsMP host with `player.travelToMap`,
-  and `player.travelToPlace` for the intro places; on an older host the action reports that the host
-  cannot travel.
+  as a map their client does not have installed. It needs HogwartsMP `1.10` or newer for
+  `player.travelToMap`, and `player.travelToPlace` for the intro places; on an older host the action
+  reports that the host cannot travel.
 - `hmp-admin` Walk to you and Follow you walk a player to the admin, or after them, with the game's own
   walk and their controls locked until it ends; Stop walking ends it where they are. They are granted
   with `admin.teleport`, need both players in the same world and area, and are audited. When a walk
   ends on its own, the admin who started it is told why, such as arrived, stuck on the way or
-  interrupted. Stopping `hmp-admin` ends its walks. It needs a HogwartsMP host with `player.moveTo`,
-  `player.follow` and `player.stopMoving`; on an older host each action reports that the host cannot
-  walk players.
+  interrupted. Stopping `hmp-admin` ends its walks. It needs HogwartsMP `1.10` or newer for
+  `player.moveTo`, `player.follow` and `player.stopMoving`; on an older host each action reports that the
+  host cannot walk players.
 - `hmp-admin` Turn off collision takes one player out of player collision, so they pass through other
   players and other players through them; Turn on collision puts them back. It is granted with
   `admin.freeze` and audited, and only matters while the world's player collision
   (`hmp-world` `policy.playerCollision`) is on. The change is server-owned and lasts until it is turned back or
-  the player disconnects. It needs a HogwartsMP host with `player.setCollidable` and
+  the player disconnects. It needs HogwartsMP `1.10` or newer for `player.setCollidable` and
   `player.isCollidable`; on an older host the player menu does not offer it.
 - New `hmp-express` resource: the Hogwarts Express run from the server through `World.hogwartsExpress`,
   so every player, late joiners included, sees the same train at the same spot. A host with it turns the
@@ -76,25 +77,25 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   departures in in-game time on chosen weekdays, stops with real-second dwell times, and the cruise,
   pulling-away and braking speeds. The defaults are the game's own timetable, driven straight through.
   Other resources read and drive the train through the `train` export, and `enabled: false` leaves it to
-  another script. It needs a HogwartsMP host with `World.hogwartsExpress`; on an older host it reports
-  `degraded` and runs nothing, and clients keep the game's own timetable.
+  another script. It needs HogwartsMP `1.10` or newer for `World.hogwartsExpress`; on an older host it
+  reports `degraded` and runs nothing, and clients keep the game's own timetable.
 - `hmp-blips` knows each player's own map waypoint. Clients report it as it is placed, moved or lifted;
   `waypoints.get(player)` reads it, `hmp:blips:waypoint` announces each change and `/blips waypoint`
   replies with the caller's. `waypoints.share` shows a player's waypoint to an audience as a marker that
   follows it, never to the sharer, until unshared, its resource stops or the sharer leaves; nothing is
-  shared unless a resource asks. It needs a HogwartsMP host with `Blips.waypoint`; on an older host no
-  waypoint is reported and a share shows nothing.
+  shared unless a resource asks. It needs HogwartsMP `1.10` or newer for `Blips.waypoint`; on an older
+  host no waypoint is reported and a share shows nothing.
 - `hmp-doors` rules can hold a padlocked door's Alohomora lock level. A `deny` or `lock` rule naming
   doors takes `lockLevel` (`1` to `3`), which the server holds for every player, so the padlock's callout
   shows it and only a player whose Alohomora reaches it can cast on the door. Being the same for
   everyone, a rule carrying it cannot have `match`. `/doors list` prints each padlocked door's level. It
-  needs a HogwartsMP host with `Doors.set` `lockLevel`; on an older host every padlock keeps the level it
-  shipped with.
+  needs HogwartsMP `1.10` or newer for `Doors.set` `lockLevel`; on an older host every padlock keeps the
+  level it shipped with.
 - `hmp-doors` `shareUnlocks` decides whether a lock a player opens by key or Alohomora opens for everyone.
   A host that shares unlocks holds the door unlocked for every player, beating each player's policy, so
   one player able to pick a door a `deny` or `lock` rule keeps shut would open it for the whole server.
   It is `false` by default, keeping each unlock in the opener's game as on every older host, and the host's
-  own setting is put back when the resource stops. It needs a HogwartsMP host with
+  own setting is put back when the resource stops. It needs HogwartsMP `1.10` or newer for
   `Doors.setShareUnlocks`; an older host keeps every unlock private.
 - `hmp-doors` manages gates: portcullises, the Astronomy rune gate, goblin camp gates and crawl grates,
   which no door rule reaches. A `gates` rule target takes the same `allow`, `deny` and `lock` and the
@@ -102,7 +103,7 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   `"*"` rule. `heldGates` holds gates the same for every player while the resource runs,
   `gateSchedule: "freeze"` takes portcullises off each client's own clock, and `/doors gates`, `gate`,
   `gateset` and `gatesheld` list, drive and hold gates. The defaults leave every gate as the game has
-  it. Gate rules need a HogwartsMP client with `Gates`, and held gates a host with the server `Gates`;
+  it. Gate rules and held gates need HogwartsMP `1.10` or newer, for the client and the server `Gates`;
   an older host leaves every gate to the game.
 - `hmp-spells` server-defined spells. `definitions` in `data/hmp-spells.json`, or
   `definitions.register` from a gameplay resource, adds a spell that runs an existing player spell's
@@ -110,27 +111,28 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   `"*"`, the admin spell picker and loadouts take it by id, it locks as `Spell_<id>` and starts locked,
   and a revoke takes it from the quick bar like a game spell. A runtime definition goes away when its
   resource stops, and its lock stays re-locked for the clients that keep it until they reconnect.
-  Spells other resources define through the host join the catalog too. It needs a HogwartsMP host with
-  `Spells.define`; an older host skips configured definitions with a warning, and `register` throws.
+  Spells other resources define through the host join the catalog too. It needs HogwartsMP `1.10` or
+  newer for `Spells.define`; an older host skips configured definitions with a warning, and
+  `register` throws.
 - `hmp-spells` reports a server-defined spell's cast from the host's `playerSpellCast`, with the aim's
   yaw and the wand tip in a new `cast` field of `hmp:spells:cast`, named by the spell's id. The
   client relay of the same cast is dropped, so it is reported once; the game's own spells are still
   relayed by the client. Both sources stay `advisory: true`, since the host's event is the caster's
-  client's word too. It needs a HogwartsMP host with `playerSpellCast`; an older host reports every
-  cast through the client relay as before.
+  client's word too. It needs HogwartsMP `1.10` or newer for `playerSpellCast`; an older host reports
+  every cast through the client relay as before.
 - `hmp-spells` spell lessons. `lessons` in `data/hmp-spells.json` pairs a spell, a game spell or a
   defined one, with the game's own spell lesson, which the client defines with
   `SpellLearning.define`. `lessons.offer`, or `/spells teach`, runs it on a player's screen, and
   completing it grants the spell to the character it was offered to; `hmp:spells:lesson` reports how
   it ended. Only the client sees a lesson completed, so a modified client can skip one, but it never
-  learns a spell it wasn't offered. It needs a HogwartsMP host with `SpellLearning.define`; on an
+  learns a spell it wasn't offered. It needs HogwartsMP `1.10` or newer for `SpellLearning.define`; on an
   older host an offered lesson fails as `unsupported` and grants nothing.
 - `hmp-interact` interactions can seat the player. A registration's `seat` (a floor-level sit point,
   a facing, a held seated clip and an optional exit) sits the player there once the interaction
   succeeds, one player per seat, through `LocalPlayer.anchor`, which holds them inside the furniture
   where a teleport would shove them clear. F stands them up; so does the interaction going away or the
   player leaving its world or area, and the host's own releases (death, a kneel, mounting, a server hold
-  or teleport, a fast travel, a map load) free the seat. It needs a HogwartsMP host with
+  or teleport, a fast travel, a map load) free the seat. It needs HogwartsMP `1.10` or newer for
   `LocalPlayer.anchor`; on an older host the interaction runs and the player stays standing.
 - `hmp-interact` world objects take the host's `streamRange`, `drawDistance`, `animation`, `material`
   and `startFx`. `streamRange` and a non-zero `drawDistance` are raised to at least the interaction's
@@ -142,24 +144,38 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   zone around the caller, on their screen only: amber at the activation radius, where F works, and blue
   at the prompt distance where that is nearer. The command is opt-in through a new
   `data/hmp-interact.json` (`enableCommands`, off unless configured; the example turns it on), and a
-  client receives the radius only while its outlines are on. It needs a HogwartsMP host with `Shapes`;
-  an older host draws nothing and shows a notice.
+  client receives the radius only while its outlines are on. It needs HogwartsMP `1.10` or newer for
+  `Shapes`; an older host draws nothing and shows a notice.
 - `hmp-npcs` walks the NPCs a resource spawned. The new `movement` export (`along`, `to`, `stop`,
   `pause`, `resume`, `setIdle` and `get`) drives the host's NPC paths, with waits, gaits, loops and the
   idle after a path, for the owning resource only, and validates them before the host sees them.
   `hmp:npcs:waypoint` and `hmp:npcs:moveEnded` forward the host's `npcWaypoint` and `npcMoveEnded` for
-  managed NPCs, with the NPC's snapshot and so its owning `resource`. It needs a HogwartsMP host with
-  `NPC.moveAlong`; on an older host every call is false and `get` is null.
+  managed NPCs, with the NPC's snapshot and so its owning `resource`. It needs HogwartsMP `1.10` or newer
+  for `NPC.moveAlong`; on an older host every call is false and `get` is null.
 - `hmp-npcs` `setVirtualWorld(id, resource, world, map?)` moves an NPC the resource spawned into a
   virtual world within a map, where it meets the players in that world of that map, so one world of a
-  dungeon is one instance of it. It is false for an NPC another resource spawned. It needs a HogwartsMP
-  host whose `setVirtualWorld` takes a map; an older host ignores `map`, so outside Overland the NPC
-  never reaches the players in that world.
+  dungeon is one instance of it. It is false for an NPC another resource spawned. It needs HogwartsMP
+  `1.10` or newer, whose `setVirtualWorld` takes a map; an older host ignores `map`, so outside Overland
+  the NPC never reaches the players in that world.
+- `hmp-characters`' creator offers facial hair. The Hairstyles tab gains Facial Hair (none, or one of
+  the Beard-slot pieces) and Facial Hair Colour (the piece's own, match the hair, or a shade). Both are
+  hidden on a client whose creator schema does not offer them. The shared typings declare `facialHair`
+  and `facialHairColor` on looks and creator snapshots.
 
 ### Changed
 
-- `hmp-world`'s README no longer says mission enemies always come from the game. A HogwartsMP host
-  newer than `1.9.2` keeps every native spawner shut under both `encounters` policies, quest ones
+- Set the supported HogwartsMP scripting-host baseline to `1.10` or newer. Most features added in this
+  release need it; each entry says what an older host does instead.
+- `hmp-admin` holds staff groups to a hierarchy. `admin.groups` let an administrator set any grade in
+  any group, so a grade-2 admin could raise their own admin grade, or an ally's, and gain every
+  capability above it. In a staff group, any group named in `roleRules` or the new `protectedGroups`,
+  an administrator now changes only players ranked below them, only to a grade below their own, and
+  never their own account. Other groups, such as houses, stay open to anyone with `admin.groups`. List
+  any other group that gates staff tools, such as an `adminGroups` entry keyed `staff`, in
+  `protectedGroups`. A session unlocked with the bootstrap secret is exempt, so use it to appoint the
+  highest grade.
+- `hmp-world`'s README no longer says mission enemies always come from the game. HogwartsMP `1.10`
+  and newer keep every native spawner shut under both `encounters` policies, quest ones
   included, and refuses a level script that turns one back on, so no client spawns an enemy of its own:
   quest fights, a dungeon's scripted waves and the beast-cage rescue's poachers never spawn, and a quest
   whose objective waits on defeating them stalls at that step. HogwartsMP `1.9` through `1.9.2` leaves
@@ -173,7 +189,7 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   fall, and the landing read about the height gained since no-clip began plus the real drop. Past 16 m
   that killed the admin through the invulnerable flag that guards the landing: leaving no-clip on a
   roof 20 m above where it began, or 10 m up in the air, was fatal. Leaving no-clip now calls
-  `LocalPlayer.resetFall`, so the landing costs no health. It needs a HogwartsMP host with
+  `LocalPlayer.resetFall`, so the landing costs no health. It needs HogwartsMP `1.10` or newer for
   `LocalPlayer.resetFall`; on an older host the landing is unchanged.
 - `hmp-npcs` `destroy` removes the NPC from the registry when its id arrives as a numeric string. It
   looked the entry up by the normalized id but deleted it by the raw one, so the destroyed NPC stayed
@@ -181,14 +197,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 - `hmp-quidditch` pitch objects stay visible across the whole pitch. The game gave a WorldObject mesh
   the smallest cull distance in its world table, so the quaffle and banners vanished past about 20 m.
   Every pitch object (banners, hoops, bludgers, quaffle and snitch) is now created with
-  `drawDistance: pitch.propDrawDistance` (default 0, never cull). It needs a HogwartsMP host with
+  `drawDistance: pitch.propDrawDistance` (default 0, never cull). It needs HogwartsMP `1.10` or newer for
   WorldObject `drawDistance`; an older host ignores it and keeps the limit.
 - `hmp-duels` no longer leaves its loser kneeling on a server whose PvP rules hold kneels
   (`kneelSeconds: 0`, down until `player.endKneel`). A duel ends in a kneel defeat whatever the
   server's own rules say, so on such a server the loser never stood up. The duel now stands them up
   with `player.endKneel` 4 s after the knock-out, the rules' default kneel, or at once if `hmp-duels`
-  stops first. It needs a HogwartsMP host with `kneelSeconds` and `player.endKneel`; on an older host
-  a kneel always ends by itself and nothing changes.
+  stops first. It needs HogwartsMP `1.10` or newer for `kneelSeconds` and `player.endKneel`; on an older
+  host a kneel always ends by itself and nothing changes.
 
 ## [0.9.1] - 2026-10-16
 

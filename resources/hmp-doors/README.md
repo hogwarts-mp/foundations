@@ -90,8 +90,8 @@ opens. Being the same for everyone, a level cannot follow `match`, so a rule car
 whose rules unlock the door never meets it. Where several rules give a door a level, the strongest wins, and at
 equal priority the higher level. Levels are held when the resource starts and released when it stops.
 
-Lock levels need a HogwartsMP host with `Doors.set` `lockLevel`. On an older host `hmp-doors` logs a warning at
-startup and every padlock keeps the level it shipped with.
+Lock levels need HogwartsMP `1.10` or newer for `Doors.set` `lockLevel`. On an older host `hmp-doors`
+logs a warning at startup and every padlock keeps the level it shipped with.
 
 ## Shared unlocks
 
@@ -105,8 +105,8 @@ found is put back when it stops.
 Either way the host raises `doorUnlocked(player, { name, id, path, shared })` for a lock opened by key or
 Alohomora, so any resource can react to one directly.
 
-Sharing needs a HogwartsMP host with `Doors.setShareUnlocks`. An older host keeps every unlock private; asked
-to share, `hmp-doors` logs a warning at startup.
+Sharing needs HogwartsMP `1.10` or newer for `Doors.setShareUnlocks`. An older host keeps every unlock
+private; asked to share, `hmp-doors` logs a warning at startup.
 
 ## Gates
 
@@ -154,8 +154,8 @@ not drive, so two players can see one gate in different places. `"gateSchedule":
 portcullis off its clock; the default, `"local"`, leaves the game's schedule running. A frozen portcullis
 stays off its clock until it streams in again.
 
-Gate rules need a HogwartsMP client with the `Gates` builtin; an older client ignores them and leaves every
-gate to the game. `heldGates`, `gateset` and `gatesheld` need a host with the server `Gates` builtin. On an
+Gate rules need HogwartsMP `1.10` or newer for the client `Gates` builtin; an older client ignores them and
+leaves every gate to the game. `heldGates`, `gateset` and `gatesheld` need it for the server `Gates` builtin. On an
 older host `hmp-doors` logs a warning for `heldGates` at startup and the commands say they are unavailable.
 
 ## API

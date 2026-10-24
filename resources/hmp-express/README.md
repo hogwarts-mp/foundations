@@ -11,8 +11,8 @@ Out of the box it keeps the game's own timetable (10:00 on Monday, Wednesday and
 Saturday) and drives straight through at the game's own speed, as the game does. It needs no admin and
 no command.
 
-It needs a HogwartsMP host with `World.hogwartsExpress`. An older host logs an error at startup, reports
-`degraded` and runs nothing; its clients keep the game's own timetable, each on its own.
+It needs HogwartsMP `1.10` or newer for `World.hogwartsExpress`. An older host logs an error at startup,
+reports `degraded` and runs nothing; its clients keep the game's own timetable, each on its own.
 
 ## Configuration
 

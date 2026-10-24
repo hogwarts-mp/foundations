@@ -37,7 +37,7 @@ instance of it. `map` is a `player.location().areaId` (`"Overland"` or `""` for 
 out, the NPC keeps its map. It is false for an NPC another resource spawned. An NPC spawned with an
 `ownerId` starts in that player's world and map by itself on a host that combines them.
 
-Placing an NPC in a map's world needs a HogwartsMP host whose `setVirtualWorld` takes a map. An
+Placing an NPC in a map's world needs HogwartsMP `1.10` or newer, whose `setVirtualWorld` takes a map. An
 older host ignores `map` and keeps the bare world number, so outside Overland the NPC never reaches
 the players in that world.
 
@@ -76,8 +76,8 @@ npcs.movement.get(guard.id); // { state, waypoints, idle, home }
 - Every call takes the resource that spawned the NPC and is false for any other, for a gone or dead
   NPC, and on a host without NPC movement, where `get` is null. Malformed input throws a `TypeError`.
 
-Movement needs a HogwartsMP host with `NPC.moveAlong`. On an older host every call is false and the
-NPC keeps the game's own behaviour.
+Movement needs HogwartsMP `1.10` or newer for `NPC.moveAlong`. On an older host every call is false and
+the NPC keeps the game's own behaviour.
 
 ## Events
 

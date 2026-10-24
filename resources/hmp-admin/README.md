@@ -123,15 +123,15 @@ visible to other players while flying; a server without `player.setVisible` alwa
 flying, which keeps the falling animation out of view. It needs HogwartsMP `1.9` or newer
 (`LocalPlayer.setVisibility`) and is restored when no-clip ends.
 
-The protected landing needs a HogwartsMP host with `LocalPlayer.resetFall`. No-clip moves the admin
-in short teleports, and the game skips a landing's fall damage only after a teleport of more than
-1 m, so it counts the flight as a fall. The landing then reads about the height gained since no-clip
-began plus the real drop, and past 16 m the game kills outright, invulnerable or not. On a host
+The protected landing needs HogwartsMP `1.10` or newer for `LocalPlayer.resetFall`. No-clip moves the
+admin in short teleports, and the game skips a landing's fall damage only after a teleport of more
+than 1 m, so it counts the flight as a fall. The landing then reads about the height gained since
+no-clip began plus the real drop, and past 16 m the game kills outright, invulnerable or not. On a host
 without `resetFall`, leaving no-clip on a roof 20 m above where it began, or 10 m up in the air,
 still kills the admin.
 
 Revive player is offered while the target is dead and stands them up through the game's own get-up,
-granted with `admin.freeze`. It needs a HogwartsMP host with `player.revive`; on an older host it
+granted with `admin.freeze`. It needs HogwartsMP `1.10` or newer for `player.revive`; on an older host it
 reports that the host cannot revive. A death the server respawns on its own (server.json
 `"mod": { "autoRespawn": true }`, the default) has its respawn ordered as the player dies, and a
 revive cannot overtake it, so Revive stands up a death held with `"autoRespawn": false` or a
@@ -144,8 +144,8 @@ cliffside (places the game builds from several maps), or any map by package path
 player must have installed. An optional PlayerStart tag stands them at it, and on Overland a
 dungeon's name lands at its entrance. The menu waits until the player is playable there, then
 reports the area they arrived in, or why they did not: their client lacks the map, a newer travel
-replaced it, or it timed out. Players only see others in the same map. It needs a HogwartsMP host
-with `player.travelToMap`, and `player.travelToPlace` for the intro places; on an older host it
+replaced it, or it timed out. Players only see others in the same map. It needs HogwartsMP `1.10` or
+newer for `player.travelToMap`, and `player.travelToPlace` for the intro places; on an older host it
 reports that the host cannot travel.
 
 Walk to you and Follow you walk the target with the game's own on-foot walk, so everyone sees an
@@ -156,8 +156,8 @@ controls are locked while they walk; camera look stays. Stop walking (Stop follo
 player ends it where they are, and stopping `hmp-admin` ends every walk it started. When a walk ends
 any other way, the admin who started it is told why: arrived, stuck on the way, interrupted (mounted,
 swimming, knocked down or in a scene), teleported away, died, disconnected, or lost track of the
-admin. The walk runs on the player's own client, which a modified client can ignore. It needs a
-HogwartsMP host with `player.moveTo`, `player.follow` and `player.stopMoving`; on an older host each
+admin. The walk runs on the player's own client, which a modified client can ignore. It needs HogwartsMP
+`1.10` or newer for `player.moveTo`, `player.follow` and `player.stopMoving`; on an older host each
 action reports that the host cannot walk players.
 
 Turn off collision takes the target out of player collision, so they pass through other players and
@@ -165,7 +165,7 @@ other players through them, and Turn on collision puts them back; granted with `
 only matters while the world's player collision is on (`hmp-world` `policy.playerCollision`, off by
 default, in which players block each other's movement); NPCs, spells and the world are unaffected
 either way. The change is server-owned, so the player's client cannot undo it, and lasts until it is
-turned back or they disconnect. It needs a HogwartsMP host with `player.setCollidable` and
+turned back or they disconnect. It needs HogwartsMP `1.10` or newer for `player.setCollidable` and
 `isCollidable`; on an older host the toggle is not offered.
 
 ## Suggested closed-test feedback

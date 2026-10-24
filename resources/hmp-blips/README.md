@@ -169,7 +169,7 @@ clamps it), and ends with `unshare`, `waypoints.clear(resource)`, the owning res
 sharer leaving. Call `markers.sync()` after the audience changes, as for any marker. Nothing is shared
 unless a resource asks.
 
-Waypoints need a HogwartsMP host with `Blips.waypoint`. On an older host clients report none, so
+Waypoints need HogwartsMP `1.10` or newer for `Blips.waypoint`. On an older host clients report none, so
 `waypoints.get()` is null and a share shows nothing.
 
 ## Configuration

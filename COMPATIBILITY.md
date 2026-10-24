@@ -7,7 +7,7 @@ target.
 |---|---|---|---|
 | HMP Foundations | `0.9.1` pack and resources | Supported | All thirty resources must use the same version. |
 | HMP Gamemodes | `0.9.1` | Supported | Optional; each gamemode must match the core pack's version. |
-| HogwartsMP scripting host | `1.9` or newer | Supported | Provides the scripting capabilities listed below. |
+| HogwartsMP scripting host | `1.10` or newer | Supported | Provides the scripting capabilities listed below. |
 | MafiaHub Framework | `16.2.0` or newer | Supported | Required for the `fw://` local resource scheme. On `16.1.x` and older every resource-served page, font, and icon fails to load. |
 | Hogwarts Legacy client data | Steam build ID `20773316` | Supported baseline | The native inventory catalog declares this game-data build. Other builds require revalidation. |
 | Dedicated-server JavaScript | Embedded Node.js 22 runtime | Supported | Release resources contain bundled dependencies. |
@@ -20,7 +20,7 @@ target.
 
 ## Required scripting capabilities
 
-HogwartsMP `1.9` provides the required scripting capabilities below. Compatible newer releases must
+HogwartsMP `1.10` provides the required scripting capabilities below. Compatible newer releases must
 preserve them:
 
 - manifest resource dependencies, priorities, exports, and `Imports.get()`;
