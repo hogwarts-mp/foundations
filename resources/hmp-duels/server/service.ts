@@ -9,6 +9,10 @@ interface Dependencies<P extends HmpDuelPlayer> {
     /** The host's pair override (Pvp.setPair); null clears it. False when the host has no room. */
     pair(a: number, b: number, options: { hostile: boolean; aim?: "lock" | "skillshot"; defeat?: "death" | "kneel" } | null): boolean;
     setRecovery(playerId: number, on: boolean): void;
+    /** True when the host's rules hold a kneel defeat until player.endKneel (kneelSeconds 0); false on an older host. */
+    kneelHeld?(): boolean;
+    /** Stands a kneeling player up (player.endKneel); nothing for a player who left or a host without it. */
+    endKneel?(playerId: number): void;
     emit(player: P, event: string, payload: Record<string, unknown>): void;
     notify(player: P, message: string, tone?: "inform" | "success" | "warning" | "error"): void;
     countdownSeconds: number;
@@ -24,6 +28,8 @@ interface Dependencies<P extends HmpDuelPlayer> {
 const DUEL = { hostile: true, aim: "lock", defeat: "kneel" } as const;
 // The countdown reserves the pair but holds it peaceful, even on an open-PvP server.
 const COUNTDOWN = { hostile: false } as const;
+// How long a loser kneels on a server whose rules hold kneels (kneelSeconds 0): the rules' own default.
+const KNEEL_MS = 4000;
 
 function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P>): HmpDuels<P> & {
     defeated(victim: P, killer: P): Promise<void>;
@@ -41,12 +47,18 @@ function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P
     const live = new Set<string>();
     const ending = new Set<string>();
     const countdowns = new Map<string, ReturnType<typeof setTimeout>>();
+    const standUps = new Map<number, ReturnType<typeof setTimeout>>();
     let state: "ready" | "stopped" = "ready";
     const pairKey = (a: number, b: number) => a < b ? `${a}:${b}` : `${b}:${a}`;
     const duelInvitations = (playerId: number, direction: "incoming" | "outgoing") => activities.invitations.list({ playerId, direction }).filter((invite) => invite.activityId === "duel:standard");
 
     function emitTo(playerId: number, event: string, payload: Record<string, unknown>): void {
         const player = dependencies.player(playerId); if (player) dependencies.emit(player, event, payload);
+    }
+
+    function standUp(playerId: number): void {
+        const pending = standUps.get(playerId); if (pending) unschedule(pending);
+        standUps.set(playerId, schedule(() => { standUps.delete(playerId); dependencies.endKneel?.(playerId); }, KNEEL_MS));
     }
 
     function teardown(session: HmpActivitySession, result?: Record<string, unknown>, reason = "cancelled"): void {
@@ -67,6 +79,8 @@ function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P
         }
         const winnerId = Number(result?.winnerId) || 0;
         const loserId = Number(result?.loserId) || 0;
+        // A knock-out's kneel ends by itself, unless the server's rules hold kneels: then the duel stands its loser up.
+        if (result?.reason === "ko" && loserId && dependencies.kneelHeld?.()) standUp(loserId);
         for (const participant of session.participants) {
             const outcome = winnerId === participant.playerId ? "win" : loserId === participant.playerId ? "lose" : "cancelled";
             const opponent = session.participants.find((entry) => entry.playerId !== participant.playerId);
@@ -194,6 +208,9 @@ function createDuelService<P extends HmpDuelPlayer>(dependencies: Dependencies<P
     async function stop(): Promise<void> {
         if (state === "stopped") return; state = "stopped"; disposePolicy();
         for (const timer of countdowns.values()) unschedule(timer); countdowns.clear();
+        // The resource's timers stop with it, so a loser still held down stands up now.
+        for (const [id, timer] of standUps) { unschedule(timer); dependencies.endKneel?.(id); }
+        standUps.clear();
         await disposeDefinition(); active.clear(); live.clear(); ending.clear();
     }
 

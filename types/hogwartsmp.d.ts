@@ -274,6 +274,8 @@ declare global {
         /** Carries this player's health over map loads; a respawn after a death still starts full. Off by default. */
         setKeepHealthOnTravel?(on: boolean): void;
         getKeepHealthOnTravel?(): boolean;
+        /** Stands a kneeling player up now; false when they are not kneeling. A kneel held by `kneelSeconds: 0` waits for this. */
+        endKneel?(): boolean;
     }
 
     interface HogwartsMpNpc {
@@ -405,6 +407,8 @@ declare global {
         flagCombatLockSeconds: number;
         spawnProtectionSeconds: number;
         damageScale: number;
+        /** How long a kneel defeat keeps the player down (default 4); 0 holds it until `player.endKneel`. Absent on an older host. */
+        kneelSeconds?: number;
     }
     interface HogwartsMpPvpRelation {
         hostile: boolean;

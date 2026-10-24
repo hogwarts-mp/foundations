@@ -23,6 +23,9 @@ const duels = createDuelService({
     player: (id) => PlayerManager.getById(id),
     pair: (a, b, options) => Pvp.setPair(a, b, options),
     setRecovery: (id, on) => { try { PlayerManager.getById(id)?.setHealthRecovery?.(on); } catch (_) { /* left mid-duel */ } },
+    // An older host's rules have no kneelSeconds, and its kneel always ends by itself.
+    kneelHeld: () => Pvp.getRules().kneelSeconds === 0,
+    endKneel: (id) => { try { PlayerManager.getById(id)?.endKneel?.(); } catch (_) { /* left while kneeling */ } },
     emit: (player, event, payload) => player.emit(event, JSON.stringify(payload)),
     notify: (player, message, tone = "inform") => { ui.notify(player, { title: "Wizard's duel", description: message, tone }); },
     warn: (message) => logger.warn(message),

@@ -27,7 +27,8 @@ Events.on("hmp-duels:start", (raw: unknown) => {
     if (countdownTimer) clearInterval(countdownTimer); countdownTimer = null;
     Game.notify("Duel!");
 });
-// A loser is already kneeling: the finishing hit's own defeat, which stands them back up by itself.
+// A loser is already kneeling: the finishing hit's own defeat, which stands them back up by itself, or the server
+// does when its rules hold kneels.
 Events.on("hmp-duels:end", (raw: unknown) => {
     const payload = parse(raw); const result = String(payload.result || "cancelled");
     const opponent = String(payload.opponentName || "your opponent");

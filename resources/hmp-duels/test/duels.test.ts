@@ -21,15 +21,20 @@ async function run(): Promise<void> {
     const emitted: Array<{ player: number; event: string; payload: Record<string, unknown> }> = [];
     const pairs: Array<[number, number, unknown]> = [];
     const recovery: Array<[number, boolean]> = [];
+    const delays: number[] = [];
+    const stoodUp: number[] = [];
     let pairRoom = true;
+    let kneelHeld = false;
     const duels = createDuelService<Player>({
         activities, pvp, player: (id) => players.find((entry) => entry.id === id) || null,
         pair: (a, b, options) => { pairs.push([a, b, options]); return pairRoom || options === null; },
         setRecovery: (id, on) => { recovery.push([id, on]); },
+        kneelHeld: () => kneelHeld, endKneel: (id) => { stoodUp.push(id); },
         emit: (player, event, payload) => emitted.push({ player: player.id, event, payload }), notify() {},
         countdownSeconds: 3, invitationTtlSeconds: 30, koHp: 1,
-        setTimer: ((handler: () => void) => { timers.push(handler); return {} as NodeJS.Timeout; }), clearTimer() {},
+        setTimer: ((handler: () => void, ms: number) => { timers.push(handler); delays.push(ms); return {} as NodeJS.Timeout; }), clearTimer() {},
     });
+    const duel = async () => { await duels.challenge(players[0], players[1]); await duels.accept(players[1]); timers.shift()!(); };
 
     const challenge = await duels.challenge(players[0], players[1]);
     assert.strictEqual(activities.invitations.list().length, 1);
@@ -56,6 +61,8 @@ async function run(): Promise<void> {
     assert.ok(emitted.some((entry) => entry.event === "hmp-duels:end" && entry.payload.result === "lose"));
     assert.deepStrictEqual(pairs.at(-1), [1, 2, null]);
     assert.deepStrictEqual(recovery.slice(-2), [[1, true], [2, true]]);
+    // Rules whose kneel ends by itself, an older host's among them, leave the loser to it.
+    assert.strictEqual(timers.length, 0);
 
     // A host with no room for another pair refuses the duel instead of starting an unprotected one.
     pairRoom = false;
@@ -67,7 +74,24 @@ async function run(): Promise<void> {
     await duels.challenge(players[0], players[1]);
     assert.strictEqual(await duels.decline(players[1]), true);
     assert.strictEqual(activities.sessions.forPlayer(players[0]).length, 0);
+
+    // Rules that hold kneels leave the duel to stand its loser up, after the rules' default kneel.
+    kneelHeld = true;
+    await duel();
+    await duels.defeated(players[0], players[1]);
+    assert.strictEqual(delays.at(-1), 4000);
+    timers.shift()!();
+    assert.deepStrictEqual(stoodUp, [1]);
+    // A forfeit kneels nobody.
+    await duel();
+    await duels.forfeit(players[1]);
+    assert.strictEqual(timers.length, 0);
+    // Stopping the resource stands a loser still held down up at once.
+    await duel();
+    await duels.defeated(players[1], players[0]);
+    assert.strictEqual(timers.length, 1);
     await duels.stop(); await activities.stop(); pvp.stop();
+    assert.deepStrictEqual(stoodUp, [1, 2]);
     assert.strictEqual(duels.status().state, "stopped");
 }
 run().then(() => console.log("hmp-duels tests passed"));

@@ -16,6 +16,11 @@ floored and kneel-finished even while staff have lethal mode on for everyone els
 reports it as `pvpDefeat`, which ends the duel; nothing trusts the server's possibly stale vitals report.
 The client only presents the countdown, the opponent's health meter and the result.
 
+The loser's kneel lasts as long as the server's PvP rules say (`kneelSeconds`, 4 s by default) and ends
+by itself. On a server whose rules hold kneels (`kneelSeconds: 0`, down until `player.endKneel`), the duel
+stands its loser up 4 s after the knock-out, or at once if `hmp-duels` stops first. This needs a
+HogwartsMP host with `kneelSeconds` and `player.endKneel`; an older host's kneel always ends by itself.
+
 Commands (a player id takes a `#`, as in `/duel #5`):
 
 ```text

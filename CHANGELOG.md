@@ -57,6 +57,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   Every pitch object (banners, hoops, bludgers, quaffle and snitch) is now created with
   `drawDistance: pitch.propDrawDistance` (default 0, never cull). It needs a HogwartsMP host with
   WorldObject `drawDistance`; an older host ignores it and keeps the limit.
+- `hmp-duels` no longer leaves its loser kneeling on a server whose PvP rules hold kneels
+  (`kneelSeconds: 0`, down until `player.endKneel`). A duel ends in a kneel defeat whatever the
+  server's own rules say, so on such a server the loser never stood up. The duel now stands them up
+  with `player.endKneel` 4 s after the knock-out, the rules' default kneel, or at once if `hmp-duels`
+  stops first. It needs a HogwartsMP host with `kneelSeconds` and `player.endKneel`; on an older host
+  a kneel always ends by itself and nothing changes.
 
 ## [0.9.1] - 2026-10-16
 
