@@ -19,11 +19,12 @@ function verdict(rules: HmpSpellRule[]): "allow" | "deny" | null {
     return strongest.some((rule) => rule.action === "deny") ? "deny" : "allow";
 }
 
-function evaluateRules(rules: ReadonlyArray<HmpSpellRule>, groups: EffectiveGroups, entitlements: HmpSpellEntitlements): HmpResolvedSpellPolicy {
+// `locks` is the whole lock table the policy owns: the catalog's, plus any server-defined spells.
+function evaluateRules(rules: ReadonlyArray<HmpSpellRule>, groups: EffectiveGroups, entitlements: HmpSpellEntitlements, locks: ReadonlyArray<string> = ALL_LOCKS): HmpResolvedSpellPolicy {
     const applicable = rules.filter((rule) => applies(rule, groups));
     const spellRules = applicable.filter((rule) => rule.spells !== undefined);
     const candidates = new Set<string>();
-    if (spellRules.some((rule) => rule.spells === "*")) for (const lockId of ALL_LOCKS) candidates.add(lockId);
+    if (spellRules.some((rule) => rule.spells === "*")) for (const lockId of locks) candidates.add(lockId);
     for (const rule of spellRules) if (Array.isArray(rule.spells)) for (const lockId of rule.spells) candidates.add(lockId);
     const unlockSpells = [...candidates].filter((lockId) => verdict(spellRules.filter((rule) => rule.spells === "*" || (Array.isArray(rule.spells) && rule.spells.includes(lockId)))) === "allow");
     for (const lockId of entitlements.spells) if (!unlockSpells.includes(lockId)) unlockSpells.push(lockId);
@@ -35,7 +36,7 @@ function evaluateRules(rules: ReadonlyArray<HmpSpellRule>, groups: EffectiveGrou
     return {
         unlockSpells: unlockSpells.sort(),
         bonusLoadouts: entitlements.bonusLoadouts === null ? (ruleLoadouts.length ? Math.max(...ruleLoadouts) : null) : entitlements.bonusLoadouts,
-        lockSpells: ALL_LOCKS.filter((lockId) => !allowed.has(lockId)).sort(),
+        lockSpells: locks.filter((lockId) => !allowed.has(lockId)).sort(),
     };
 }
 

@@ -737,10 +737,34 @@ declare global {
         fade(options: { from: number; to: number; duration: number; hold: boolean; fadeAudio: boolean }): void;
         stopFade(): void;
     };
+    /** What server `Spells.define` takes: a missing stat or part keeps the base spell's, an unknown key throws. */
+    interface HogwartsMpSpellDefinitionInput {
+        id: string;
+        base: string;
+        name?: string;
+        description?: string;
+        icon?: string;
+        incantation?: string;
+        stats?: Partial<Record<"damage" | "objectDamage" | "cooldown" | "range" | "projectileSpeed" | "projectileGravity" | "duration" | "playerDuration" | "chargeTime" | "impulse", number>>;
+        parts?: Partial<Record<"projectile" | "onHit" | "cast" | "muzzle", string>>;
+    }
+    /** A defined spell as the server holds it; `lock` is `Spell_<id>`, `base` and parts in the game's spelling. */
+    interface HogwartsMpSpellDefinitionInfo extends Required<Pick<HogwartsMpSpellDefinitionInput, "id" | "base" | "name" | "description" | "stats" | "parts">> {
+        readonly lock: string;
+        readonly icon: string | null;
+        readonly incantation: string | null;
+    }
     const Spells: {
         setPolicy(lockIds: string[], bonusLoadouts?: number): void;
         loadout(loadoutIndex?: number): { index: number; current: number; slots: Array<string | null> } | null;
         setLoadoutSlot(slot: number, spellName: string | null, loadoutIndex?: number, emitAssignmentEvent?: boolean): boolean;
         cast(slot: number): { accepted: boolean; slot: number; spellName: string | null; reason: string | null };
+        /** Server: adds or replaces a spell running a player spell's class, on every client now and later. Throws on a bad definition or past 32. */
+        define(definition: HogwartsMpSpellDefinitionInput): HogwartsMpSpellDefinitionInfo;
+        /** Server: removes a defined spell for later joiners; connected clients keep it until they reconnect. */
+        remove(id: string): boolean;
+        /** Server: one defined spell by id, case-blind. */
+        get(id: string): HogwartsMpSpellDefinitionInfo | null;
+        list(): HogwartsMpSpellDefinitionInfo[];
     };
 }

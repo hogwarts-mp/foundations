@@ -131,13 +131,61 @@ its explicit count override, otherwise the applicable rule count, otherwise zero
 total loadout). `unmanage` clears the character override and restores the rule/default count; this can
 remove extra native loadout perks. Count changes do not erase saved slot assignments or spell grants.
 
+## Server-defined spells
+
+The server can add spells of its own. Each runs an existing player spell's class for its look and
+behaviour, with its own name, lock, spell-bar slot and numbers, and every client registers it in the
+game's spell table. Declare them in `definitions`:
+
+```json
+{
+  "definitions": [{
+    "id": "Firestorm",
+    "base": "Confringo",
+    "name": "Firestorm",
+    "description": "A searing bolt that sets what it hits ablaze.",
+    "incantation": "Incendio",
+    "stats": { "damage": 40, "cooldown": 6, "range": 2500 }
+  }],
+  "rules": [{ "id": "fire-club", "priority": 500, "action": "allow", "spells": ["Firestorm"], "match": { "groups": [{ "key": "club:fire" }] } }]
+}
+```
+
+A defined spell is then a spell like any other here: rules, grants, revokes and `"*"` take it by id
+(`/spells grant me Firestorm`), it locks as `Spell_<id>` and starts locked, and it is slotted as
+`native:<id>` from the game's own spell menu or `loadouts.setSlot`. The host owns the rest of the
+definition: `base`, `parts` (`projectile`, `onHit`, `cast`, `muzzle`) and `incantation` name player
+spells as in their `DA_<spell>SpellRecord`, and it checks the `stats` keys, `name` (48 bytes) and
+`description` (300). A definition it refuses is logged and skipped; the others stand. `icon` is a PNG
+as `"<resource>/<path>.png"`, listed in that resource's `files`. Spells another resource defines
+straight through the host join the catalog too, so the policy owns their locks as well.
+
+Gameplay resources can define their own, owner-scoped like rules and providers:
+
+```ts
+const dispose = Spells.definitions.register({
+    id: "Mend", resource: "hmp-healing", base: "ArrestoMomentum",
+    name: "Mend", incantation: "none", stats: { cooldown: 12 },
+});
+```
+
+`register` throws for an id already defined, here or straight through the host. A definition is
+removed when its resource stops, and all of them when `hmp-spells` stops. The host keeps a removed
+spell on connected clients until they reconnect, so its lock stays in the policy and is still
+re-locked for anyone not allowed it.
+
+Defined spells need a HogwartsMP host with `Spells.define`. On an older host `hmp-spells` starts
+with a warning and skips its configured definitions, `definitions.supported()` is false and
+`register` throws; a rule naming a configured spell by id is harmless there.
+
 ## Catalog and policy APIs
 
-- `catalog.resolve/get/list` normalize names and raw lock IDs.
+- `catalog.resolve/get/list` normalize names, raw lock IDs and defined spells' ids.
 - `policy.resolve/sync/syncAll` inspect or push complete policies. `sync` returns `null` and `syncAll`
   skips a player with no `hmp-core` session yet; `hmp:session:ready` syncs them moments later.
 - `rules.register/unregister/clear/list/refresh` manage runtime rules.
 - `providers.register/unregister/clear/get/list/resolve` manage cast adapters and spell definitions.
+- `definitions.supported/register/unregister/clear/get/list` manage server-defined spells.
 - `grants.list/grant/revoke/clear` manage persistent character grants.
 - `loadouts.get/set/unmanage` manage the 0-3 bonus diamonds.
 - `loadouts.getAssignments/setAssignments/setSlot` inspect or change character-scoped slots.

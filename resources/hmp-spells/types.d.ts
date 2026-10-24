@@ -85,6 +85,62 @@ export interface HmpResolvedProvidedSpell extends HmpProvidedSpell {
     ref: string;
 }
 
+/** Numbers replacing the base spell's; a missing key keeps the base's, and the host clamps each to its game-data range. */
+export interface HmpDefinedSpellStats {
+    damage?: number;
+    objectDamage?: number;
+    cooldown?: number;
+    range?: number;
+    projectileSpeed?: number;
+    projectileGravity?: number;
+    duration?: number;
+    playerDuration?: number;
+    chargeTime?: number;
+    impulse?: number;
+}
+
+/** Parts taken from other player spells, each named as in its DA_<spell>SpellRecord; a missing key keeps the base's. */
+export interface HmpDefinedSpellParts {
+    projectile?: string;
+    onHit?: string;
+    cast?: string;
+    muzzle?: string;
+}
+
+/** A server-defined spell (host `Spells.define`): its own name, lock, slot and numbers, running a player spell's class. */
+export interface HmpDefinedSpell {
+    /** 3-32 characters, a letter then letters, digits or _. It is granted, slotted and cast by this id and locks as Spell_<id>. */
+    id: string;
+    /** Resource owning this definition; it is removed when that resource stops. */
+    resource: string;
+    /** The player spell whose class it runs, as in its DA_<base>SpellRecord, e.g. Confringo. */
+    base: string;
+    /** Spell menu and bar title, at most 48 bytes. Default: the id. */
+    name?: string;
+    /** Spell menu text, at most 300 bytes. */
+    description?: string;
+    /** A PNG for its symbol, as "<resource>/<path>.png" shipped in that resource's `files`. Default: the base's. */
+    icon?: string;
+    /** Another player spell whose line the caster speaks, or "none". Default: the base's. */
+    incantation?: string;
+    stats?: HmpDefinedSpellStats;
+    parts?: HmpDefinedSpellParts;
+}
+
+/** A defined spell as the host holds it; `resource` is null for one defined outside hmp-spells. */
+export interface HmpDefinedSpellInfo {
+    id: string;
+    resource: string | null;
+    base: string;
+    lock: string;
+    name: string;
+    description: string;
+    icon: string | null;
+    incantation: string | null;
+    stats: HmpDefinedSpellStats;
+    parts: HmpDefinedSpellParts;
+}
+
 export interface HmpSpellResolution<P = HmpSpellPlayer> {
     player: P;
     character: HmpCoreCharacter | null;
@@ -144,12 +200,25 @@ export interface HmpSpellProvidersApi {
     resolve(spellRef: string): HmpResolvedProvidedSpell | null;
 }
 
+export interface HmpSpellDefinitionsApi {
+    /** False on a host without `Spells.define`, where register throws. */
+    supported(): boolean;
+    /** Defines the spell on every client; throws on a bad definition or an id already defined. */
+    register(definition: HmpDefinedSpell): () => boolean;
+    unregister(id: string, resource: string): boolean;
+    clear(resource: string): number;
+    get(id: string): HmpDefinedSpellInfo | null;
+    /** Every spell the host has defined, or only those `resource` registered here. */
+    list(resource?: string): HmpDefinedSpellInfo[];
+}
+
 export interface HmpSpellsStatus {
     state: "ready" | "stopped";
     catalogSize: number;
     configuredRules: number;
     runtimeRules: number;
     providers: number;
+    definitions: number;
     syncedPlayers: number;
     uptimeMs: number;
 }
@@ -159,6 +228,7 @@ export interface HmpSpellsServer<P = HmpSpellPlayer> {
     policy: HmpSpellPolicyApi<P>;
     rules: HmpSpellRulesApi<P>;
     providers: HmpSpellProvidersApi;
+    definitions: HmpSpellDefinitionsApi;
     grants: HmpSpellGrantsApi<P>;
     loadouts: HmpSpellLoadoutsApi<P>;
     status(): HmpSpellsStatus;

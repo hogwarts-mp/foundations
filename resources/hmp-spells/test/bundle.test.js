@@ -7,7 +7,9 @@ assert.ok(!manifest.mafiahub.files.some((file) => file.endsWith(".html")));
 
 const serverExports = new Map();
 const serverHandlers = new Map();
-const logger = { info() {}, warn() {}, error() {}, debug() {} };
+const warnings = [];
+const logger = { info() {}, warn(message) { warnings.push(message); }, error() {}, debug() {} };
+const configured = { definitions: [{ id: "Firestorm", base: "Confringo", stats: { damage: 40 } }, { id: "Icebolt", base: "Typo" }] };
 const serverReplies = [];
 const metadata = new Map();
 let activeCharacter = null;
@@ -25,7 +27,7 @@ global.Exports = { register: (name, value) => serverExports.set(name, value) };
 global.Imports = { get: (name) => {
     if (name === "hmp-lib") return {
         logger: { create: () => logger },
-        config: { load: (_path, options) => options.defaults, env: { boolean: (_value, fallback) => fallback } },
+        config: { load: (_path, options) => ({ ...options.defaults, ...configured }), env: { boolean: (_value, fallback) => fallback } },
         player: { find: () => player },
     };
     if (name === "hmp-core") return core;
@@ -38,8 +40,33 @@ global.Events = {
     emit() {},
 };
 const serverEventApi = global.Events;
-require(path.resolve(__dirname, "..", "dist", "server.js"));
-assert.deepStrictEqual([...serverExports.keys()], ["catalog", "policy", "rules", "providers", "grants", "loadouts", "status"]);
+const serverBundle = path.resolve(__dirname, "..", "dist", "server.js");
+// HogwartsMP 1.9.2 has no server Spells global: configured definitions are skipped, not fatal.
+require(serverBundle);
+assert.ok(warnings.some((message) => message.includes("need a HogwartsMP host with Spells.define")));
+assert.strictEqual(serverExports.get("definitions").supported(), false);
+assert.strictEqual(serverExports.get("catalog").resolve("Firestorm"), null);
+delete require.cache[serverBundle];
+const definedSpells = new Map();
+const removedSpells = [];
+global.Spells = {
+    define(definition) {
+        if (definition.base !== "Confringo") throw new TypeError(`Spells.define: base '${definition.base}' is not a player spell`);
+        const stored = { ...definition, lock: `Spell_${definition.id}` };
+        definedSpells.set(definition.id.toLowerCase(), stored);
+        return stored;
+    },
+    remove(id) { removedSpells.push(id); return definedSpells.delete(id.toLowerCase()); },
+    get: (id) => definedSpells.get(id.toLowerCase()) || null,
+    list: () => [...definedSpells.values()],
+};
+warnings.length = 0;
+require(serverBundle);
+assert.deepStrictEqual([...definedSpells.keys()], ["firestorm"], "configured definitions reach the host");
+assert.ok(warnings.some((message) => message.includes("Could not define spell 'Icebolt'")), "a definition the host refuses leaves the others");
+assert.strictEqual(serverExports.get("catalog").resolve("firestorm"), "Spell_Firestorm");
+assert.strictEqual(serverExports.get("definitions").list("hmp-spells")[0].resource, "hmp-spells");
+assert.deepStrictEqual([...serverExports.keys()], ["catalog", "policy", "rules", "providers", "definitions", "grants", "loadouts", "status"]);
 assert.ok(serverHandlers.has("client:hmp-spells:ready"));
 assert.ok(serverHandlers.has("client:hmp-spells:assignments"));
 assert.ok(serverHandlers.has("client:hmp-spells:cast"));
@@ -89,6 +116,9 @@ assert.strictEqual(JSON.parse(clientEmits.at(-1).payload).assignments[0][0], "na
 clientHandlers.get("spellCast")("/Game/Spells/Lumos/DA_LumosSpellRecord");
 clientHandlers.get("resourceStop")("hmp-spells");
 async function assignmentSaveContract() {
+    // Defining the configured spells re-syncs connected players; start from a quiet reply log.
+    await new Promise(setImmediate);
+    serverReplies.length = 0;
     global.Events = serverEventApi;
     activeCharacter = { id: 1 };
     const assignments = [
@@ -121,6 +151,11 @@ async function assignmentSaveContract() {
     activeCharacter = { id: 1 };
     await serverExports.get("policy").sync(player);
     assert.strictEqual(JSON.parse(serverReplies.at(-1).payload).bonusLoadouts, 3);
+    assert.ok(JSON.parse(serverReplies.at(-1).payload).lockSpells.includes("Spell_Firestorm"), "an ungranted defined spell is re-locked");
+    await serverExports.get("grants").grant(player, "Firestorm");
+    assert.ok(JSON.parse(serverReplies.at(-1).payload).unlockSpells.includes("Spell_Firestorm"));
+    serverHandlers.get("resourceStop")("hmp-spells");
+    assert.deepStrictEqual(removedSpells, ["Firestorm"], "stopping hmp-spells removes the spells it defined");
 }
 
 assignmentSaveContract().then(() => console.log("hmp-spells bundle contract passed")).catch((error) => {

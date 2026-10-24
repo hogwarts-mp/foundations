@@ -28,7 +28,9 @@ world, not catchable again.
 `hmp-emotes` includes one for curated aliases, editor groups, the `allowAll` catalog policy, and renderer selection.
 `hmp-audio` includes one for Wwise aliases, positional range, handle limits, and closed-test commands.
 `hmp-blips` includes one for marker lifetimes, player visibility, native tint/scale, and private probes.
-`hmp-spells` includes a closed-testing starter kit, group rules, admin commands, and cast-report limits.
+`hmp-spells` includes a closed-testing starter kit, group rules, admin commands, cast-report limits, and
+one server-defined spell, Firestorm, which stays locked until granted (`/spells grant me Firestorm`) and
+needs a HogwartsMP host with `Spells.define`; an older host skips it with a warning.
 `hmp-progression` includes XP/talent bounds, reconciliation timeouts, and closed-test admin permissions.
 `hmp-houses` includes group projection, point-balance policy, and closed-testing command permissions.
 `hmp-activities` includes bounded lobby settings and an opt-in dungeon-party-shaped test definition.

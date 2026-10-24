@@ -13,7 +13,7 @@ import providersModule = require("../shared/providers");
 import type { HmpSpellLoadoutAssignments, HmpSpellRule } from "../types";
 
 const { catalog } = catalogModule;
-const { normalizeRule, loadConfig } = configModule;
+const { normalizeDefinition, normalizeRule, loadConfig } = configModule;
 const { evaluateRules, ALL_LOCKS } = policyModule;
 const { createSpellService, ASSIGNMENTS_METADATA_KEY, METADATA_KEY } = serviceModule;
 const { createSpellClient } = clientModule;
@@ -28,6 +28,33 @@ function configOf(root: string, name: string, ...rules: unknown[]) {
     fs.writeFileSync(path.join(cwd, "data", "hmp-spells.json"), JSON.stringify({ rules }));
     const config = loadConfig({ config: libConfig } as never, { env: {}, cwd });
     return evaluateRules(config.rules, [], { spells: [], bonusLoadouts: null });
+}
+
+// The host's server Spells: a defined spell runs a player spell's class and locks as Spell_<id>.
+function fakeHost() {
+    const table: HogwartsMpSpellDefinitionInfo[] = [];
+    const removed: string[] = [];
+    const find = (id: string) => table.findIndex((entry) => entry.id.toLowerCase() === String(id).toLowerCase());
+    return {
+        removed,
+        define(input: HogwartsMpSpellDefinitionInput): HogwartsMpSpellDefinitionInfo {
+            if (!["Confringo", "Depulso", "Glacius"].includes(input.base)) throw new TypeError(`Spells.define: base '${input.base}' is not a player spell`);
+            const stored = { id: input.id, base: input.base, lock: `Spell_${input.id}`, name: input.name || input.id, description: input.description || "", icon: input.icon || null, incantation: input.incantation || null, stats: { ...input.stats }, parts: { ...input.parts } };
+            const index = find(input.id);
+            if (index >= 0) table[index] = stored;
+            else table.push(stored);
+            return stored;
+        },
+        remove(id: string): boolean {
+            const index = find(id);
+            if (index < 0) return false;
+            removed.push(table[index].id);
+            table.splice(index, 1);
+            return true;
+        },
+        get: (id: string) => table[find(id)] ?? null,
+        list: () => table.map((entry) => ({ ...entry })),
+    };
 }
 
 async function run(): Promise<void> {
@@ -80,6 +107,7 @@ async function run(): Promise<void> {
     for (const lockId of ["Spell_Protego", "Spell_Stupefy", "Spell_AimMode"]) {
         assert.ok(!baseline.lockSpells.includes(lockId), `default config re-locks ${lockId}`);
     }
+    assert.deepStrictEqual(shipped.definitions, [], "the default defines no spells");
     // ...and neither must an owner's own config file: config.load replaces arrays wholesale, so
     // stating `rules` drops the baseline and the policy revokes right-click aim and Stupefy.
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), "hmp-spells-config-"));
@@ -93,6 +121,16 @@ async function run(): Promise<void> {
         const wandless = configOf(temp, "wandless", { id: "wandless", priority: 100, action: "deny", spells: ["Protego"] });
         assert.ok(wandless.lockSpells.includes("Spell_Protego"), "an explicit deny must still beat the restored baseline");
         assert.ok(!wandless.lockSpells.includes("Spell_AimMode"), "denying one baseline spell must not drop the others");
+        // A rule may name a configured spell by id; the host defines it only once the service starts.
+        const definedCwd = path.join(temp, "defined");
+        fs.mkdirSync(path.join(definedCwd, "data"), { recursive: true });
+        fs.writeFileSync(path.join(definedCwd, "data", "hmp-spells.json"), JSON.stringify({
+            definitions: [{ id: "Firestorm", base: "Confringo", stats: { damage: 40 } }],
+            rules: [{ id: "fire", priority: 1000, action: "allow", spells: ["firestorm"] }],
+        }));
+        const definedConfig = loadConfig({ config: libConfig } as never, { env: {}, cwd: definedCwd });
+        assert.deepStrictEqual(definedConfig.definitions, [{ id: "Firestorm", resource: "hmp-spells", base: "Confringo", stats: { damage: 40 } }]);
+        assert.deepStrictEqual(definedConfig.rules.find((rule) => rule.id === "fire")?.spells, ["Spell_Firestorm"]);
     }
     finally {
         fs.rmSync(temp, { recursive: true, force: true });
@@ -138,7 +176,7 @@ async function run(): Promise<void> {
     };
     const service = createSpellService({
         core: core as never,
-        config: { command: "spells", enableCommands: true, adminGroups: [], rules, maxCastReportsPerSecond: 12 },
+        config: { command: "spells", enableCommands: true, adminGroups: [], rules, definitions: [], maxCastReportsPerSecond: 12 },
         players: () => [player], emit: (name, ...args) => emitted.push({ name, args }),
     });
 
@@ -324,7 +362,7 @@ async function run(): Promise<void> {
     const countRules: HmpSpellRule[] = [];
     const counts = createSpellService({
         core: core as never,
-        config: { command: "spells", enableCommands: true, adminGroups: [], rules: countRules, maxCastReportsPerSecond: 12 },
+        config: { command: "spells", enableCommands: true, adminGroups: [], rules: countRules, definitions: [], maxCastReportsPerSecond: 12 },
         players: () => [player],
     });
     await counts.loadouts.set(player, 3);
@@ -358,6 +396,69 @@ async function run(): Promise<void> {
     assert.strictEqual(policies.at(-1)?.loadouts, -1, "no active character retains the unmanaged lifecycle state");
     hasActiveCharacter = true;
     counts.stop();
+
+    // Server-defined spells join the catalog, the policy's lock table, grants, rules and slots by id.
+    assert.throws(() => normalizeDefinition({ id: "Fs", base: "Confringo" }, "definition", "test"), /3-32 characters/);
+    assert.throws(() => normalizeDefinition({ id: "Bombarda", base: "Confringo" }, "definition", "test"), /already names a spell/, "a game name would resolve to Spell_Expulso");
+    assert.throws(() => normalizeDefinition({ id: "Firestorm", base: "Confringo", stats: { damage: "40" } }, "definition", "test"), /finite numbers/);
+    const host = fakeHost();
+    host.define({ id: "Mend", base: "Depulso" }); // another resource's, straight through the host
+    const definedRules: HmpSpellRule[] = [];
+    const defined = createSpellService({
+        core: core as never,
+        config: { command: "spells", enableCommands: true, adminGroups: [], rules: definedRules, definitions: [], maxCastReportsPerSecond: 12 },
+        definitions: host,
+        players: () => [player],
+    });
+    activeCharacterId = 44;
+    const definedPolicy = async () => (await defined.policy.resolve(player)).policy;
+    assert.strictEqual(defined.definitions.supported(), true);
+    const disposeFirestorm = defined.definitions.register({ id: "Firestorm", resource: "hmp-quests", base: "Confringo", stats: { damage: 40 } });
+    assert.throws(() => defined.definitions.register({ id: "firestorm", resource: "other", base: "Glacius" }), /already defined by 'hmp-quests'/);
+    assert.throws(() => defined.definitions.register({ id: "Mend", resource: "other", base: "Glacius" }), /already defined$/, "a spell defined outside hmp-spells is not taken over");
+    assert.throws(() => defined.definitions.register({ id: "Icebolt", resource: "other", base: "Typo" }), /not a player spell/);
+    assert.strictEqual(defined.catalog.resolve("firestorm"), "Spell_Firestorm");
+    assert.strictEqual(defined.catalog.resolve("Mend"), "Spell_Mend");
+    assert.ok(defined.catalog.list("fire").some((spell) => spell.name === "Firestorm"));
+    assert.deepStrictEqual(defined.definitions.list("hmp-quests").map((definition) => definition.id), ["Firestorm"]);
+    assert.strictEqual(defined.definitions.get("MEND")?.resource, null);
+    assert.ok((await definedPolicy()).lockSpells.includes("Spell_Firestorm"), "a defined spell starts locked, like a fresh character's");
+    assert.strictEqual(await defined.grants.grant(player, "firestorm"), true);
+    assert.deepStrictEqual(await defined.grants.list(player), ["Spell_Firestorm"]);
+    assert.ok((await definedPolicy()).unlockSpells.includes("Spell_Firestorm"));
+    assert.strictEqual(await defined.grants.revoke(player, "Firestorm"), true);
+    assert.ok((await definedPolicy()).lockSpells.includes("Spell_Firestorm"), "a revoke must name a defined spell's lock too");
+    const disposeAuror = defined.rules.register({ id: "auror-fire", resource: "hmp-ministry", priority: 500, action: "allow", spells: ["Firestorm"], match: { groups: [{ key: "job:auror", minimumGrade: 2 }] } });
+    assert.ok((await definedPolicy()).unlockSpells.includes("Spell_Firestorm"), "a group rule takes a defined spell by id");
+    disposeAuror();
+    definedRules.push(normalizeRule({ id: "all", resource: "test", priority: 1000, action: "allow", spells: "*" }, 0));
+    assert.ok((await definedPolicy()).unlockSpells.includes("Spell_Mend"), "'*' covers every defined spell");
+    definedRules.length = 0;
+    assert.strictEqual(await defined.loadouts.setSlot(player, 0, 0, "Firestorm"), true);
+    assert.strictEqual((await defined.loadouts.getAssignments(player))?.[0][0], "native:Firestorm", "a defined spell slots by its id");
+    assert.strictEqual(disposeFirestorm(), true);
+    assert.strictEqual(disposeFirestorm(), false);
+    assert.strictEqual(defined.catalog.resolve("Firestorm"), null);
+    assert.ok((await definedPolicy()).lockSpells.includes("Spell_Firestorm"), "connected clients keep a removed spell, so it stays re-locked");
+    defined.definitions.register({ id: "Frostfire", resource: "hmp-quests", base: "Confringo", parts: { onHit: "Glacius" } });
+    assert.strictEqual(defined.definitions.clear("hmp-quests"), 1);
+    defined.definitions.register({ id: "Icebolt", resource: "hmp-spells", base: "Glacius" });
+    assert.strictEqual(defined.status().definitions, 1);
+    defined.stop();
+    assert.deepStrictEqual(host.removed, ["Firestorm", "Frostfire", "Icebolt"], "stopping removes what hmp-spells defined, never another resource's");
+    assert.ok(host.get("Mend"));
+    // A host without Spells.define keeps the game's own spells and refuses a definition.
+    const older = createSpellService({
+        core: core as never,
+        config: { command: "spells", enableCommands: true, adminGroups: [], rules: [], definitions: [], maxCastReportsPerSecond: 12 },
+        players: () => [player],
+    });
+    assert.strictEqual(older.definitions.supported(), false);
+    assert.throws(() => older.definitions.register({ id: "Firestorm", resource: "x", base: "Confringo" }), /need a HogwartsMP host with Spells\.define/);
+    assert.deepStrictEqual(older.definitions.list(), []);
+    assert.strictEqual(older.catalog.resolve("Firestorm"), null);
+    older.stop();
+    activeCharacterId = 42;
 
     // Modded gameplay names use the same native diamond and persist without a vanilla whitelist.
     const moddedName = `MyMod_${"A".repeat(94)}`;
@@ -403,6 +504,13 @@ async function run(): Promise<void> {
     client.apply(allowExpulso);
     assert.deepStrictEqual(nativeAssignments[0], ["Lumos", "Expulso", null, "Expulso"], "lifting the revoke restores its slots");
     assert.strictEqual(nativeAssignments[3][0], "Expulso");
+    // A defined spell is outside the client catalog; its slot name and Spell_<id> lock still pair up.
+    const definedSlots: HmpSpellLoadoutAssignments = [["native:Firestorm", null, null, null], [null, null, null, null], [null, null, null, null], [null, null, null, null]];
+    client.apply({ characterId: 42, unlockSpells: ["Spell_Firestorm"], assignments: definedSlots });
+    assert.strictEqual(nativeAssignments[0][0], "Firestorm");
+    client.apply({ characterId: 42, lockSpells: ["Spell_Firestorm"], assignments: definedSlots });
+    assert.strictEqual(nativeAssignments[0][0], null, "a revoked defined spell must leave its quick slots");
+    assert.strictEqual(client.setLoadoutSlot(1, "Firestorm", 0), false);
     client.stop();
     assert.deepStrictEqual(policies.at(-1), { ids: [], loadouts: -1, relock: [] });
 }

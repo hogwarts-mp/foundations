@@ -3,14 +3,14 @@ import loadoutsModule = require("../shared/loadouts");
 import configModule = require("./config");
 import policyModule = require("./policy");
 import providersModule = require("../shared/providers");
-import type { HmpSpellEntitlements, HmpSpellLoadoutAssignments, HmpSpellPlayer, HmpSpellProviderDefinition, HmpSpellProviderInfo, HmpSpellRule } from "../types";
+import type { HmpDefinedSpell, HmpDefinedSpellInfo, HmpSpellEntitlements, HmpSpellLoadoutAssignments, HmpSpellPlayer, HmpSpellProviderDefinition, HmpSpellProviderInfo, HmpSpellRule } from "../types";
 import type { SpellDependencies, SpellService } from "./internal";
 
-const { catalog, resolveSpell } = catalogModule;
+const { createCatalog, resolveSpell } = catalogModule;
 const { cloneLoadoutAssignments, normalizeLoadoutAssignments, normalizeSlotSpellId } = loadoutsModule;
 const { normalizeProvider, resolveProvidedSpell } = providersModule;
-const { normalizeRule } = configModule;
-const { evaluateRules } = policyModule;
+const { normalizeDefinition, normalizeRule } = configModule;
+const { evaluateRules, ALL_LOCKS } = policyModule;
 const METADATA_KEY = "hmp-spells:entitlements";
 const ASSIGNMENTS_METADATA_KEY = "hmp-spells:loadout-assignments";
 
@@ -32,7 +32,19 @@ function createSpellService<P extends HmpSpellPlayer>(dependencies: SpellDepende
     const synced = new Set<number>();
     const runtimeRules = new Map<string, HmpSpellRule>();
     const runtimeProviders = new Map<string, HmpSpellProviderInfo>();
+    const host = dependencies.definitions || null;
+    // Lower-cased id -> the resource that registered it here, as the host ids are case-blind.
+    const definitionOwners = new Map<string, { id: string; resource: string; lock: string }>();
+    // A removed spell lives on in connected clients until they reconnect, so keep re-locking it.
+    const retiredLocks = new Set<string>();
     let stopped = false;
+
+    function hostDefinitions(): HogwartsMpSpellDefinitionInfo[] {
+        try { return host ? host.list() : []; }
+        catch (_) { return []; }
+    }
+    const catalog = createCatalog(() => hostDefinitions().map((definition) => ({ name: definition.id, lockId: definition.lock })));
+    const lockTable = () => [...new Set([...ALL_LOCKS, ...hostDefinitions().map((definition) => definition.lock), ...retiredLocks])];
 
     const ruleKey = (resource: string, id: string) => `${resource}:${id}`;
     const allRules = () => [...config.rules, ...runtimeRules.values()];
@@ -117,7 +129,7 @@ function createSpellService<P extends HmpSpellPlayer>(dependencies: SpellDepende
             character ? core.metadata.getCharacter(character.id, METADATA_KEY).then(sanitizeEntitlements) : Promise.resolve({ spells: [], bonusLoadouts: null }),
             character ? readAssignmentsForCharacter(character.id) : Promise.resolve(null),
         ]);
-        const policy = evaluateRules(allRules(), groups, entitlements);
+        const policy = evaluateRules(allRules(), groups, entitlements, lockTable());
         // An active character owns its count instead of inheriting the previous character's perks.
         if (character && policy.bonusLoadouts === null) policy.bonusLoadouts = 0;
         return { player, character, groups, entitlements, assignments, providers: providerList(), policy };
@@ -149,7 +161,7 @@ function createSpellService<P extends HmpSpellPlayer>(dependencies: SpellDepende
     }
 
     async function grant(player: P, rawSpell: string, context = {}): Promise<boolean> {
-        const spell = resolveSpell(rawSpell);
+        const spell = catalog.resolve(rawSpell);
         if (!spell) throw new TypeError(`Unknown spell '${rawSpell}'`);
         const value = await read(player);
         if (value.spells.includes(spell)) return false;
@@ -161,7 +173,7 @@ function createSpellService<P extends HmpSpellPlayer>(dependencies: SpellDepende
     }
 
     async function revoke(player: P, rawSpell: string, context = {}): Promise<boolean> {
-        const spell = resolveSpell(rawSpell);
+        const spell = catalog.resolve(rawSpell);
         if (!spell) throw new TypeError(`Unknown spell '${rawSpell}'`);
         const value = await read(player);
         if (!value.spells.includes(spell)) return false;
@@ -213,7 +225,7 @@ function createSpellService<P extends HmpSpellPlayer>(dependencies: SpellDepende
 
     function register(rawRule: HmpSpellRule): () => boolean {
         if (stopped) throw new Error("hmp-spells is stopped");
-        const rule = normalizeRule(rawRule, runtimeRules.size, rawRule.resource);
+        const rule = normalizeRule(rawRule, runtimeRules.size, rawRule.resource, catalog.resolve);
         const key = ruleKey(rule.resource, rule.id);
         if (runtimeRules.has(key)) throw new Error(`Spell rule '${rule.id}' is already registered by '${rule.resource}'`);
         runtimeRules.set(key, rule);
@@ -266,6 +278,52 @@ function createSpellService<P extends HmpSpellPlayer>(dependencies: SpellDepende
         return count;
     }
 
+    function definitionInfo(definition: HogwartsMpSpellDefinitionInfo): HmpDefinedSpellInfo {
+        const { id, base, lock, name, description, icon, incantation, stats, parts } = definition;
+        return { id, resource: definitionOwners.get(id.toLowerCase())?.resource ?? null, base, lock, name, description, icon, incantation, stats: { ...stats }, parts: { ...parts } };
+    }
+
+    function dropDefinition(entry: { id: string; lock: string }): void {
+        definitionOwners.delete(entry.id.toLowerCase());
+        try { host?.remove(entry.id); }
+        catch (_) { /* gone already */ }
+        retiredLocks.add(entry.lock);
+    }
+
+    function unregisterDefinition(id: string, resource: string): boolean {
+        const owned = definitionOwners.get(String(id).toLowerCase());
+        if (!owned || owned.resource !== String(resource)) return false;
+        dropDefinition(owned);
+        if (!stopped) void syncAll();
+        return true;
+    }
+
+    function registerDefinition(rawDefinition: HmpDefinedSpell): () => boolean {
+        if (stopped) throw new Error("hmp-spells is stopped");
+        if (!host) throw new Error("Spell definitions need a HogwartsMP host with Spells.define");
+        const { resource, ...definition } = normalizeDefinition(rawDefinition, "spell definition", rawDefinition?.resource);
+        const owner = definitionOwners.get(definition.id.toLowerCase());
+        // The host replaces a spell of the same id, which would take it from whoever defined it.
+        if (owner || host.get(definition.id)) throw new Error(`Spell '${definition.id}' is already defined${owner ? ` by '${owner.resource}'` : ""}`);
+        const stored = host.define(definition);
+        definitionOwners.set(stored.id.toLowerCase(), { id: stored.id, resource, lock: stored.lock });
+        retiredLocks.delete(stored.lock);
+        void syncAll();
+        let active = true;
+        return () => {
+            if (!active) return false;
+            active = false;
+            return unregisterDefinition(stored.id, resource);
+        };
+    }
+
+    function clearDefinitions(resource: string): number {
+        const owned = [...definitionOwners.values()].filter((entry) => entry.resource === resource);
+        for (const entry of owned) dropDefinition(entry);
+        if (owned.length && !stopped) void syncAll();
+        return owned.length;
+    }
+
     return Object.freeze({
         catalog,
         // The network handler acknowledges this save separately. Replaying all slots here would
@@ -285,6 +343,17 @@ function createSpellService<P extends HmpSpellPlayer>(dependencies: SpellDepende
             list: providerList,
             resolve: resolveProviderSpell,
         }),
+        definitions: Object.freeze({
+            supported: () => !!host,
+            register: registerDefinition,
+            unregister: unregisterDefinition,
+            clear: clearDefinitions,
+            get(id: string) {
+                const definition = host?.get(String(id));
+                return definition ? definitionInfo(definition) : null;
+            },
+            list: (resource?: string) => hostDefinitions().map(definitionInfo).filter((definition) => !resource || definition.resource === resource),
+        }),
         grants: Object.freeze({ list: async (player: P) => (await read(player)).spells, grant, revoke, clear }),
         loadouts: Object.freeze({
             get: async (player: P) => (await read(player)).bonusLoadouts,
@@ -294,8 +363,12 @@ function createSpellService<P extends HmpSpellPlayer>(dependencies: SpellDepende
             setAssignments,
             setSlot,
         }),
-        status: () => ({ state: stopped ? "stopped" as const : "ready" as const, catalogSize: catalog.list().length, configuredRules: config.rules.length, runtimeRules: runtimeRules.size, providers: runtimeProviders.size, syncedPlayers: synced.size, uptimeMs: now() - startedAt }),
-        stop: () => { stopped = true; synced.clear(); runtimeRules.clear(); runtimeProviders.clear(); },
+        status: () => ({ state: stopped ? "stopped" as const : "ready" as const, catalogSize: catalog.list().length, configuredRules: config.rules.length, runtimeRules: runtimeRules.size, providers: runtimeProviders.size, definitions: definitionOwners.size, syncedPlayers: synced.size, uptimeMs: now() - startedAt }),
+        stop: () => {
+            stopped = true; synced.clear(); runtimeRules.clear(); runtimeProviders.clear();
+            for (const entry of [...definitionOwners.values()]) dropDefinition(entry);
+            retiredLocks.clear();
+        },
     });
 }
 

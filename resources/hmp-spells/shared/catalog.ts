@@ -43,18 +43,28 @@ function resolve(spell: string): string | null {
     return /^Spell_[A-Za-z0-9_]+$/.test(value) ? value : null;
 }
 
-function get(spell: string): HmpSpellDefinition | null {
-    const value = clean(spell).toLowerCase();
-    const known = byName.get(value) || byLock.get(value);
-    if (known) return { ...known };
-    const lockId = resolve(spell);
-    return lockId ? { name: lockId.slice("Spell_".length), lockId } : null;
+// Server-defined spells join by id, each locking as Spell_<id>; a game spell's own name wins a clash.
+function createCatalog(defined: () => ReadonlyArray<HmpSpellDefinition> = () => []): HmpSpellCatalogApi {
+    function find(spell: string): HmpSpellDefinition | null {
+        const value = clean(spell).toLowerCase();
+        return byName.get(value) || byLock.get(value)
+            || defined().find((entry) => entry.name.toLowerCase() === value || entry.lockId.toLowerCase() === value) || null;
+    }
+
+    function get(spell: string): HmpSpellDefinition | null {
+        const known = find(spell);
+        if (known) return { ...known };
+        const lockId = resolve(spell);
+        return lockId ? { name: lockId.slice("Spell_".length), lockId } : null;
+    }
+
+    function list(search = ""): HmpSpellDefinition[] {
+        const query = clean(search).toLowerCase();
+        return [...SPELLS, ...defined()].filter((spell) => !query || spell.name.toLowerCase().includes(query) || spell.lockId.toLowerCase().includes(query)).map((spell) => ({ ...spell }));
+    }
+
+    return Object.freeze({ resolve: (spell: string) => find(spell)?.lockId ?? resolve(spell), get, list });
 }
 
-function list(search = ""): HmpSpellDefinition[] {
-    const query = clean(search).toLowerCase();
-    return SPELLS.filter((spell) => !query || spell.name.toLowerCase().includes(query) || spell.lockId.toLowerCase().includes(query)).map((spell) => ({ ...spell }));
-}
-
-const catalog: HmpSpellCatalogApi = Object.freeze({ resolve, get, list });
-export = { catalog, SPELLS, resolveSpell: resolve };
+const catalog = createCatalog();
+export = { catalog, createCatalog, SPELLS, resolveSpell: resolve };

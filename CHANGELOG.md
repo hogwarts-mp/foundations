@@ -104,6 +104,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   `gateset` and `gatesheld` list, drive and hold gates. The defaults leave every gate as the game has
   it. Gate rules need a HogwartsMP client with `Gates`, and held gates a host with the server `Gates`;
   an older host leaves every gate to the game.
+- `hmp-spells` server-defined spells. `definitions` in `data/hmp-spells.json`, or
+  `definitions.register` from a gameplay resource, adds a spell that runs an existing player spell's
+  class with its own name, lock, spell-bar slot and numbers, on every client. Rules, grants, revokes,
+  `"*"`, the admin spell picker and loadouts take it by id, it locks as `Spell_<id>` and starts locked,
+  and a revoke takes it from the quick bar like a game spell. A runtime definition goes away when its
+  resource stops, and its lock stays re-locked for the clients that keep it until they reconnect.
+  Spells other resources define through the host join the catalog too. It needs a HogwartsMP host with
+  `Spells.define`; an older host skips configured definitions with a warning, and `register` throws.
 
 ### Changed
 

@@ -89,8 +89,10 @@ function createSpellClient(dependencies: ClientDependencies) {
         return spellRef ? resolveProvidedSpell(spellRef, providers) : null;
     }
 
+    // A slot holds the spell's gameplay name and its lock is Spell_<name>, which is all a
+    // server-defined spell has: the client catalog knows only the game's own.
     function isRevoked(spell: HmpResolvedProvidedSpell | null): boolean {
-        const lockId = spell?.kind === "native" && spell.nativeName ? catalog.resolve(spell.nativeName) : null;
+        const lockId = spell?.kind === "native" && spell.nativeName ? catalog.resolve(spell.nativeName) || `Spell_${spell.nativeName}` : null;
         return !!lockId && revokedLocks.has(lockId);
     }
 

@@ -8,6 +8,20 @@
     }
   ],
   "maxCastReportsPerSecond": 12,
+  "definitions": [
+    {
+      "id": "Firestorm",
+      "base": "Confringo",
+      "name": "Firestorm",
+      "description": "A searing bolt that sets what it hits ablaze.",
+      "incantation": "Incendio",
+      "stats": {
+        "damage": 40,
+        "cooldown": 6,
+        "range": 2500
+      }
+    }
+  ],
   "rules": [
     {
       "id": "closed-testing-starter",

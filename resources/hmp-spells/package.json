@@ -26,7 +26,7 @@
     "files": [
       "dist/client.js"
     ],
-    "exports": ["catalog", "policy", "rules", "providers", "grants", "loadouts", "status", "clientStatus", "loadout", "setLoadoutSlot", "cast", "importNativeAssignments"],
+    "exports": ["catalog", "policy", "rules", "providers", "definitions", "grants", "loadouts", "status", "clientStatus", "loadout", "setLoadoutSlot", "cast", "importNativeAssignments"],
     "resourceDependencies": [
       { "name": "hmp-lib", "version": "0.9.1" },
       { "name": "hmp-core", "version": "0.9.1" }

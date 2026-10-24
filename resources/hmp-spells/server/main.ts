@@ -13,12 +13,25 @@ const Hmp = Imports.get<HmpLibServer<HmpSpellPlayer>>("hmp-lib");
 const core = Imports.get<HmpCore<HmpSpellPlayer>>("hmp-core");
 const logger = Hmp.logger.create("hmp-spells");
 const config = loadConfig(Hmp);
-const spells = createSpellService<HmpSpellPlayer>({ core, config, players: () => PlayerManager.getAll(), emit: (name, ...args) => Events.emit(name, ...args) });
+// The server's Spells global arrived with Spells.define; an older host has no defined spells at all.
+const definitions = typeof Spells !== "undefined" && Spells !== null
+    && (["define", "remove", "get", "list"] as const).every((name) => typeof Spells[name] === "function")
+    ? Spells
+    : null;
+const spells = createSpellService<HmpSpellPlayer>({ core, config, definitions, players: () => PlayerManager.getAll(), emit: (name, ...args) => Events.emit(name, ...args) });
+
+// The host checks the base, stats, parts and texts; one it refuses leaves the others defined.
+if (definitions) for (const definition of config.definitions) {
+    try { spells.definitions.register(definition); }
+    catch (error) { logger.warn(`Could not define spell '${definition.id}': ${messageOf(error)}`); }
+}
+else if (config.definitions.length) logger.warn(`${config.definitions.length} configured spell definition(s) need a HogwartsMP host with Spells.define; this host skips them`);
 
 Exports.register("catalog", spells.catalog);
 Exports.register("policy", spells.policy);
 Exports.register("rules", spells.rules);
 Exports.register("providers", spells.providers);
+Exports.register("definitions", spells.definitions);
 Exports.register("grants", spells.grants);
 Exports.register("loadouts", spells.loadouts);
 Exports.register("status", spells.status);
@@ -53,6 +66,7 @@ Events.on("resourceStop", (name?: string) => {
     else {
         spells.rules.clear(name);
         spells.providers.clear(name);
+        spells.definitions.clear(name);
     }
 });
 
