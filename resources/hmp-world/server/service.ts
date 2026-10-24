@@ -39,7 +39,7 @@ function numericSeason(value: HmpWorldSeason): 0 | 1 | 2 | 3 {
 
 function normalizePolicyPatch(current: HmpWorldPolicy, patch: Partial<HmpWorldPolicy>): HmpWorldPolicy {
     if (!patch || typeof patch !== "object" || Array.isArray(patch)) throw new TypeError("world policy patch must be an object");
-    for (const key of ["removeBoundaryVolumes", "ambientPopulation", "playerCollision", "fastTravel", "keepHealthOnTravel"] as const) {
+    for (const key of ["removeBoundaryVolumes", "ambientPopulation", "playerCollision", "fastTravel", "keepHealthOnTravel", "jump", "sprint"] as const) {
         if (patch[key] !== undefined && typeof patch[key] !== "boolean") throw new TypeError(`world policy ${key} must be a boolean`);
     }
     if (patch.encounters !== undefined && patch.encounters !== "suppressed" && patch.encounters !== "server") {
@@ -121,8 +121,8 @@ function createWorldService<P extends HmpWorldPlayer>(options: WorldServiceOptio
     }
 
     function policyPayload(): string {
-        const { removeBoundaryVolumes, ambientPopulation } = currentPolicy;
-        return JSON.stringify({ contract: "hmp.world.policy/v2", removeBoundaryVolumes, ambientPopulation });
+        const { removeBoundaryVolumes, ambientPopulation, jump, sprint } = currentPolicy;
+        return JSON.stringify({ contract: "hmp.world.policy/v3", removeBoundaryVolumes, ambientPopulation, jump, sprint });
     }
 
     function sync(player?: P): number {

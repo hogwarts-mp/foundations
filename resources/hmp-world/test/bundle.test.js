@@ -88,12 +88,18 @@ global.World = {
     setBoundaryPolicy: (value) => { worldCalls.push(["boundaries", value]); return 1; },
     setAmbientPopulation: (value) => { worldCalls.push(["population", value]); return true; },
 };
+global.LocalPlayer = {
+    setJumpEnabled: (value) => { worldCalls.push(["jump", value]); },
+    setSprintEnabled: (value) => { worldCalls.push(["sprint", value]); },
+};
 require(path.resolve(__dirname, "..", "dist", "client.js"));
 assert.deepStrictEqual([...clientExports.keys()], ["policy", "status"]);
 assert.deepStrictEqual(clientEmits.map((entry) => entry.name), ["hmp-world:ready"]);
 assert.ok(clientHandlers.has("hmp-world:policy"));
-clientHandlers.get("hmp-world:policy")({ removeBoundaryVolumes: true, ambientPopulation: false });
-assert.deepStrictEqual(worldCalls, [["boundaries", true], ["population", false]]);
+clientHandlers.get("hmp-world:policy")(playerEvents[0].payload);
+assert.deepStrictEqual(worldCalls, [["boundaries", true], ["population", false], ["jump", true], ["sprint", true]]);
+clientHandlers.get("hmp-world:policy")({ removeBoundaryVolumes: true, ambientPopulation: false, jump: false, sprint: true });
+assert.deepStrictEqual(worldCalls.slice(-2), [["jump", false], ["sprint", true]]);
 assert.strictEqual(clientExports.get("policy").restore(), true);
 clientHandlers.get("resourceStop")("hmp-world");
 console.log("hmp-world bundle contract passed");

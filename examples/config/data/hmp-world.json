@@ -20,6 +20,8 @@
     "encounters": "suppressed",
     "playerCollision": false,
     "fastTravel": true,
-    "keepHealthOnTravel": false
+    "keepHealthOnTravel": false,
+    "jump": true,
+    "sprint": true
   }
 }

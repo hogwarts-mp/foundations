@@ -41,10 +41,14 @@ export interface HmpWorldPolicy {
     fastTravel: boolean;
     /** Carry each player's health over map loads, applied by the server to each player (`player.setKeepHealthOnTravel`). */
     keepHealthOnTravel: boolean;
+    /** Let players jump, applied by each client as hmp-world's own hold (`LocalPlayer.setJumpEnabled`). */
+    jump: boolean;
+    /** Let players sprint, applied by each client as hmp-world's own hold (`LocalPlayer.setSprintEnabled`). */
+    sprint: boolean;
 }
 
 /** The part of the policy each client applies itself. */
-export type HmpWorldClientPolicy = Pick<HmpWorldPolicy, "removeBoundaryVolumes" | "ambientPopulation">;
+export type HmpWorldClientPolicy = Pick<HmpWorldPolicy, "removeBoundaryVolumes" | "ambientPopulation" | "jump" | "sprint">;
 
 export interface HmpWorldEnvironmentState {
     weather: string;

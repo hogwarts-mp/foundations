@@ -23,6 +23,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   fresh body starts with. A respawn after a death still starts full. It reaches players as
   `policy.fastTravel` does, and stopping `hmp-world` switches it off. It defaults to `false`, as before.
   It needs a HogwartsMP host with `player.setKeepHealthOnTravel`; an older host ignores it.
+- `hmp-world` `policy.jump` and `policy.sprint` set to `false` keep every player from jumping or
+  sprinting through `LocalPlayer.setJumpEnabled` and `setSprintEnabled`: the button does nothing, and a
+  running sprint stops. Each client takes them as `hmp-world`'s own hold, so holds other resources take
+  for themselves are left alone, and the host drops it when `hmp-world` stops. Both default to `true`,
+  as before. The client `policy.current()` and `status()` carry them too. They need a HogwartsMP host
+  with `LocalPlayer.setJumpEnabled` and `setSprintEnabled`; an older host ignores them.
 
 ### Changed
 

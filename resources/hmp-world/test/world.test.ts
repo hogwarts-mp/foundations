@@ -22,6 +22,9 @@ assert.strictEqual(config.policy.playerCollision, false);
 assert.strictEqual(config.policy.fastTravel, true);
 assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, fastTravel: "no" } }), /fastTravel must be a boolean/);
 assert.strictEqual(config.policy.keepHealthOnTravel, false);
+assert.strictEqual(config.policy.jump, true);
+assert.strictEqual(config.policy.sprint, true);
+assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, jump: "off" } }), /jump must be a boolean/);
 assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, keepHealthOnTravel: 1 } }), /keepHealthOnTravel must be a boolean/);
 assert.strictEqual(normalizeConfig({ ...config, policy: { ...config.policy, encounters: "server" } }).policy.encounters, "server");
 assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, encounters: "native" } }), /"suppressed" or "server"/);
@@ -63,7 +66,7 @@ assert.strictEqual(service.environment.state()?.season, 2);
 assert.strictEqual(service.policy.sync(players[0]), 1);
 assert.strictEqual(players[0].emitted.length, 1);
 // Clients apply only what they own; encounters stay on the server.
-assert.deepStrictEqual(JSON.parse(String((players[0].emitted[0] as { payload: unknown }).payload)), { contract: "hmp.world.policy/v2", removeBoundaryVolumes: true, ambientPopulation: false });
+assert.deepStrictEqual(JSON.parse(String((players[0].emitted[0] as { payload: unknown }).payload)), { contract: "hmp.world.policy/v3", removeBoundaryVolumes: true, ambientPopulation: false, jump: true, sprint: true });
 service.policy.set({ encounters: "server" });
 assert.strictEqual(service.policy.current().encounters, "server");
 assert.deepStrictEqual(nativeCalls.at(-1), ["encounters", "server"]);
@@ -84,6 +87,11 @@ assert.ok(!("playerCollision" in JSON.parse(String(broadcasts.at(-1)?.payload)))
 assert.throws(() => service.policy.set({ playerCollision: "yes" as never }), /playerCollision must be a boolean/);
 service.policy.reset();
 assert.deepStrictEqual(nativeCalls.at(-1), ["collision", false]);
+// Jump and sprint are each client's own hold, so they ride the client policy.
+service.policy.set({ jump: false, sprint: false });
+assert.deepStrictEqual(JSON.parse(String(broadcasts.at(-1)?.payload)), { contract: "hmp.world.policy/v3", removeBoundaryVolumes: true, ambientPopulation: false, jump: false, sprint: false });
+assert.throws(() => service.policy.set({ sprint: "no" as never }), /sprint must be a boolean/);
+service.policy.reset();
 service.environment.setSeason("winter");
 assert.strictEqual(environmentState.season, 3);
 
@@ -147,24 +155,37 @@ health.stop();
 assert.deepStrictEqual(delver.keepHealth, [true, true, false], "stopping switches it off for those online");
 
 assert.strictEqual(parsePolicy("bad"), null);
-assert.deepStrictEqual(parsePolicy(JSON.stringify(config.policy)), { removeBoundaryVolumes: true, ambientPopulation: false });
+assert.deepStrictEqual(parsePolicy(JSON.stringify(config.policy)), { removeBoundaryVolumes: true, ambientPopulation: false, jump: true, sprint: true });
+assert.strictEqual(parsePolicy({ removeBoundaryVolumes: true, ambientPopulation: false }), null, "a v2 policy carries no jump or sprint");
 const clientCalls: Array<[string, unknown]> = [];
 let ready = 0;
+const clientNative = {
+    setBoundaryPolicy: (value: boolean) => { clientCalls.push(["boundaries", value]); return 12; },
+    setAmbientPopulation: (value: boolean) => { clientCalls.push(["population", value]); return true; },
+};
 const client = createWorldClient({
     emitReady: () => { ready++; },
-    native: {
-        setBoundaryPolicy: (value) => { clientCalls.push(["boundaries", value]); return 12; },
-        setAmbientPopulation: (value) => { clientCalls.push(["population", value]); return true; },
+    native: clientNative,
+    player: {
+        setJumpEnabled: (value) => { clientCalls.push(["jump", value]); },
+        setSprintEnabled: (value) => { clientCalls.push(["sprint", value]); },
     },
 });
 assert.strictEqual(ready, 1);
 assert.strictEqual(client.apply(config.policy), true);
-assert.deepStrictEqual(clientCalls, [["boundaries", true], ["population", false]]);
+assert.deepStrictEqual(clientCalls, [["boundaries", true], ["population", false], ["jump", true], ["sprint", true]]);
 assert.strictEqual(client.status().boundaryVolumesChanged, 12);
-assert.deepStrictEqual(client.policy.current(), { removeBoundaryVolumes: true, ambientPopulation: false });
+assert.deepStrictEqual(client.policy.current(), { removeBoundaryVolumes: true, ambientPopulation: false, jump: true, sprint: true });
 assert.strictEqual(client.policy.restore(), true);
-assert.strictEqual(clientCalls.length, 4);
+assert.strictEqual(clientCalls.length, 8);
+assert.strictEqual(client.apply({ ...config.policy, jump: false, sprint: false }), true);
+assert.deepStrictEqual(clientCalls.slice(-2), [["jump", false], ["sprint", false]]);
 client.stop();
+// A host without the jump and sprint holds still takes the rest of the policy.
+const olderClient = createWorldClient({ emitReady: () => {}, native: clientNative, player: {} });
+assert.strictEqual(olderClient.apply({ ...config.policy, jump: false }), true);
+assert.deepStrictEqual(clientCalls.slice(-2), [["boundaries", true], ["population", false]]);
+olderClient.stop();
 assert.strictEqual(client.policy.restore(), false);
 assert.strictEqual(client.apply(config.policy), false);
 service.stop();

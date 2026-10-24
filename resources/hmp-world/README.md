@@ -2,7 +2,7 @@
 
 `hmp-world` owns the server-wide baseline for Hogwarts Legacy's environment and native world
 behavior. It applies starting weather, clock, date and season on resource startup, then sends the
-configured boundary and population policy to every client. Policies are re-sent when the client
+configured boundary, population, jump and sprint policy to every client. Policies are re-sent when the client
 resource becomes ready, the world becomes ready, and a character finishes loading. Enemy encounters
 are the server's: `encounters` goes to `World.setEncounterPolicy`, which the host applies to every
 client, including late joiners.
@@ -31,7 +31,9 @@ the Overland's enemy encounters:
     "encounters": "suppressed",
     "playerCollision": false,
     "fastTravel": true,
-    "keepHealthOnTravel": false
+    "keepHealthOnTravel": false,
+    "jump": true,
+    "sprint": true
   }
 }
 ```
@@ -67,6 +69,15 @@ respawn after a death still starts full. It reaches players as `fastTravel` does
 `hmp-world` switches it off for those online. The default `false` keeps the full-health reset. It needs
 a HogwartsMP host with `player.setKeepHealthOnTravel`; an older host ignores it and every map load
 still heals to full.
+
+`jump: false` and `sprint: false` keep players from jumping or sprinting (`LocalPlayer.setJumpEnabled`,
+`LocalPlayer.setSprintEnabled`): the button does nothing, a jump already in the air lands normally,
+and a running sprint stops. Each client takes them as `hmp-world`'s own hold, so a hold another resource
+takes stays, and the host drops `hmp-world`'s when it stops. Both default to `true`, as before.
+`policy.set` changes them for everyone; a resource that needs them off for its own reasons, such as for
+one player, calls those `LocalPlayer` functions itself and gets a hold of its own, dropped when it stops.
+They need a HogwartsMP host with `LocalPlayer.setJumpEnabled` and `setSprintEnabled`; an older host
+ignores them and players keep jumping and sprinting.
 
 `time.scale` is in-game minutes per real second: `1` gives a 24-minute in-game day and `0` freezes
 the clock. `date.year: 0` preserves the game's native year. Seasons accept `spring`, `summer`,

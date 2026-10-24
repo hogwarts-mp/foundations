@@ -533,6 +533,13 @@ declare global {
         /** Freezes movement and actions through the game's own suppressor; camera look stays. `null` without a pawn. */
         stopPlayerInput(): boolean | null;
         restorePlayerInput(): boolean | null;
+        /** `false` takes this resource's hold on jumping, `true` gives it back; jump stays off while any resource holds. */
+        setJumpEnabled(enabled: boolean): void;
+        /** False while any resource holds jump off. */
+        isJumpEnabled(): boolean;
+        /** As `setJumpEnabled`, for sprinting; a sprint already running stops. */
+        setSprintEnabled(enabled: boolean): void;
+        isSprintEnabled(): boolean;
         getRotation(): { pitch: number; yaw: number; roll: number } | null;
         getControlRotation(): { pitch: number; yaw: number; roll: number } | null;
         /** Equippable gear slots from the game's GearSlotTypes table; empty until the GearManager is up. */

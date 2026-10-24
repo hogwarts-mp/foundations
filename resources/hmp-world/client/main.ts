@@ -11,6 +11,7 @@ const Hmp = Imports.get<HmpLibClient>("hmp-lib");
 const logger = Hmp.logger.create("hmp-world");
 const world = createWorldClient({
     native: World,
+    player: LocalPlayer,
     emitReady: () => Events.emitServer("hmp-world:ready", "{}"),
 });
 
