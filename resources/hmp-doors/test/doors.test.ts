@@ -6,7 +6,7 @@ import clientModule = require("../client/doors");
 import type { HmpDoorRule } from "../types";
 
 const { evaluateRules, lockLevels } = policyModule;
-const { normalizeRule } = configModule;
+const { normalizeRule, loadConfig } = configModule;
 const { createDoorService, METADATA_KEY } = serviceModule;
 const { createDoorClient, doorAnchor, normalizeLabelOptions, levelSegment } = clientModule;
 
@@ -79,6 +79,13 @@ async function run(): Promise<void> {
     assert.deepStrictEqual([...lockLevels(leveled)], [["Vault", 2], ["Cellar", 3]]);
     assert.strictEqual(lockLevels(rules).size, 0);
 
+    const configFrom = (file: Record<string, unknown>) => loadConfig({
+        config: { load: (_path: string, options: { defaults: object }) => ({ ...options.defaults, ...file }), env: { boolean: (_value: unknown, fallback: boolean) => fallback } },
+    } as never, { env: {} });
+    assert.strictEqual(configFrom({}).shareUnlocks, false, "a key or Alohomora unlock stays in the opener's game by default");
+    assert.strictEqual(configFrom({ shareUnlocks: true }).shareUnlocks, true);
+    assert.throws(() => configFrom({ shareUnlocks: "yes" }), /shareUnlocks must be a boolean/);
+
     const player = { id: 7, nickname: "Test", emitted: [] as Array<{ name: string; payload: unknown }>, emit(name: string, payload?: unknown) { this.emitted.push({ name, payload }); } };
     const metadata = new Map<string, unknown>();
     let sessionReady = true;
@@ -92,7 +99,7 @@ async function run(): Promise<void> {
             setCharacter: async (_id: number, key: string, value: unknown) => { metadata.set(key, value); return value; },
         },
     };
-    const service = createDoorService({ core: core as never, config: { command: "doors", enableCommands: true, adminGroups: [], rules }, players: () => [player] });
+    const service = createDoorService({ core: core as never, config: { command: "doors", enableCommands: true, adminGroups: [], shareUnlocks: false, rules }, players: () => [player] });
 
     // hmp-core creates its session after an awaited database round-trip, so playerConnect beats it.
     // Syncing then must be a quiet no-op, not a logged failure.
@@ -116,7 +123,7 @@ async function run(): Promise<void> {
     // Each level is held when the service starts, and stopping releases that axis alone.
     const warnings: string[] = [];
     const logger = { warn: (message: unknown) => { warnings.push(String(message)); return true; } };
-    const config = { command: "doors", enableCommands: true, adminGroups: [], rules: leveled };
+    const config = { command: "doors", enableCommands: true, adminGroups: [], shareUnlocks: false, rules: leveled };
     const levelCalls: Array<[string, unknown]> = [];
     const heldLevels = new Map<string, 1 | 2 | 3>();
     const leveledService = createDoorService({
@@ -154,6 +161,26 @@ async function run(): Promise<void> {
     // No server Doors builtin at all degrades the same way rather than throwing.
     createDoorService({ core: core as never, config, players: () => [], logger }).stop();
     assert.strictEqual(warnings.length, 2);
+
+    // Unlocks stay private by default on a host that would share them, and its own setting returns at stop.
+    const shareCalls: boolean[] = [];
+    let hostShare = true;
+    const sharing = { set: () => true, get: () => null, getShareUnlocks: () => hostShare, setShareUnlocks: (share: boolean) => { shareCalls.push(share); hostShare = share; } };
+    const privateUnlocks = createDoorService({ core: core as never, config: { ...config, rules }, players: () => [], logger, doors: sharing });
+    assert.deepStrictEqual(shareCalls, [false]);
+    privateUnlocks.stop();
+    privateUnlocks.stop();
+    assert.deepStrictEqual(shareCalls, [false, true], "stopping restores the host's setting once");
+    createDoorService({ core: core as never, config: { ...config, rules, shareUnlocks: true }, players: () => [], logger, doors: sharing });
+    assert.deepStrictEqual(shareCalls, [false, true, true]);
+    // An older host has no setting and keeps every unlock private: only asking it to share warrants a warning.
+    warnings.length = 0;
+    const olderDoors = { set: () => true, get: () => null };
+    createDoorService({ core: core as never, config: { ...config, rules }, players: () => [], logger, doors: olderDoors }).stop();
+    assert.deepStrictEqual(warnings, []);
+    createDoorService({ core: core as never, config: { ...config, rules, shareUnlocks: true }, players: () => [], logger, doors: olderDoors }).stop();
+    assert.strictEqual(warnings.length, 1);
+    assert.match(warnings[0], /shareUnlocks needs a HogwartsMP host with Doors.setShareUnlocks/);
 
     const lockCalls: Array<[string, boolean | undefined]> = [];
     const lockedCalls: Array<[string, boolean | undefined]> = [];

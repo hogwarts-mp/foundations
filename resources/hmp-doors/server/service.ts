@@ -19,6 +19,20 @@ function createDoorService<P extends HmpDoorPlayer>(dependencies: DoorDependenci
     const synced = new Set<number>();
     let stopped = false;
     let heldLevels = holdLockLevels();
+    const hostShareUnlocks = applyShareUnlocks();
+
+    // A shared unlock is held for everyone and beats every player's policy. The setting is host-wide, so the
+    // one found here is put back when the resource stops.
+    function applyShareUnlocks(): boolean | undefined {
+        const native = dependencies.doors;
+        if (typeof native?.setShareUnlocks !== "function") {
+            if (config.shareUnlocks) logger?.warn("shareUnlocks needs a HogwartsMP host with Doors.setShareUnlocks; every unlock stays in the opener's game");
+            return undefined;
+        }
+        const previous = native.getShareUnlocks?.();
+        native.setShareUnlocks(config.shareUnlocks);
+        return previous;
+    }
 
     // A host older than lockLevel ignores the axis and holds nothing, so the first level not read back marks it.
     function holdLockLevels(): string[] {
@@ -119,7 +133,12 @@ function createDoorService<P extends HmpDoorPlayer>(dependencies: DoorDependenci
         policy: Object.freeze({ resolve, sync, syncAll }),
         grants: Object.freeze({ list, grant, revoke, clear }),
         status: () => ({ state: stopped ? "stopped" as const : "ready" as const, rules: config.rules.length, syncedPlayers: synced.size, uptimeMs: now() - startedAt }),
-        stop: () => { stopped = true; synced.clear(); releaseLockLevels(); },
+        stop: () => {
+            if (!stopped && typeof hostShareUnlocks === "boolean") dependencies.doors?.setShareUnlocks?.(hostShareUnlocks);
+            stopped = true;
+            synced.clear();
+            releaseLockLevels();
+        },
     });
 }
 

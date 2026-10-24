@@ -36,18 +36,23 @@ assert.ok(serverHandlers.has("client:hmp-doors:ready"));
 assert.ok(serverHandlers.has("hmp:groups:changed"));
 assert.strictEqual(warnings.length, 1);
 
-// A host holding lock levels gets the rule's level at start, released alone at stop.
+// A newer host gets the rule's level at start and unlocks kept private, and both back at stop.
 const held = [];
 const levels = new Map();
+const shares = [];
 global.Doors = {
     set: (selector, state) => { held.push([selector, state]); if (state.lockLevel) levels.set(selector, state.lockLevel); else levels.delete(selector); return true; },
     get: (selector) => levels.has(selector) ? { selector, kind: "name", locked: null, open: null, lockLevel: levels.get(selector) } : null,
+    getShareUnlocks: () => true,
+    setShareUnlocks: (share) => shares.push(share),
 };
 delete require.cache[serverBundle];
 require(serverBundle);
 assert.deepStrictEqual(held, [["BP_Smoke_Door", { lockLevel: 2 }]]);
+assert.deepStrictEqual(shares, [false]);
 serverHandlers.get("resourceStop")("hmp-doors");
 assert.deepStrictEqual(held.at(-1), ["BP_Smoke_Door", { lockLevel: null }]);
+assert.deepStrictEqual(shares, [false, true]);
 assert.strictEqual(warnings.length, 1);
 
 const clientExports = new Map();

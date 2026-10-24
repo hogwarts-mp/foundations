@@ -8,12 +8,17 @@ export interface NativeServerDoors {
     set(selector: string, state: { lockLevel?: 1 | 2 | 3 | null }): boolean;
     /** `lockLevel` is absent on a host older than it. */
     get(selector: string): { lockLevel?: 1 | 2 | 3 | null } | null;
+    /** Whether a lock a player opens by key or Alohomora is held unlocked for everyone. Absent on an older host. */
+    setShareUnlocks?(share: boolean): void;
+    getShareUnlocks?(): boolean;
 }
 
 export interface DoorConfig {
     command: string;
     enableCommands: boolean;
     adminGroups: Array<{ key: string; minimumGrade?: number }>;
+    /** false keeps a key or Alohomora unlock in the opener's game; true lets the host hold it unlocked for all. */
+    shareUnlocks: boolean;
     rules: HmpDoorRule[];
 }
 

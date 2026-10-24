@@ -17,6 +17,7 @@ Create `data/hmp-doors.json` or copy the supplied example:
   "command": "doors",
   "enableCommands": true,
   "adminGroups": [{ "key": "admin", "minimumGrade": 1 }],
+  "shareUnlocks": false,
   "rules": [
     { "priority": 1000, "action": "allow", "doors": "*" },
     { "priority": 500, "action": "deny", "doors": ["BP_Door_Headmaster"] },
@@ -88,6 +89,21 @@ equal priority the higher level. Levels are held when the resource starts and re
 
 Lock levels need a HogwartsMP host with `Doors.set` `lockLevel`. On an older host `hmp-doors` logs a warning at
 startup and every padlock keeps the level it shipped with.
+
+## Shared unlocks
+
+A host that shares unlocks holds a lock a player opens by key or Alohomora unlocked for every player, under
+the door's persistent id. That hold beats every player's policy, so one player able to pick a door a `deny` or
+`lock` rule keeps shut would open it for everyone else until the server restarts. `"shareUnlocks": false`, the
+default, therefore keeps each unlock in the opener's game, as every older host did. Set it to `true` to share
+them; the rules then decide only who may open a door first. The setting is host-wide, and the one `hmp-doors`
+found is put back when it stops.
+
+Either way the host raises `doorUnlocked(player, { name, id, path, shared })` for a lock opened by key or
+Alohomora, so any resource can react to one directly.
+
+Sharing needs a HogwartsMP host with `Doors.setShareUnlocks`. An older host keeps every unlock private; asked
+to share, `hmp-doors` logs a warning at startup.
 
 ## API
 

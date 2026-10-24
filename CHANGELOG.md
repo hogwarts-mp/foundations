@@ -90,6 +90,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   everyone, a rule carrying it cannot have `match`. `/doors list` prints each padlocked door's level. It
   needs a HogwartsMP host with `Doors.set` `lockLevel`; on an older host every padlock keeps the level it
   shipped with.
+- `hmp-doors` `shareUnlocks` decides whether a lock a player opens by key or Alohomora opens for everyone.
+  A host that shares unlocks holds the door unlocked for every player, beating each player's policy, so
+  one player able to pick a door a `deny` or `lock` rule keeps shut would open it for the whole server.
+  It is `false` by default, keeping each unlock in the opener's game as on every older host, and the host's
+  own setting is put back when the resource stops. It needs a HogwartsMP host with
+  `Doors.setShareUnlocks`; an older host keeps every unlock private.
 
 ### Changed
 

@@ -62,6 +62,7 @@ function loadConfig(Hmp: HmpLibServer<HmpDoorPlayer>, options: { env?: NodeJS.Pr
         command: "doors",
         enableCommands: true,
         adminGroups: [{ key: "admin", minimumGrade: 1 }],
+        shareUnlocks: false,
         rules: [{ priority: 1000, action: "allow", doors: "*" }],
     };
     const loaded = Hmp.config.load<DoorConfig & Record<string, unknown>>(env.HMP_DOORS_CONFIG || "data/hmp-doors.json", {
@@ -72,11 +73,12 @@ function loadConfig(Hmp: HmpLibServer<HmpDoorPlayer>, options: { env?: NodeJS.Pr
     const enableCommands = env.HMP_DOORS_COMMANDS === undefined ? loaded.enableCommands !== false : Hmp.config.env.boolean(env.HMP_DOORS_COMMANDS, true);
     if (!Array.isArray(loaded.rules)) throw new TypeError("hmp-doors rules must be an array");
     if (!Array.isArray(loaded.adminGroups)) throw new TypeError("hmp-doors adminGroups must be an array");
+    if (typeof loaded.shareUnlocks !== "boolean") throw new TypeError("hmp-doors shareUnlocks must be a boolean");
     const adminGroups = loaded.adminGroups.map((entry, index) => ({
         key: cleanId(entry?.key, `admin group ${index} key`).toLowerCase(),
         minimumGrade: Number.isSafeInteger(Number(entry?.minimumGrade)) ? Number(entry.minimumGrade) : 0,
     }));
-    return { command, enableCommands, adminGroups, rules: loaded.rules.map(normalizeRule) };
+    return { command, enableCommands, adminGroups, shareUnlocks: loaded.shareUnlocks, rules: loaded.rules.map(normalizeRule) };
 }
 
 export = { loadConfig, normalizeRule };

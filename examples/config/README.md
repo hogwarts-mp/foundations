@@ -12,7 +12,8 @@ server-specific banks, jobs, and interactions belong in a separate gameplay reso
 body and limited stock); shops needing handlers or predicates still register from a gameplay resource.
 `hmp-business` includes price bounds, the house-cut policy, the `/business` admin groups, and a
 data-declared Pippin's business that comes alive once a gameplay resource registers the `pippins` job.
-`hmp-doors` includes a file-backed example because physical-door access is a server-wide world policy.
+`hmp-doors` includes a file-backed example because physical-door access is a server-wide world policy;
+`shareUnlocks` stays off, so a door one player picks stays locked for everyone the rules keep out.
 `hmp-world` includes the baseline weather, clock, date, season, mount-boundary, ambient-population,
 native-encounter, player-collision, fast-travel, travel-health, and jump/sprint policy applied to every
 client.
