@@ -129,6 +129,11 @@ function createAdminService(options: {
         catch (_) { return false; }
     }
 
+    function collidableOf(player: Player): boolean | null {
+        try { return typeof player.isCollidable === "function" ? player.isCollidable() !== false : null; }
+        catch (_) { return null; }
+    }
+
     function adminMove(player: Player): HogwartsMpPlayerMoving | null {
         try {
             const moving = typeof player.moving === "function" ? player.moving() : null;
@@ -163,6 +168,7 @@ function createAdminService(options: {
             frozen: Boolean(target.holds?.().some((hold) => hold.owner === ADMIN_HOLD)),
             dead: isDead(target),
             moving: adminMove(target)?.mode ?? null,
+            collidable: collidableOf(target),
         };
     }
 
@@ -488,6 +494,15 @@ function createAdminService(options: {
                 // The host orders an automatic respawn as the player dies, and a revive cannot overtake it.
                 if (!player.revive()) throw adminError("HMP_ADMIN_REVIVE_REJECTED", "A respawn or revive is already on its way for that player.");
                 return true;
+            });
+        },
+        async collision(actor: Player, target: Player | number, collidable: boolean, reason = "Change player collision") {
+            const player = targetPlayer(target);
+            if (typeof collidable !== "boolean") throw new TypeError("collidable must be true or false");
+            return audited(actor, "admin.freeze", `player.collision.${collidable ? "enable" : "disable"}`, player, reason, { collidable }, () => {
+                if (typeof player.setCollidable !== "function") throw adminError("HMP_ADMIN_ACTION_UNAVAILABLE", "Player collision needs a HogwartsMP host with player.setCollidable.");
+                player.setCollidable(collidable);
+                return collidable;
             });
         },
         async inventory(actor: Player, target: Player | number, operation: "give" | "remove", item: string, amount: number, reason = "") {

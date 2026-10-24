@@ -64,6 +64,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   interrupted. Stopping `hmp-admin` ends its walks. It needs a HogwartsMP host with `player.moveTo`,
   `player.follow` and `player.stopMoving`; on an older host each action reports that the host cannot
   walk players.
+- `hmp-admin` Turn off collision takes one player out of player collision, so they pass through other
+  players and other players through them; Turn on collision puts them back. It is granted with
+  `admin.freeze` and audited, and only matters while the world's player collision
+  (`World.setPlayerCollision`) is on. The change is server-owned and lasts until it is turned back or
+  the player disconnects. It needs a HogwartsMP host with `player.setCollidable` and
+  `player.isCollidable`; on an older host the player menu does not offer it.
 
 ### Changed
 

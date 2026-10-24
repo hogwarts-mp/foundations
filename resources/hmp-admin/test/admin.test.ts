@@ -429,6 +429,28 @@ test("revives only a dead player and reports a host that cannot", async () => {
     assert.deepStrictEqual(state.audit.map((entry) => [entry.action, entry.status]), [["player.revive", "failed"], ["player.revive", "completed"], ["player.revive", "failed"]]);
 });
 
+test("takes a player out of player collision and puts them back", async () => {
+    const state = setup();
+    const { verifiedAdmin: admin, verifiedTarget: target } = state;
+    assert.strictEqual((await state.service.players.get(admin, target)).collidable, null, "a host without player.isCollidable hides the toggle");
+    await assert.rejects(state.service.actions.collision(admin, target, false), { code: "HMP_ADMIN_ACTION_UNAVAILABLE" }, "a host without player.setCollidable");
+    let collidable = true;
+    target.isCollidable = () => collidable;
+    target.setCollidable = (value) => { collidable = value; };
+    assert.strictEqual((await state.service.players.get(admin, target)).collidable, true);
+    await assert.rejects(state.service.actions.collision(admin, target, "off" as never), /collidable must be true or false/);
+    await assert.rejects(state.service.actions.collision(state.assertedAdmin, target, false), { code: "HMP_ADMIN_FORBIDDEN" });
+    assert.strictEqual(await state.service.actions.collision(admin, target, false), false);
+    assert.strictEqual((await state.service.players.get(admin, target)).collidable, false);
+    assert.strictEqual(await state.service.actions.collision(admin, target, true), true);
+    assert.strictEqual(collidable, true);
+    assert.deepStrictEqual(state.audit.map((entry) => [entry.action, entry.status, entry.metadata]), [
+        ["player.collision.disable", "failed", { collidable: false }],
+        ["player.collision.disable", "completed", { collidable: false }],
+        ["player.collision.enable", "completed", { collidable: true }],
+    ]);
+});
+
 test("waits for matching player-local streamed teleport completion", async () => {
     const state = setup();
     const first = state.service.actions.goto(state.verifiedAdmin, state.verifiedTarget);

@@ -63,6 +63,8 @@ export interface HmpAdminPlayerSummary {
     dead: boolean;
     /** The walk hmp-admin runs on this player: "to" an admin, "follow" one, or null. */
     moving: "to" | "follow" | null;
+    /** Whether the player takes part in player collision (player.isCollidable); null on a host without it. */
+    collidable: boolean | null;
 }
 
 export interface HmpAdminAuditEntry {
@@ -134,6 +136,8 @@ export interface HmpAdminActionsApi<P = HmpAdminPlayer> {
     release(actor: P, target: P | number, reason?: string): Promise<boolean>;
     /** Stands a dead player up where they lie (player.revive). Refused unless the target is dead. */
     revive(actor: P, target: P | number, reason?: string): Promise<boolean>;
+    /** Takes a player out of player collision or puts them back (player.setCollidable); only matters while the world's is on. */
+    collision(actor: P, target: P | number, collidable: boolean, reason?: string): Promise<boolean>;
     /** Toggles camera-relative free-flight for the acting administrator. */
     noclip(actor: P, reason?: string): Promise<boolean>;
     inventory(actor: P, target: P | number, operation: "give" | "remove", item: string, amount: number, reason?: string): Promise<number>;

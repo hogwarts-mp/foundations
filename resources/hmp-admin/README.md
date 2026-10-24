@@ -31,7 +31,7 @@ The default `admin` group grants capabilities cumulatively:
 
 | Grade | Capabilities |
 |---:|---|
-| 1 | View players, kick, go to/bring, send to a map, walk to you/follow you, freeze/release, revive, warn, announce, no-clip |
+| 1 | View players, kick, go to/bring, send to a map, walk to you/follow you, freeze/release, player collision, revive, warn, announce, no-clip |
 | 2 | Groups, employment, inventory, player transmog, personal spell grants, banking, treasury inspection, audit history, environment controls |
 | 3 | Verified-identity bans and pending bank reconciliation |
 
@@ -72,7 +72,8 @@ as shown above, to appoint the highest grade.
 - Intervention: acknowledged streamed go-to/bring, acknowledged travel to another map or intro place,
   walking a player to the admin or after them with the game's own walk, and Framework-authoritative
   freeze/release. A frozen player's own input is stopped too, so they stay put on their screen; camera
-  look still works. A dead player can be revived where they lie, at full health and with no reload.
+  look still works. A dead player can be revived where they lie, at full health and with no reload,
+  and one player can be taken out of player collision.
 - Staff movement: audited, server-authorized no-clip from the main menu, with camera-relative WASD,
   Space/Ctrl vertical movement, Shift boost, Alt slow movement for precise positioning, collision
   bypass, and protected landing: leaving no-clip on the ground or in mid-air costs no health. While
@@ -158,6 +159,14 @@ swimming, knocked down or in a scene), teleported away, died, disconnected, or l
 admin. The walk runs on the player's own client, which a modified client can ignore. It needs a
 HogwartsMP host with `player.moveTo`, `player.follow` and `player.stopMoving`; on an older host each
 action reports that the host cannot walk players.
+
+Turn off collision takes the target out of player collision, so they pass through other players and
+other players through them, and Turn on collision puts them back; granted with `admin.freeze`. It
+only matters while the world's player collision is on (`World.setPlayerCollision`, off by default,
+in which players block each other's movement); NPCs, spells and the world are unaffected either way.
+The change is server-owned, so the player's client cannot undo it, and lasts until it is turned back
+or they disconnect. It needs a HogwartsMP host with `player.setCollidable` and `isCollidable`; on an
+older host the toggle is not offered.
 
 ## Suggested closed-test feedback
 

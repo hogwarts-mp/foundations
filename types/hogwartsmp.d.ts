@@ -350,6 +350,10 @@ declare global {
         getKeepHealthOnTravel?(): boolean;
         /** Stands a kneeling player up now; false when they are not kneeling. A kneel held by `kneelSeconds: 0` waits for this. */
         endKneel?(): boolean;
+        /** Takes this player out of player collision (World.setPlayerCollision) or puts them back; server-owned. */
+        setCollidable?(collidable: boolean): void;
+        /** Whether this player takes part in player collision; true unless setCollidable(false). */
+        isCollidable?(): boolean;
         /** True from playerDied until the player is back up (playerDownedEnd). */
         isDead?(): boolean;
         /** Stands a dead player up where they lie, with no reload. False unless dead with no respawn or revive on its way. */
