@@ -112,6 +112,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   resource stops, and its lock stays re-locked for the clients that keep it until they reconnect.
   Spells other resources define through the host join the catalog too. It needs a HogwartsMP host with
   `Spells.define`; an older host skips configured definitions with a warning, and `register` throws.
+- `hmp-spells` reports a server-defined spell's cast from the host's `playerSpellCast`, with the aim's
+  yaw and the wand tip in a new `cast` field of `hmp:spells:cast`, named by the spell's id. The
+  client relay of the same cast is dropped, so it is reported once; the game's own spells are still
+  relayed by the client. Both sources stay `advisory: true`, since the host's event is the caster's
+  client's word too. It needs a HogwartsMP host with `playerSpellCast`; an older host reports every
+  cast through the client relay as before.
 
 ### Changed
 

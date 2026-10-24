@@ -437,6 +437,8 @@ declare global {
         on(eventName: "resourceStop", listener: (name?: string) => unknown): void;
         on(eventName: "pvpDefeat", listener: (victim: HogwartsMpPlayer, killer: HogwartsMpPlayer, kind: "death" | "kneel") => unknown): void;
         on(eventName: "pvpRulesChanged", listener: (rules: HogwartsMpPvpRules) => unknown): void;
+        /** A server-defined spell's cast, by id; reported by the caster's client and rate-limited to 4 a second. */
+        on(eventName: "playerSpellCast", listener: (player: HogwartsMpPlayer, spell: string, cast: HogwartsMpSpellCastInfo) => unknown): void;
         on<TArgs extends unknown[]>(eventName: string, listener: (...args: TArgs) => unknown): void;
         onClient<TArgs extends unknown[]>(eventName: string, listener: (player: HogwartsMpPlayer, ...args: TArgs) => unknown): void;
         emit(eventName: string, ...args: unknown[]): unknown;
@@ -747,6 +749,11 @@ declare global {
         incantation?: string;
         stats?: Partial<Record<"damage" | "objectDamage" | "cooldown" | "range" | "projectileSpeed" | "projectileGravity" | "duration" | "playerDuration" | "chargeTime" | "impulse", number>>;
         parts?: Partial<Record<"projectile" | "onHit" | "cast" | "muzzle", string>>;
+    }
+    /** Where a defined spell's cast was aimed: camera yaw in degrees, and the wand tip (the caster's position past 5 m). */
+    interface HogwartsMpSpellCastInfo {
+        readonly aimYaw: number;
+        readonly wand: HogwartsMpVector3;
     }
     /** A defined spell as the server holds it; `lock` is `Spell_<id>`, `base` and parts in the game's spelling. */
     interface HogwartsMpSpellDefinitionInfo extends Required<Pick<HogwartsMpSpellDefinitionInput, "id" | "base" | "name" | "description" | "stats" | "parts">> {

@@ -1,11 +1,9 @@
-import catalogModule = require("../shared/catalog");
 import configModule = require("./config");
 import serviceModule = require("./service");
 import type { HmpCore } from "../../hmp-core/types";
 import type { HmpLibServer } from "../../hmp-lib/types";
-import type { HmpSpellLoadoutAssignments, HmpSpellPlayer } from "../types";
+import type { HmpSpellCastReport, HmpSpellLoadoutAssignments, HmpSpellPlayer } from "../types";
 
-const { resolveSpell } = catalogModule;
 const { loadConfig } = configModule;
 const { createSpellService } = serviceModule;
 const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);
@@ -96,7 +94,8 @@ Events.onClient("hmp-spells:assignments", (player: HmpSpellPlayer, raw: unknown)
 });
 
 const castWindows = new Map<number, { startedAt: number; count: number }>();
-Events.onClient("hmp-spells:cast", (player: HmpSpellPlayer, raw: unknown) => {
+// Both sources are the caster's client's word, so every report stays advisory.
+function reportCast(player: HmpSpellPlayer, spell: string, name: string, cast?: HogwartsMpSpellCastInfo): void {
     const now = Date.now();
     const id = Number(player.id);
     const current = castWindows.get(id);
@@ -104,12 +103,9 @@ Events.onClient("hmp-spells:cast", (player: HmpSpellPlayer, raw: unknown) => {
     window.count++;
     castWindows.set(id, window);
     if (window.count > config.maxCastReportsPerSecond) return;
-    const payload = parsePayload(raw);
-    const spell = String(payload.spell || "").slice(0, 500);
-    const name = String(payload.name || "").slice(0, 100);
-    const lockId = resolveSpell(name);
+    const lockId = spells.catalog.resolve(name);
     void spells.policy.resolve(player).then((resolution) => {
-        Events.emit("hmp:spells:cast", {
+        const report: HmpSpellCastReport<HmpSpellPlayer> = {
             player,
             character: resolution.character,
             spell,
@@ -117,10 +113,22 @@ Events.onClient("hmp-spells:cast", (player: HmpSpellPlayer, raw: unknown) => {
             lockId,
             entitled: !!lockId && resolution.policy.unlockSpells.includes(lockId),
             advisory: true,
+            ...(cast ? { cast: { aimYaw: cast.aimYaw, wand: { x: cast.wand.x, y: cast.wand.y, z: cast.wand.z } } } : {}),
             receivedAt: new Date(now).toISOString(),
-        });
+        };
+        Events.emit("hmp:spells:cast", report);
     }).catch((error) => logger.debug(`Ignored spell cast report for #${id}: ${messageOf(error)}`));
+}
+
+Events.onClient("hmp-spells:cast", (player: HmpSpellPlayer, raw: unknown) => {
+    const payload = parsePayload(raw);
+    const spell = String(payload.spell || "").slice(0, 500);
+    // spellCast names a server-defined spell by its id, and the host reports that cast itself.
+    if (spells.definitions.get(spell)) return;
+    reportCast(player, spell, String(payload.name || "").slice(0, 100));
 });
+// Only server-defined spells, checked against the host's own table, with the aim and wand tip.
+Events.on("playerSpellCast", (player: HmpSpellPlayer, spell: string, cast: HogwartsMpSpellCastInfo) => reportCast(player, String(spell), String(spell), cast));
 
 async function isAdmin(player: HmpSpellPlayer): Promise<boolean> {
     if (!config.adminGroups.length) return false;

@@ -151,6 +151,22 @@ export interface HmpSpellResolution<P = HmpSpellPlayer> {
     policy: HmpResolvedSpellPolicy;
 }
 
+/** The `hmp:spells:cast` payload. Every report is the caster's client's word: never authorize consequences with it. */
+export interface HmpSpellCastReport<P = HmpSpellPlayer> {
+    player: P;
+    character: HmpCoreCharacter | null;
+    /** A game spell's record path, or a server-defined spell's id. */
+    spell: string;
+    name: string;
+    lockId: string | null;
+    /** Whether the resolved policy unlocks `lockId` for the caster. */
+    entitled: boolean;
+    advisory: true;
+    /** Server-defined spells only, from the host's playerSpellCast: the aim's world yaw in degrees and the wand tip as the cast began. */
+    cast?: { aimYaw: number; wand: { x: number; y: number; z: number } };
+    receivedAt: string;
+}
+
 export interface HmpSpellCatalogApi {
     resolve(spell: string): string | null;
     get(spell: string): HmpSpellDefinition | null;

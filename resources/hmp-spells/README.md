@@ -204,8 +204,17 @@ Native local casts are forwarded to the server and re-emitted as `hmp:spells:cas
 the player, active character, native asset path, friendly name, resolved lock ID, current entitlement
 verdict, and `advisory: true`.
 
-This event is client-reported and therefore forgeable. It is rate-limited for operational safety, but it
-must not authorize damage, currency, quest rewards, anti-cheat action, or other consequential state.
+A server-defined spell's cast is reported by the host's own `playerSpellCast` instead, which fires for
+defined spells only and adds `cast: { aimYaw, wand }`: the aim's world yaw in degrees and the wand tip as
+the cast began. `spell` and `name` are its id. The client still names such a cast in `spellCast`, but
+the server drops that relay, so each cast is reported once. This needs a HogwartsMP host with
+`playerSpellCast`, which came with `Spells.define`; an older host has no defined spells, and every report
+comes from the client relay.
+
+This event is client-reported and therefore forgeable, from either source: the host's event is the
+caster's client's word too, checked only for a defined id and a wand tip within 5 m. It is rate-limited
+for operational safety (`maxCastReportsPerSecond` covers both), but it must not authorize damage,
+currency, quest rewards, anti-cheat action, or other consequential state.
 
 ## Closed-testing command
 

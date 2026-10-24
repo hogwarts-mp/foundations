@@ -34,10 +34,11 @@ global.Imports = { get: (name) => {
     throw new Error(`Unexpected import ${name}`);
 } };
 global.PlayerManager = { getAll: () => [player] };
+const serverEmits = [];
 global.Events = {
     on: (name, handler) => serverHandlers.set(name, handler),
     onClient: (name, handler) => serverHandlers.set(`client:${name}`, handler),
-    emit() {},
+    emit: (name, payload) => serverEmits.push({ name, payload }),
 };
 const serverEventApi = global.Events;
 const serverBundle = path.resolve(__dirname, "..", "dist", "server.js");
@@ -46,6 +47,7 @@ require(serverBundle);
 assert.ok(warnings.some((message) => message.includes("need a HogwartsMP host with Spells.define")));
 assert.strictEqual(serverExports.get("definitions").supported(), false);
 assert.strictEqual(serverExports.get("catalog").resolve("Firestorm"), null);
+const olderCastRelay = serverHandlers.get("client:hmp-spells:cast");
 delete require.cache[serverBundle];
 const definedSpells = new Map();
 const removedSpells = [];
@@ -70,6 +72,7 @@ assert.deepStrictEqual([...serverExports.keys()], ["catalog", "policy", "rules",
 assert.ok(serverHandlers.has("client:hmp-spells:ready"));
 assert.ok(serverHandlers.has("client:hmp-spells:assignments"));
 assert.ok(serverHandlers.has("client:hmp-spells:cast"));
+assert.ok(serverHandlers.has("playerSpellCast"));
 assert.ok(serverHandlers.has("worldReady"));
 assert.ok(serverHandlers.has("loadingFinished"));
 assert.ok(serverHandlers.has("hmp:groups:changed"));
@@ -154,6 +157,24 @@ async function assignmentSaveContract() {
     assert.ok(JSON.parse(serverReplies.at(-1).payload).lockSpells.includes("Spell_Firestorm"), "an ungranted defined spell is re-locked");
     await serverExports.get("grants").grant(player, "Firestorm");
     assert.ok(JSON.parse(serverReplies.at(-1).payload).unlockSpells.includes("Spell_Firestorm"));
+
+    // A defined spell's cast comes from the host's playerSpellCast alone; the client relay still
+    // reports the game's spells, as it does on an older host.
+    const casts = () => serverEmits.filter((event) => event.name === "hmp:spells:cast").map((event) => event.payload);
+    olderCastRelay(player, JSON.stringify({ spell: "/Game/Spells/Lumos/DA_LumosSpellRecord", name: "Lumos" }));
+    await new Promise(setImmediate);
+    assert.deepStrictEqual(casts().map((report) => [report.name, report.lockId, report.advisory]), [["Lumos", "Spell_Lumos", true]]);
+    serverEmits.length = 0;
+    serverHandlers.get("client:hmp-spells:cast")(player, JSON.stringify({ spell: "Firestorm", name: "" }));
+    serverHandlers.get("client:hmp-spells:cast")(player, JSON.stringify({ spell: "/Game/Spells/Lumos/DA_LumosSpellRecord", name: "Lumos" }));
+    serverHandlers.get("playerSpellCast")(player, "Firestorm", { aimYaw: 90, wand: { x: 1, y: 2, z: 3 } });
+    await new Promise(setImmediate);
+    assert.deepStrictEqual(casts().map((report) => report.name), ["Lumos", "Firestorm"], "each defined cast is reported once");
+    assert.deepStrictEqual(casts()[1], {
+        ...casts()[1], spell: "Firestorm", lockId: "Spell_Firestorm", entitled: true, advisory: true,
+        cast: { aimYaw: 90, wand: { x: 1, y: 2, z: 3 } },
+    });
+    assert.strictEqual(casts()[0].cast, undefined);
     serverHandlers.get("resourceStop")("hmp-spells");
     assert.deepStrictEqual(removedSpells, ["Firestorm"], "stopping hmp-spells removes the spells it defined");
 }
