@@ -9,6 +9,7 @@ const webHandlers = new Map();
 const emittedToServer = [];
 const emittedToWeb = [];
 const importedLooks = [];
+const patches = [];
 const viewUrls = [];
 let creatorBegun = 0;
 let creatorCommitted = 0;
@@ -72,6 +73,8 @@ const creatorSchema = {
         preset: { options: ["preset-a"], count: 1 },
         hairStyle: { options: ["saved-look", "shared-look"], count: 2 },
         glasses: { options: ["GA_Face_001"], count: 1 },
+        facialHair: { options: ["M_Facial_zBase_FullBeard", "M_Facial_zBase_WizardLong"], count: 2 },
+        facialHairColor: { options: ["hair", "#1c1410"], count: 2 },
     },
 };
 const creatorState = {
@@ -88,7 +91,7 @@ global.Creator = {
     cancel() { creatorCancelled++; return true; },
     getSchema: () => creatorSchema,
     getState: () => creatorState,
-    applyPatch: () => 1,
+    applyPatch(patch) { patches.push(patch); return 1; },
     setVoice: () => true,
     setName: () => true,
     exportLook: () => ({ format: "hogwartsmp-look", version: 2, gender: "female", presets: { hairStyle: "shared-look" }, gear: [] }),
@@ -128,6 +131,7 @@ const creatorBundle = fs.readFileSync(path.resolve(__dirname, "..", "dist", "cre
 assert.match(creatorPage, /creator\.js/);
 assert.match(creatorBundle, /COPY LOOK JSON/);
 assert.match(creatorBundle, /IMPORT JSON/);
+assert.match(creatorBundle, /Facial Hair Colour/);
 const inlineScript = page.match(/<script>([\s\S]*?)<\/script>/);
 assert.ok(inlineScript);
 assert.doesNotThrow(() => new Function(inlineScript[1]));
@@ -168,6 +172,11 @@ setTimeout(() => {
     assert.deepStrictEqual(importedLooks, [imported]);
     clientHandlers.get("creatorChanged")({});
     assert.ok(emittedToWeb.some((event) => event.name === "hmp-creator:open" && event.payload.schema === creatorSchema));
+    // Slider 1 clears the clearable categories; their options start at 2.
+    for (const [category, index] of [["facialHair", 1], ["facialHair", 3], ["facialHairColor", 1], ["facialHairColor", 2], ["hairStyle", 2]]) {
+        webHandlers.get("creator:option")({ category, index });
+    }
+    assert.deepStrictEqual(patches, [{ facialHair: "" }, { facialHair: "M_Facial_zBase_WizardLong" }, { facialHairColor: "" }, { facialHairColor: "hair" }, { hairStyle: "shared-look" }]);
     webHandlers.get("creator:export")();
     assert.ok(emittedToWeb.some((event) => event.name === "hmp-creator:export" && JSON.parse(event.payload.json).presets.hairStyle === "shared-look"));
     webHandlers.get("creator:confirm")({ first: "Natsai", last: "Onai", dorm: "witch" });
