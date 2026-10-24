@@ -11,6 +11,8 @@ const PORTRAIT_RETRY_MS = 300;
 const PORTRAIT_TIMEOUT_MS = 20_000;
 const MAX_PORTRAIT_BYTES = 3 * 1024 * 1024;
 const PORTRAIT_POSE = "/Game/Animation/Human/PhotoMode/Hu_PhotoMode_Stand3_01_pose_anm.Hu_PhotoMode_Stand3_01_pose_anm";
+// Slider 1 sends "" (none, or the beard's own colour) and the schema's options follow from 2.
+const CLEARABLE_CATEGORIES = new Set(["glasses", "facialHair", "facialHairColor"]);
 const Input = Imports.get<HmpLibClient>("hmp-lib").input;
 
 interface ClientCharacter extends HmpCharacterCard {
@@ -440,7 +442,7 @@ function wireCreator(): void {
         const index = Math.trunc(Number(input.index));
         const schema = creatorSchema || readCreatorSnapshot()?.schema;
         const options = schema?.categories?.[category]?.options || [];
-        const id = category === "glasses" ? (index === 1 ? "" : options[index - 2]) : options[index - 1];
+        const id = CLEARABLE_CATEGORIES.has(category) ? (index === 1 ? "" : options[index - 2]) : options[index - 1];
         if (!category || index < 1 || id === undefined) {
             creatorError("That creator option is not available for this character.");
             return;

@@ -13,12 +13,15 @@ interface CreatorState {
     gender: number;
     selections: Record<string, string>;
     faceGear: string;
+    facialHair?: string;
+    facialHairColor?: string;
     voice?: { tone: number; pitch: number };
     name?: { first: string; last: string };
 }
 interface CreatorSnapshot { schema: CreatorSchema; state: CreatorState }
 interface CameraFrame { dist: number; height: number; pitch: number; fov: number; shift: number }
-interface Section { key: string; label: string; fallbackMax: number }
+// An optional section is hidden when the client's schema does not offer its category.
+interface Section { key: string; label: string; fallbackMax: number; optional?: boolean }
 interface Tab { id: string; title: string; numeral: string; finalise?: boolean; sections: Section[]; camera: CameraFrame }
 
 const T = {
@@ -38,6 +41,7 @@ const TABS: Tab[] = [
     ], camera: { dist: 160, height: 77, pitch: -2, fov: 36, shift: 0 } },
     { id: "hair", title: "Hairstyles", numeral: "III", sections: [
         { key: "hairStyle", label: "Hair Style", fallbackMax: 52 }, { key: "hairColour", label: "Hair Colour", fallbackMax: 32 },
+        { key: "facialHair", label: "Facial Hair", fallbackMax: 21, optional: true }, { key: "facialHairColor", label: "Facial Hair Colour", fallbackMax: 12, optional: true },
     ], camera: { dist: 170, height: 80, pitch: -3, fov: 26, shift: 0 } },
     { id: "complexion", title: "Complexion", numeral: "IV", sections: [
         { key: "marking1", label: "Complexion", fallbackMax: 16 }, { key: "marking0", label: "Freckles and Moles", fallbackMax: 13 },
@@ -50,8 +54,14 @@ const TABS: Tab[] = [
 ];
 
 const DEFAULTS: Record<string, number> = {
-    preset: 11, faceShape: 7, eyeColour: 12, glasses: 1, hairStyle: 23, hairColour: 9,
+    preset: 11, faceShape: 7, eyeColour: 12, glasses: 1, hairStyle: 23, hairColour: 9, facialHair: 1, facialHairColor: 1,
     skin: 5, marking0: 3, marking1: 1, marking2: 2, browShape: 6, browColour: 8,
+};
+// Slider 1 is "" (none, or the beard's own colour) and the schema's options follow from 2.
+const CLEARABLE: Record<string, (state: CreatorState) => string | undefined> = {
+    glasses: (state) => state.faceGear,
+    facialHair: (state) => state.facialHair,
+    facialHairColor: (state) => state.facialHairColor,
 };
 const PANEL_W = 460;
 const PITCH_MID = 3;
@@ -169,9 +179,11 @@ function App() {
         const next: Record<string, number> = {};
         for (const section of TABS.flatMap((entry) => entry.sections)) {
             const options = snapshot.schema.categories[section.key]?.options || [];
-            if (section.key === "glasses") {
-                const index = snapshot.state.faceGear ? options.indexOf(snapshot.state.faceGear) : -1;
-                next.glasses = index >= 0 ? index + 2 : 1;
+            const cleared = CLEARABLE[section.key];
+            if (cleared) {
+                const value = cleared(snapshot.state) || "";
+                const index = value ? options.indexOf(value) : -1;
+                next[section.key] = index >= 0 ? index + 2 : 1;
             } else {
                 const index = options.indexOf(snapshot.state.selections?.[section.key] || "");
                 if (index >= 0) next[section.key] = index + 1;
@@ -220,12 +232,12 @@ function App() {
         emit("creator:ready");
         if (!isHost) {
             const categories = Object.fromEntries(TABS.flatMap((entry) => entry.sections).map((section) => {
-                const count = section.key === "glasses" ? section.fallbackMax - 1 : section.fallbackMax;
+                const count = CLEARABLE[section.key] ? section.fallbackMax - 1 : section.fallbackMax;
                 return [section.key, { count, options: Array.from({ length: count }, (_, index) => `${section.key}-${index + 1}`) }];
             }));
             applySnapshot({
                 schema: { version: 1, gender: 1, categories },
-                state: { gender: 1, selections: Object.fromEntries(Object.entries(categories).filter(([key]) => key !== "glasses").map(([key, category]) => [key, category.options[0] || ""])), faceGear: "", voice: { tone: 0, pitch: 0 }, name: { first: "", last: "" } },
+                state: { gender: 1, selections: Object.fromEntries(Object.entries(categories).filter(([key]) => !CLEARABLE[key]).map(([key, category]) => [key, category.options[0] || ""])), faceGear: "", facialHair: "", facialHairColor: "", voice: { tone: 0, pitch: 0 }, name: { first: "", last: "" } },
             });
             setOpen(true);
         }
@@ -263,8 +275,9 @@ function App() {
     const cycle = (direction: number) => { const index = TABS.findIndex((entry) => entry.id === tabId); setTabId(TABS[(index + direction + TABS.length) % TABS.length].id); };
     const sectionMax = (section: Section) => {
         const count = schema?.categories?.[section.key]?.options?.length || section.fallbackMax;
-        return section.key === "glasses" ? count + 1 : count;
+        return CLEARABLE[section.key] ? count + 1 : count;
     };
+    const sections = tab.sections.filter((section) => !section.optional || !schema || schema.categories[section.key]);
     const setOption = (key: string, value: number) => { setOpts((current) => ({ ...current, [key]: value })); setNotice(""); bridge.option(key, value); };
     const canConfirm = Boolean(first.trim() && last.trim() && dorm);
     const field: CSSProperties = { padding: "12px 14px", background: T.panel, border: `1px solid ${T.goldLine}`, borderRadius: 4, fontSize: 14, color: T.inkInput, outline: "none" };
@@ -303,7 +316,7 @@ function App() {
                     </div>
                     {label("DORMITORY")}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{choice("WITCH", dorm === "witch", () => setDorm("witch"))}{choice("WIZARD", dorm === "wizard", () => setDorm("wizard"))}</div>
-                </> : tab.sections.map((section) => <div key={section.key} style={{ marginBottom: 26 }}>{label(section.label.toUpperCase())}<Slider value={Math.min(opts[section.key] || 1, sectionMax(section))} max={sectionMax(section)} onChange={(value) => setOption(section.key, value)} /></div>)}
+                </> : sections.map((section) => <div key={section.key} style={{ marginBottom: 26 }}>{label(section.label.toUpperCase())}<Slider value={Math.min(opts[section.key] || 1, sectionMax(section))} max={sectionMax(section)} onChange={(value) => setOption(section.key, value)} /></div>)}
             </aside>
 
             <main style={{ flex: 1, position: "relative", overflow: "hidden", borderLeft: `1px solid ${T.goldLineSoft}`, background: isHost ? "transparent" : "radial-gradient(120% 86% at 64% 4%,rgba(58,72,86,.3),transparent 56%),linear-gradient(180deg,#0d0b08,#070504)" }}>

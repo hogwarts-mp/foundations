@@ -124,6 +124,10 @@ declare global {
         readonly presets: Readonly<Record<string, string>>;
         readonly gear: readonly string[];
         readonly faceGear?: string;
+        /** Beard-slot character piece, e.g. `"M_Facial_zBase_FullBeard"`; absent or `""` is clean-shaven. */
+        readonly facialHair?: string;
+        /** `"hair"` to match the hair, or a `"#rrggbb"` colour; absent keeps the piece's own colour. */
+        readonly facialHairColor?: string;
         readonly house?: string;
         readonly scale?: number;
         readonly boneScales?: Readonly<Record<string, number>>;
@@ -141,6 +145,8 @@ declare global {
         readonly patch: boolean;
         readonly preview: boolean;
         readonly look: boolean;
+        /** Creator API 4: the facialHair and facialHairColor categories. Absent on older clients. */
+        readonly facialHair?: boolean;
     }
     interface HogwartsMpCreatorCategory {
         readonly options: readonly string[];
@@ -155,6 +161,8 @@ declare global {
         readonly gender: number;
         readonly selections: Readonly<Record<string, string>>;
         readonly faceGear: string;
+        readonly facialHair?: string;
+        readonly facialHairColor?: string;
         readonly voice?: { readonly tone: number; readonly pitch: number };
         readonly name?: { readonly first: string; readonly last: string };
         readonly change?: { readonly category: string; readonly id: string; readonly ok: boolean };
