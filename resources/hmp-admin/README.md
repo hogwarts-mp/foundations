@@ -162,11 +162,11 @@ action reports that the host cannot walk players.
 
 Turn off collision takes the target out of player collision, so they pass through other players and
 other players through them, and Turn on collision puts them back; granted with `admin.freeze`. It
-only matters while the world's player collision is on (`World.setPlayerCollision`, off by default,
-in which players block each other's movement); NPCs, spells and the world are unaffected either way.
-The change is server-owned, so the player's client cannot undo it, and lasts until it is turned back
-or they disconnect. It needs a HogwartsMP host with `player.setCollidable` and `isCollidable`; on an
-older host the toggle is not offered.
+only matters while the world's player collision is on (`hmp-world` `policy.playerCollision`, off by
+default, in which players block each other's movement); NPCs, spells and the world are unaffected
+either way. The change is server-owned, so the player's client cannot undo it, and lasts until it is
+turned back or they disconnect. It needs a HogwartsMP host with `player.setCollidable` and
+`isCollidable`; on an older host the toggle is not offered.
 
 ## Suggested closed-test feedback
 
