@@ -5,6 +5,16 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+### Changed
+
+- `hmp-world`'s README no longer says mission enemies always come from the game. A HogwartsMP host
+  newer than `1.9.2` keeps every native spawner shut under both `encounters` policies, quest ones
+  included, and refuses a level script that turns one back on, so no client spawns an enemy of its own:
+  quest fights, a dungeon's scripted waves and the beast-cage rescue's poachers never spawn, and a quest
+  whose objective waits on defeating them stalls at that step. HogwartsMP `1.9` through `1.9.2` leaves
+  them to the game, which spawns them on one client alone. `"server"` still covers only the Overland's
+  camps and roaming world events.
+
 ### Fixed
 
 - `hmp-admin` no-clip no longer kills an admin when they leave it. The game skips a landing's fall

@@ -23,7 +23,8 @@ export interface HmpWorldEnvironmentConfig {
 
 /**
  * Who spawns the Overland's enemy camps and roaming world events: nobody (`suppressed`), or the server as NPCs
- * every player shares (`server`). Mission enemies always come from the game.
+ * every player shares (`server`). A host newer than 1.9.2 also keeps quest and dungeon spawners shut under
+ * both; 1.9 through 1.9.2 leaves them to the game, which spawns them on one client alone.
  */
 export type HmpWorldEncounters = "suppressed" | "server";
 

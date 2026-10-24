@@ -34,8 +34,12 @@ the Overland's enemy encounters:
 ```
 
 `encounters` decides who spawns the Overland's enemy camps and roaming world events: `"suppressed"`
-(the default) spawns none, and `"server"` spawns them on the server as NPCs every player shares. Mission
-enemies always come from the game.
+(the default) spawns none, and `"server"` spawns them on the server as NPCs every player shares. What
+happens to the game's other enemies depends on the host. A HogwartsMP host newer than `1.9.2` keeps
+every native spawner shut under both policies, quest ones included, so no client spawns an enemy of its
+own: quest fights, the waves a dungeon's script opens and the beast-cage rescue's poachers never spawn,
+and a quest whose objective waits on defeating them stalls at that step. HogwartsMP `1.9` through
+`1.9.2` leaves them to the game, which spawns them on one client alone, seen only by that player.
 
 `time.scale` is in-game minutes per real second: `1` gives a 24-minute in-game day and `0` freezes
 the clock. `date.year: 0` preserves the game's native year. Seasons accept `spring`, `summer`,
