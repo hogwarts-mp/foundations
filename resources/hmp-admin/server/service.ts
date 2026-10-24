@@ -108,6 +108,11 @@ function createAdminService(options: {
         catch (_) { return null; }
     }
 
+    function isDead(player: Player): boolean {
+        try { return typeof player.isDead === "function" && player.isDead() === true; }
+        catch (_) { return false; }
+    }
+
     function requireSameArea(left: Player, right: Player): void {
         const leftLocation = locationOf(left);
         const rightLocation = locationOf(right);
@@ -133,6 +138,7 @@ function createAdminService(options: {
             location: locationOf(target),
             virtualWorld: Number(target.virtualWorld) || 0,
             frozen: Boolean(target.holds?.().some((hold) => hold.owner === ADMIN_HOLD)),
+            dead: isDead(target),
         };
     }
 
@@ -356,6 +362,16 @@ function createAdminService(options: {
                 const released = player.release(ADMIN_HOLD);
                 setInputFrozen(player, false);
                 return released;
+            });
+        },
+        async revive(actor: Player, target: Player | number, reason = "Revive player") {
+            const player = targetPlayer(target);
+            if (!isDead(player)) throw adminError("HMP_ADMIN_NOT_DEAD", "That player is not dead.");
+            return audited(actor, "admin.freeze", "player.revive", player, reason, {}, () => {
+                if (typeof player.revive !== "function") throw adminError("HMP_ADMIN_ACTION_UNAVAILABLE", "Reviving a player needs a HogwartsMP host with player.revive.");
+                // The host orders an automatic respawn as the player dies, and a revive cannot overtake it.
+                if (!player.revive()) throw adminError("HMP_ADMIN_REVIVE_REJECTED", "A respawn or revive is already on its way for that player.");
+                return true;
             });
         },
         async inventory(actor: Player, target: Player | number, operation: "give" | "remove", item: string, amount: number, reason = "") {

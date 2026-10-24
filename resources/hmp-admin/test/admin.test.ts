@@ -408,6 +408,27 @@ test("restores a frozen player's input when the host ends the hold and releases 
     assert.strictEqual(state.holds.get(state.verifiedTarget.id)?.has("hmp-admin"), false);
 });
 
+test("revives only a dead player and reports a host that cannot", async () => {
+    const state = setup();
+    const { verifiedAdmin: admin, verifiedTarget: target } = state;
+    let dead = false;
+    let accepted = true;
+    const revives: unknown[] = [];
+    target.isDead = () => dead;
+    await assert.rejects(state.service.actions.revive(admin, target), { code: "HMP_ADMIN_NOT_DEAD" });
+    assert.strictEqual((await state.service.players.get(admin, target)).dead, false);
+    dead = true;
+    assert.strictEqual((await state.service.players.get(admin, target)).dead, true);
+    await assert.rejects(state.service.actions.revive(admin, target), { code: "HMP_ADMIN_ACTION_UNAVAILABLE" }, "a host without player.revive");
+    target.revive = (options) => { revives.push(options); return accepted; };
+    await assert.rejects(state.service.actions.revive(state.assertedAdmin, target), { code: "HMP_ADMIN_FORBIDDEN" });
+    assert.strictEqual(await state.service.actions.revive(admin, target), true);
+    accepted = false;
+    await assert.rejects(state.service.actions.revive(admin, target), { code: "HMP_ADMIN_REVIVE_REJECTED" }, "a respawn already on its way");
+    assert.deepStrictEqual(revives, [undefined, undefined], "full health, the host's default");
+    assert.deepStrictEqual(state.audit.map((entry) => [entry.action, entry.status]), [["player.revive", "failed"], ["player.revive", "completed"], ["player.revive", "failed"]]);
+});
+
 test("waits for matching player-local streamed teleport completion", async () => {
     const state = setup();
     const first = state.service.actions.goto(state.verifiedAdmin, state.verifiedTarget);

@@ -56,6 +56,8 @@ export interface HmpAdminPlayerSummary {
     location: HogwartsMpPlayerLocation | null;
     virtualWorld: number;
     frozen: boolean;
+    /** Whether the host reports the player dead (player.isDead). */
+    dead: boolean;
 }
 
 export interface HmpAdminAuditEntry {
@@ -117,6 +119,8 @@ export interface HmpAdminActionsApi<P = HmpAdminPlayer> {
     bring(actor: P, target: P | number, reason?: string): Promise<number>;
     freeze(actor: P, target: P | number, reason?: string): Promise<boolean>;
     release(actor: P, target: P | number, reason?: string): Promise<boolean>;
+    /** Stands a dead player up where they lie (player.revive). Refused unless the target is dead. */
+    revive(actor: P, target: P | number, reason?: string): Promise<boolean>;
     /** Toggles camera-relative free-flight for the acting administrator. */
     noclip(actor: P, reason?: string): Promise<boolean>;
     inventory(actor: P, target: P | number, operation: "give" | "remove", item: string, amount: number, reason?: string): Promise<number>;

@@ -44,6 +44,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   only after the connect load, so the selector, last location and teleport still bring them to their
   destination. It needs a HogwartsMP host with `World.setSpawn` and `player.setSpawn`; on an older host
   players load into the dormitory and respawn as before, and `worldSpawn` logs a warning.
+- `hmp-admin` Revive player stands a dead player up where they lie, at full health and with no
+  reload, through the game's own get-up. The player menu offers it only while the target is dead, to
+  staff with `admin.freeze`, and the attempt is audited. A death the server respawns on its own already
+  has that respawn on its way, so Revive stands up a death held with server.json
+  `"mod": { "autoRespawn": false }` or `player.setAutoRespawn(false)`. It needs a HogwartsMP host with
+  `player.revive`; on an older host the action reports that the host cannot revive.
 
 ### Changed
 

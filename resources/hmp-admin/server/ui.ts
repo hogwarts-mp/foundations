@@ -370,6 +370,7 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
             const actions: HmpUiContextOption[] = [{ id: "details", title: `${target.nickname} · #${target.playerId}`, description: target.frozen ? "Currently frozen by hmp-admin" : "Connected", disabled: true, metadata: playerMetadata(target) }];
             if (allowed(capabilities, "admin.teleport")) actions.push({ id: "goto", title: "Go to player", description: "Stream your character near this player." }, { id: "bring", title: "Bring player", description: "Stream this player near your character." });
             if (allowed(capabilities, "admin.freeze")) actions.push({ id: target.frozen ? "release" : "freeze", title: target.frozen ? "Release player" : "Freeze player", description: "Uses the Framework's authoritative movement hold." });
+            if (allowed(capabilities, "admin.freeze") && target.dead) actions.push({ id: "revive", title: "Revive player", description: "Stand this player up where they lie, at full health, with no reload." });
             if (allowed(capabilities, "admin.warn")) actions.push({ id: "warn", title: "Issue warning", description: "Record and deliver a staff warning." }, { id: "warnings", title: "Warning history", description: "Review prior warnings." });
             if (allowed(capabilities, "admin.inventory")) actions.push({ id: "inventory", title: "Inventory", description: "Give or remove a registered custom or native item." });
             if (allowed(capabilities, "admin.appearance")) actions.push({ id: "transmog", title: "Transmog", description: target.character ? "Set or unset this character's persistent native disguise." : "The player has no active character.", disabled: !target.character });
@@ -382,6 +383,7 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
             const choice = await ui.context(player, { title: "Player administration", options: actions });
             if (!choice || choice === "details") return;
             if (choice === "goto" || choice === "bring" || choice === "freeze" || choice === "release") await run(player, () => admin.actions[choice](player, target.playerId), `${choice[0].toUpperCase()}${choice.slice(1)} completed.`);
+            else if (choice === "revive") await run(player, () => admin.actions.revive(player, target.playerId), "Revive sent. The player gets up where they lie.");
             else if (choice === "warn" || choice === "kick") {
                 const why = await reason(player, `${choice === "warn" ? "Warn" : "Kick"} · ${target.nickname}`, choice === "warn" ? "Staff warning" : "Removed by an administrator");
                 if (why) await run(player, () => choice === "warn" ? admin.moderation.warn(player, target.playerId, why) : admin.actions.kick(player, target.playerId, why), choice === "warn" ? "Warning recorded and delivered." : "Player kicked.");
