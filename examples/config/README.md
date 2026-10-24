@@ -14,7 +14,7 @@ body and limited stock); shops needing handlers or predicates still register fro
 data-declared Pippin's business that comes alive once a gameplay resource registers the `pippins` job.
 `hmp-doors` includes a file-backed example because physical-door access is a server-wide world policy.
 `hmp-world` includes the baseline weather, clock, date, season, mount-boundary, ambient-population,
-native-encounter, player-collision, and fast-travel policy applied to every client.
+native-encounter, player-collision, fast-travel, and travel-health policy applied to every client.
 `hmp-worldstate` includes the `/worldstate` admin groups and the repairable-object report limit.
 `hmp-loot` includes two example lootables in a Hogwarts courtyard and switches the game's own chests,
 moonstones and foragables off.

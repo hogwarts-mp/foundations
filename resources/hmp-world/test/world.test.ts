@@ -21,6 +21,8 @@ assert.strictEqual(config.policy.encounters, "suppressed");
 assert.strictEqual(config.policy.playerCollision, false);
 assert.strictEqual(config.policy.fastTravel, true);
 assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, fastTravel: "no" } }), /fastTravel must be a boolean/);
+assert.strictEqual(config.policy.keepHealthOnTravel, false);
+assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, keepHealthOnTravel: 1 } }), /keepHealthOnTravel must be a boolean/);
 assert.strictEqual(normalizeConfig({ ...config, policy: { ...config.policy, encounters: "server" } }).policy.encounters, "server");
 assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, encounters: "native" } }), /"suppressed" or "server"/);
 assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, removeBoundaryVolumes: "yes" } }), /boolean/);
@@ -126,6 +128,23 @@ travel.stop();
 assert.deepStrictEqual(traveller.fastTravel.at(-1), true, "stopping gives online players their fast travel back");
 travel.connect(traveller);
 assert.deepStrictEqual(traveller.fastTravel.length, 5);
+
+// Keeping health over map loads is held per connection too, and a connection starts without it.
+const delver = { id: 10, nickname: "Delver", connected: true, keepHealth: [] as boolean[], emit() {}, setKeepHealthOnTravel(on: boolean) { this.keepHealth.push(on); } };
+const health = createWorldService({
+    config,
+    native,
+    players: () => [delver, { id: 11, nickname: "OlderHost", connected: true, emit() {} }],
+    events: { emitAllClients: () => {} },
+});
+health.connect(delver);
+assert.deepStrictEqual(delver.keepHealth, [], "the default sends nothing");
+health.policy.set({ keepHealthOnTravel: true });
+health.connect(delver);
+assert.deepStrictEqual(delver.keepHealth, [true, true]);
+assert.throws(() => health.policy.set({ keepHealthOnTravel: 1 as never }), /keepHealthOnTravel must be a boolean/);
+health.stop();
+assert.deepStrictEqual(delver.keepHealth, [true, true, false], "stopping switches it off for those online");
 
 assert.strictEqual(parsePolicy("bad"), null);
 assert.deepStrictEqual(parsePolicy(JSON.stringify(config.policy)), { removeBoundaryVolumes: true, ambientPopulation: false });

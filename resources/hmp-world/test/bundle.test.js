@@ -6,7 +6,11 @@ const serverExports = new Map();
 const serverHandlers = new Map();
 const playerEvents = [];
 const fastTravel = [];
-const player = { id: 1, nickname: "Smoke", connected: true, emit: (name, payload) => playerEvents.push({ name, payload }), setFastTravelEnabled: (on) => fastTravel.push(on) };
+const keepHealth = [];
+const player = {
+    id: 1, nickname: "Smoke", connected: true, emit: (name, payload) => playerEvents.push({ name, payload }),
+    setFastTravelEnabled: (on) => fastTravel.push(on), setKeepHealthOnTravel: (on) => keepHealth.push(on),
+};
 let environment = { weather: "Default_PHY", hour: 12, minute: 0, second: 0, day: 1, month: 1, year: 0, season: 0, timeScale: 1, revision: 0 };
 const encounterPolicies = [];
 const collisionPolicies = [];
@@ -63,8 +67,12 @@ serverHandlers.get("playerConnect")(player);
 assert.deepStrictEqual(fastTravel, [false, false]);
 serverExports.get("policy").sync(player);
 assert.ok(!("fastTravel" in JSON.parse(playerEvents.at(-1).payload)));
+assert.deepStrictEqual(keepHealth, [], "a connection starts without keeping health over map loads");
+serverExports.get("policy").set({ keepHealthOnTravel: true });
+assert.deepStrictEqual(keepHealth, [true]);
 serverHandlers.get("resourceStop")("hmp-world");
 assert.deepStrictEqual(fastTravel, [false, false, true]);
+assert.deepStrictEqual(keepHealth, [true, false]);
 
 const clientExports = new Map();
 const clientHandlers = new Map();

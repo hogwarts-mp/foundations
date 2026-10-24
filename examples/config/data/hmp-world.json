@@ -19,6 +19,7 @@
     "ambientPopulation": false,
     "encounters": "suppressed",
     "playerCollision": false,
-    "fastTravel": true
+    "fastTravel": true,
+    "keepHealthOnTravel": false
   }
 }

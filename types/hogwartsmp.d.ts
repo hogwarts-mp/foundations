@@ -271,6 +271,9 @@ declare global {
         /** Allows or stops this player's own fast travel from their map, for this connection. On by default. */
         setFastTravelEnabled?(on: boolean): void;
         getFastTravelEnabled?(): boolean;
+        /** Carries this player's health over map loads; a respawn after a death still starts full. Off by default. */
+        setKeepHealthOnTravel?(on: boolean): void;
+        getKeepHealthOnTravel?(): boolean;
     }
 
     interface HogwartsMpNpc {

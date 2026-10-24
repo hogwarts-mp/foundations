@@ -30,7 +30,8 @@ the Overland's enemy encounters:
     "ambientPopulation": false,
     "encounters": "suppressed",
     "playerCollision": false,
-    "fastTravel": true
+    "fastTravel": true,
+    "keepHealthOnTravel": false
   }
 }
 ```
@@ -59,6 +60,13 @@ before. To refuse only some trips, another resource handles the host's `playerFa
 and returns `false`: every handler runs, and any `false` refuses. It needs a HogwartsMP host with
 `player.setFastTravelEnabled`; an older host ignores it, raises no `playerFastTravelRequest`, and
 players keep fast travelling.
+
+`keepHealthOnTravel: true` carries each player's health over a map load, such as entering or leaving a
+dungeon, instead of the full health a fresh body starts with (`player.setKeepHealthOnTravel`). A
+respawn after a death still starts full. It reaches players as `fastTravel` does, and stopping
+`hmp-world` switches it off for those online. The default `false` keeps the full-health reset. It needs
+a HogwartsMP host with `player.setKeepHealthOnTravel`; an older host ignores it and every map load
+still heals to full.
 
 `time.scale` is in-game minutes per real second: `1` gives a 24-minute in-game day and `0` freezes
 the clock. `date.year: 0` preserves the game's native year. Seasons accept `spring`, `summer`,

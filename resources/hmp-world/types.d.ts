@@ -39,6 +39,8 @@ export interface HmpWorldPolicy {
     playerCollision: boolean;
     /** Let players fast travel from their own map, applied by the server to each player (`player.setFastTravelEnabled`). */
     fastTravel: boolean;
+    /** Carry each player's health over map loads, applied by the server to each player (`player.setKeepHealthOnTravel`). */
+    keepHealthOnTravel: boolean;
 }
 
 /** The part of the policy each client applies itself. */
@@ -91,6 +93,8 @@ export interface HmpWorldPlayer {
     emit(eventName: string, payload?: unknown): void;
     /** Absent on a host older than the fast-travel gate. */
     setFastTravelEnabled?(on: boolean): void;
+    /** Absent on a host older than keeping health over map loads. */
+    setKeepHealthOnTravel?(on: boolean): void;
 }
 
 export interface HmpWorld<P = HmpWorldPlayer> {

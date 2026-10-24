@@ -8,10 +8,10 @@ import type {
 } from "../types";
 import { SEASONS, type WorldServiceOptions } from "./internal";
 
-type PlayerPolicy = Pick<HmpWorldPolicy, "fastTravel">;
+type PlayerPolicy = Pick<HmpWorldPolicy, "fastTravel" | "keepHealthOnTravel">;
 
 // What a connection starts with on the host.
-const PLAYER_DEFAULTS: Readonly<PlayerPolicy> = Object.freeze({ fastTravel: true });
+const PLAYER_DEFAULTS: Readonly<PlayerPolicy> = Object.freeze({ fastTravel: true, keepHealthOnTravel: false });
 
 interface WorldService<P extends HmpWorldPlayer> extends HmpWorld<P> {
     stop(): void;
@@ -39,7 +39,7 @@ function numericSeason(value: HmpWorldSeason): 0 | 1 | 2 | 3 {
 
 function normalizePolicyPatch(current: HmpWorldPolicy, patch: Partial<HmpWorldPolicy>): HmpWorldPolicy {
     if (!patch || typeof patch !== "object" || Array.isArray(patch)) throw new TypeError("world policy patch must be an object");
-    for (const key of ["removeBoundaryVolumes", "ambientPopulation", "playerCollision", "fastTravel"] as const) {
+    for (const key of ["removeBoundaryVolumes", "ambientPopulation", "playerCollision", "fastTravel", "keepHealthOnTravel"] as const) {
         if (patch[key] !== undefined && typeof patch[key] !== "boolean") throw new TypeError(`world policy ${key} must be a boolean`);
     }
     if (patch.encounters !== undefined && patch.encounters !== "suppressed" && patch.encounters !== "server") {
@@ -106,6 +106,7 @@ function createWorldService<P extends HmpWorldPlayer>(options: WorldServiceOptio
         if (player.connected === false) return;
         try {
             if (next.fastTravel !== previous.fastTravel) player.setFastTravelEnabled?.(next.fastTravel);
+            if (next.keepHealthOnTravel !== previous.keepHealthOnTravel) player.setKeepHealthOnTravel?.(next.keepHealthOnTravel);
         }
         catch (_) { /* left before it applied */ }
     }

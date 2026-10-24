@@ -18,6 +18,11 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   resource that refuses only some trips handles the host's `playerFastTravelRequest` and returns
   `false`, now in the shared typings. It needs a HogwartsMP host with `player.setFastTravelEnabled`; an
   older host ignores it.
+- `hmp-world` `policy.keepHealthOnTravel: true` carries each player's health over a map load, such as
+  entering or leaving a dungeon, through `player.setKeepHealthOnTravel`, instead of the full health a
+  fresh body starts with. A respawn after a death still starts full. It reaches players as
+  `policy.fastTravel` does, and stopping `hmp-world` switches it off. It defaults to `false`, as before.
+  It needs a HogwartsMP host with `player.setKeepHealthOnTravel`; an older host ignores it.
 
 ### Changed
 
