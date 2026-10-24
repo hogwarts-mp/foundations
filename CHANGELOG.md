@@ -5,6 +5,13 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+### Added
+
+- `hmp-world` `policy.playerCollision` makes players block each other's movement on every client
+  through `World.setPlayerCollision`, from the JSON baseline or `policy.set`. Nobody can push anyone,
+  and NPCs, spells and the world are unaffected. It defaults to `false`, so players still walk through
+  each other. It needs a HogwartsMP host with `World.setPlayerCollision`; an older host ignores it.
+
 ### Changed
 
 - `hmp-world`'s README no longer says mission enemies always come from the game. A HogwartsMP host

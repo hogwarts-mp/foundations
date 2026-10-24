@@ -35,6 +35,8 @@ export interface HmpWorldPolicy {
     ambientPopulation: boolean;
     /** Applied by the server for every client (`World.setEncounterPolicy`); clients are not sent it. */
     encounters: HmpWorldEncounters;
+    /** Players block each other's movement, applied by the server for every client (`World.setPlayerCollision`). */
+    playerCollision: boolean;
 }
 
 /** The part of the policy each client applies itself. */

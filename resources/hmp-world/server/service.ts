@@ -33,7 +33,7 @@ function numericSeason(value: HmpWorldSeason): 0 | 1 | 2 | 3 {
 
 function normalizePolicyPatch(current: HmpWorldPolicy, patch: Partial<HmpWorldPolicy>): HmpWorldPolicy {
     if (!patch || typeof patch !== "object" || Array.isArray(patch)) throw new TypeError("world policy patch must be an object");
-    for (const key of ["removeBoundaryVolumes", "ambientPopulation"] as const) {
+    for (const key of ["removeBoundaryVolumes", "ambientPopulation", "playerCollision"] as const) {
         if (patch[key] !== undefined && typeof patch[key] !== "boolean") throw new TypeError(`world policy ${key} must be a boolean`);
     }
     if (patch.encounters !== undefined && patch.encounters !== "suppressed" && patch.encounters !== "server") {
@@ -83,13 +83,20 @@ function createWorldService<P extends HmpWorldPlayer>(options: WorldServiceOptio
         return environmentState();
     }
 
-    // The host applies encounters for every client, including late joiners, so they are not part of the client sync.
+    // The host applies encounters and player collision for every client, including late joiners, so they are not part of the client sync.
     function applyEncounterPolicy(value: HmpWorldPolicy): void {
         if (!native.setEncounterPolicy(value.encounters)) throw new Error(`Framework rejected encounter policy '${value.encounters}'`);
     }
 
+    // A host without World.setPlayerCollision keeps players walking through each other.
+    function applyPlayerCollision(value: HmpWorldPolicy): void {
+        if (typeof native.setPlayerCollision !== "function") return;
+        if (!native.setPlayerCollision(value.playerCollision)) throw new Error("Framework rejected the player collision policy");
+    }
+
     function commitPolicy(next: HmpWorldPolicy): Readonly<HmpWorldPolicy> {
         if (next.encounters !== currentPolicy.encounters) applyEncounterPolicy(next);
+        if (next.playerCollision !== currentPolicy.playerCollision) applyPlayerCollision(next);
         currentPolicy = Object.freeze(next);
         sync();
         return currentPolicy;
@@ -141,6 +148,7 @@ function createWorldService<P extends HmpWorldPlayer>(options: WorldServiceOptio
 
     applyEnvironment();
     applyEncounterPolicy(currentPolicy);
+    applyPlayerCollision(currentPolicy);
 
     return Object.freeze({
         environment,

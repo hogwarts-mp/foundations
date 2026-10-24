@@ -18,9 +18,11 @@ const config = normalizeConfig({
 });
 assert.strictEqual(config.environment.season, "autumn");
 assert.strictEqual(config.policy.encounters, "suppressed");
+assert.strictEqual(config.policy.playerCollision, false);
 assert.strictEqual(normalizeConfig({ ...config, policy: { ...config.policy, encounters: "server" } }).policy.encounters, "server");
 assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, encounters: "native" } }), /"suppressed" or "server"/);
 assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, removeBoundaryVolumes: "yes" } }), /boolean/);
+assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, playerCollision: "yes" } }), /playerCollision must be a boolean/);
 assert.throws(() => normalizeConfig({ ...config, environment: { ...config.environment, time: { ...config.environment.time, hour: 24 } } }), /0 to 23/);
 
 const nativeCalls: Array<[string, ...unknown[]]> = [];
@@ -45,12 +47,13 @@ const native = {
     setSeason(season: number) { nativeCalls.push(["season", season]); environmentState.season = season as 0 | 1 | 2 | 3; environmentState.revision++; return true; },
     setTimeScale(scale: number) { nativeCalls.push(["scale", scale]); environmentState.timeScale = scale; environmentState.revision++; return true; },
     setEncounterPolicy(policy: string) { nativeCalls.push(["encounters", policy]); return true; },
+    setPlayerCollision(on: boolean) { nativeCalls.push(["collision", on]); return true; },
 };
 const players = [{ id: 4, nickname: "Tester", connected: true, emitted: [] as unknown[], emit(name: string, payload?: unknown) { this.emitted.push({ name, payload }); } }];
 const broadcasts: Array<{ name: string; payload: unknown }> = [];
 const service = createWorldService({ config, native, players: () => players, events: { emitAllClients: (name, payload) => broadcasts.push({ name, payload }) } });
-assert.deepStrictEqual(nativeCalls.map(([name]) => name), ["scale", "weather", "date", "season", "time", "scale", "encounters"]);
-assert.deepStrictEqual(nativeCalls.at(-1), ["encounters", "suppressed"]);
+assert.deepStrictEqual(nativeCalls.map(([name]) => name), ["scale", "weather", "date", "season", "time", "scale", "encounters", "collision"]);
+assert.deepStrictEqual(nativeCalls.slice(-2), [["encounters", "suppressed"], ["collision", false]]);
 assert.strictEqual(service.environment.state()?.weather, "Clear");
 assert.strictEqual(service.environment.state()?.season, 2);
 assert.strictEqual(service.policy.sync(players[0]), 1);
@@ -70,8 +73,28 @@ service.policy.reset();
 assert.strictEqual(service.policy.current().encounters, "suppressed");
 assert.deepStrictEqual(nativeCalls.at(-1), ["encounters", "suppressed"]);
 assert.strictEqual(broadcasts.length, 3);
+service.policy.set({ playerCollision: true });
+assert.deepStrictEqual(nativeCalls.at(-1), ["collision", true]);
+// The host applies player collision for every client, like encounters.
+assert.ok(!("playerCollision" in JSON.parse(String(broadcasts.at(-1)?.payload))));
+assert.throws(() => service.policy.set({ playerCollision: "yes" as never }), /playerCollision must be a boolean/);
+service.policy.reset();
+assert.deepStrictEqual(nativeCalls.at(-1), ["collision", false]);
 service.environment.setSeason("winter");
 assert.strictEqual(environmentState.season, 3);
+
+// A host without World.setPlayerCollision still starts and keeps the policy; players walk through each other.
+const callsBeforeOlderHost = nativeCalls.length;
+const olderHost = createWorldService({
+    config: normalizeConfig({ ...config, policy: { ...config.policy, playerCollision: true } }),
+    native: Object.create(native, { setPlayerCollision: { value: undefined } }),
+    players: () => players,
+    events: { emitAllClients: () => {} },
+});
+assert.strictEqual(olderHost.policy.current().playerCollision, true);
+assert.strictEqual(olderHost.policy.set({ playerCollision: false }).playerCollision, false);
+assert.ok(!nativeCalls.slice(callsBeforeOlderHost).some(([name]) => name === "collision"));
+olderHost.stop();
 
 assert.strictEqual(parsePolicy("bad"), null);
 assert.deepStrictEqual(parsePolicy(JSON.stringify(config.policy)), { removeBoundaryVolumes: true, ambientPopulation: false });

@@ -18,7 +18,8 @@ function finiteNumber(value: unknown, label: string, minimum: number, maximum: n
     return number;
 }
 
-function boolean(value: unknown, label: string): boolean {
+function boolean(value: unknown, label: string, fallback?: boolean): boolean {
+    if (value === undefined && fallback !== undefined) return fallback;
     if (typeof value !== "boolean") throw new TypeError(`${label} must be a boolean`);
     return value;
 }
@@ -74,6 +75,7 @@ function normalizeConfig(raw: unknown): WorldConfig {
             removeBoundaryVolumes: boolean(policy.removeBoundaryVolumes, "hmp-world policy.removeBoundaryVolumes"),
             ambientPopulation: boolean(policy.ambientPopulation, "hmp-world policy.ambientPopulation"),
             encounters: encounters(policy.encounters, "hmp-world policy.encounters"),
+            playerCollision: boolean(policy.playerCollision, "hmp-world policy.playerCollision", false),
         },
     };
 }
@@ -91,6 +93,7 @@ function loadConfig(Hmp: HmpLibServer<HmpWorldPlayer>, options: { env?: NodeJS.P
             removeBoundaryVolumes: true,
             ambientPopulation: false,
             encounters: "suppressed",
+            playerCollision: false,
         },
     };
     const loaded = Hmp.config.load<WorldConfig & Record<string, unknown>>(env.HMP_WORLD_CONFIG || "data/hmp-world.json", {

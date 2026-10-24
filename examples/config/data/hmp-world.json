@@ -17,6 +17,7 @@
   "policy": {
     "removeBoundaryVolumes": true,
     "ambientPopulation": false,
-    "encounters": "suppressed"
+    "encounters": "suppressed",
+    "playerCollision": false
   }
 }

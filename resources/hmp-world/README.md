@@ -28,7 +28,8 @@ the Overland's enemy encounters:
   "policy": {
     "removeBoundaryVolumes": true,
     "ambientPopulation": false,
-    "encounters": "suppressed"
+    "encounters": "suppressed",
+    "playerCollision": false
   }
 }
 ```
@@ -40,6 +41,14 @@ every native spawner shut under both policies, quest ones included, so no client
 own: quest fights, the waves a dungeon's script opens and the beast-cage rescue's poachers never spawn,
 and a quest whose objective waits on defeating them stalls at that step. HogwartsMP `1.9` through
 `1.9.2` leaves them to the game, which spawns them on one client alone, seen only by that player.
+
+`playerCollision: true` makes players block each other's movement on every client, late joiners
+included (`World.setPlayerCollision`). Only a player's own movement is blocked: nobody can push anyone,
+and NPCs, spells and the world are unaffected. Two players who end up inside each other pass through
+until they separate, and hidden, mounted, dead, disillusioned and animal-form players never block. The
+default `false` lets players walk through each other, as before. Another resource can take one player
+out of it with the host's `player.setCollidable(false)`. It needs a HogwartsMP host with
+`World.setPlayerCollision`; an older host ignores it and players keep walking through each other.
 
 `time.scale` is in-game minutes per real second: `1` gives a 24-minute in-game day and `0` freezes
 the clock. `date.year: 0` preserves the game's native year. Seasons accept `spring`, `summer`,

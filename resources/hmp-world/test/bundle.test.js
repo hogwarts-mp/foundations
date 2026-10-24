@@ -8,6 +8,7 @@ const playerEvents = [];
 const player = { id: 1, nickname: "Smoke", connected: true, emit: (name, payload) => playerEvents.push({ name, payload }) };
 let environment = { weather: "Default_PHY", hour: 12, minute: 0, second: 0, day: 1, month: 1, year: 0, season: 0, timeScale: 1, revision: 0 };
 const encounterPolicies = [];
+const collisionPolicies = [];
 global.Exports = { register: (name, value) => serverExports.set(name, value) };
 global.Imports = { get: (name) => {
     if (name !== "hmp-lib") throw new Error(`Unexpected import ${name}`);
@@ -39,16 +40,21 @@ global.World = {
     setSeason: (season) => { environment.season = season; environment.revision++; return true; },
     setTimeScale: (timeScale) => { environment.timeScale = timeScale; environment.revision++; return true; },
     setEncounterPolicy: (policy) => { encounterPolicies.push(policy); return true; },
+    setPlayerCollision: (on) => { collisionPolicies.push(on); return true; },
 };
 require(path.resolve(__dirname, "..", "dist", "server.js"));
 assert.deepStrictEqual([...serverExports.keys()], ["environment", "policy", "status"]);
 assert.deepStrictEqual(encounterPolicies, ["suppressed"]);
+assert.deepStrictEqual(collisionPolicies, [false]);
 assert.ok(serverHandlers.has("client:hmp-world:ready"));
 assert.ok(serverHandlers.has("worldReady"));
 assert.strictEqual(serverExports.get("policy").current().removeBoundaryVolumes, true);
 serverHandlers.get("client:hmp-world:ready")(player);
 assert.strictEqual(playerEvents[0].name, "hmp-world:policy");
 assert.ok(!("encounters" in JSON.parse(playerEvents[0].payload)));
+assert.ok(!("playerCollision" in JSON.parse(playerEvents[0].payload)));
+serverExports.get("policy").set({ playerCollision: true });
+assert.deepStrictEqual(collisionPolicies, [false, true]);
 
 const clientExports = new Map();
 const clientHandlers = new Map();

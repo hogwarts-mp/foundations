@@ -28,6 +28,8 @@ export interface NativeWorld {
     setSeason(season: number): boolean;
     setTimeScale(minutesPerSecond: number): boolean;
     setEncounterPolicy(policy: "suppressed" | "server"): boolean;
+    /** Players block each other's movement on every client. Absent on a host older than player collision. */
+    setPlayerCollision?(on: boolean): boolean;
 }
 
 export interface WorldEvents<P extends HmpWorldPlayer> {
