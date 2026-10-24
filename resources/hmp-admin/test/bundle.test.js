@@ -60,6 +60,7 @@ assert.ok(handlers.has("hmp:session:ended"));
 assert.ok(handlers.has("hmp:groups:changed"));
 assert.ok(handlers.has("playerDisconnect"));
 assert.ok(handlers.has("playerTeleportComplete"));
+assert.ok(handlers.has("playerMapTravelComplete"));
 assert.ok(handlers.has("playerHoldEnded"));
 assert.ok(handlers.has("chatCommand"));
 assert.ok(handlers.has("resourceStart"));

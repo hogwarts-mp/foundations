@@ -1,6 +1,6 @@
 import type { HmpBankTransaction } from "../../hmp-banking/types";
 import type { HmpUiContextOption, HmpUiInputField, HmpUiSelectOption } from "../../hmp-ui/types";
-import type { HmpAdmin, HmpAdminBan, HmpAdminCapability, HmpAdminPlayerSummary } from "../types";
+import type { HmpAdmin, HmpAdminBan, HmpAdminCapability, HmpAdminPlayerSummary, HmpAdminTravelDestination } from "../types";
 import type { Banking, Inventory, Player, Spells, Ui } from "./internal";
 
 type AdminService = Pick<HmpAdmin<Player>, "permissions" | "players" | "actions" | "moderation" | "audit" | "status">;
@@ -10,6 +10,13 @@ const MAX_SPELL_CHOICES = 32;
 type SpellOperation = "grant" | "revoke";
 const SEASON_NAMES = ["spring", "summer", "autumn", "winter"] as const;
 const SEASON_OPTIONS: HmpUiSelectOption[] = SEASON_NAMES.map((season) => ({ label: `${season[0].toUpperCase()}${season.slice(1)}`, value: season }));
+const TRAVEL_DESTINATIONS: HmpUiSelectOption[] = [
+    { label: "Overland", value: "map:/Game/Levels/Overland/Overland", description: "The open world, at its own start or the PlayerStart tag below." },
+    { label: "Gringotts (intro)", value: "place:intro.gringotts", description: "The intro's Gringotts lobby, at its doors." },
+    { label: "Gringotts vault (intro)", value: "place:intro.vault", description: "The intro's Gringotts vault." },
+    { label: "Cliffside (intro)", value: "place:intro.cliffside", description: "The intro's cliffside ruins, at the bridge." },
+    { label: "Another map", value: "map", description: "The package path below: a dungeon, or a mod's map." },
+];
 
 const WEATHER_PROFILES = Object.freeze([
     "Clear", "Default_PHY", "Announce", "Astronomy", "Intro_01", "MKT_Nov11",
@@ -162,6 +169,30 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
             { label: "Yaw", value: target.location ? `${target.location.yaw.toFixed(1)}°` : "—" },
             { label: "Groups", value: target.groups.length ? target.groups.map((group) => `${group.key}:${group.grade}`).join(", ") : "None" },
         ];
+    }
+
+    async function travelMenu(player: Player, target: HmpAdminPlayerSummary): Promise<void> {
+        const result = await ui.input(player, {
+            title: `Send to a map · ${target.nickname}`,
+            fields: [
+                { name: "destination", label: "Destination", type: "select", required: true, default: TRAVEL_DESTINATIONS[0].value, options: TRAVEL_DESTINATIONS },
+                { name: "map", label: "Map package path", placeholder: "/Game/Environment/Azkaban/Maps/Azkaban_Dungeon", description: "For Another map: a dungeon's path, or a mod's /<ModFolder>/Maps/<MapName>. The player must have it installed." },
+                { name: "playerStart", label: "PlayerStart tag (optional)", placeholder: "Sil_LondonDungeon_DungeonMap", description: "For a map: where to stand them. On Overland a dungeon's name lands at its entrance. Empty uses the map's own start." },
+                { name: "reason", label: "Reason (optional)", type: "textarea", placeholder: "Add a note for the audit log…" },
+            ],
+            submitLabel: "Send",
+        });
+        if (!result) return;
+        const choice = text(result.destination);
+        const destination = (choice.startsWith("place:")
+            ? { place: choice.slice(6) }
+            : { map: choice === "map" ? text(result.map) : choice.slice(4), playerStart: text(result.playerStart) }) as HmpAdminTravelDestination;
+        try {
+            const completion = await admin.actions.travel(player, target.playerId, destination, text(result.reason));
+            ui.notify(player, completion.status === 6
+                ? { description: `${target.nickname} arrived in ${completion.areaId}, but one of its extra levels did not load.`, tone: "warning", duration: 7000 }
+                : { description: `${target.nickname} arrived in ${completion.areaId}.`, tone: "success" });
+        } catch (error) { notifyError(player, error); }
     }
 
     async function inventoryMenu(player: Player, target: HmpAdminPlayerSummary): Promise<void> {
@@ -368,7 +399,7 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
             try { target = await admin.players.get(player, playerId); }
             catch (error) { notifyError(player, error); return; }
             const actions: HmpUiContextOption[] = [{ id: "details", title: `${target.nickname} · #${target.playerId}`, description: target.frozen ? "Currently frozen by hmp-admin" : "Connected", disabled: true, metadata: playerMetadata(target) }];
-            if (allowed(capabilities, "admin.teleport")) actions.push({ id: "goto", title: "Go to player", description: "Stream your character near this player." }, { id: "bring", title: "Bring player", description: "Stream this player near your character." });
+            if (allowed(capabilities, "admin.teleport")) actions.push({ id: "goto", title: "Go to player", description: "Stream your character near this player." }, { id: "bring", title: "Bring player", description: "Stream this player near your character." }, { id: "travel", title: "Send to a map", description: "Load another map or an intro place on this player's client; pick yourself to go there." });
             if (allowed(capabilities, "admin.freeze")) actions.push({ id: target.frozen ? "release" : "freeze", title: target.frozen ? "Release player" : "Freeze player", description: "Uses the Framework's authoritative movement hold." });
             if (allowed(capabilities, "admin.freeze") && target.dead) actions.push({ id: "revive", title: "Revive player", description: "Stand this player up where they lie, at full health, with no reload." });
             if (allowed(capabilities, "admin.warn")) actions.push({ id: "warn", title: "Issue warning", description: "Record and deliver a staff warning." }, { id: "warnings", title: "Warning history", description: "Review prior warnings." });
@@ -388,7 +419,8 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
                 const why = await reason(player, `${choice === "warn" ? "Warn" : "Kick"} · ${target.nickname}`, choice === "warn" ? "Staff warning" : "Removed by an administrator");
                 if (why) await run(player, () => choice === "warn" ? admin.moderation.warn(player, target.playerId, why) : admin.actions.kick(player, target.playerId, why), choice === "warn" ? "Warning recorded and delivered." : "Player kicked.");
                 if (choice === "kick") return;
-            } else if (choice === "warnings") await warningHistory(player, target);
+            } else if (choice === "travel") await travelMenu(player, target);
+            else if (choice === "warnings") await warningHistory(player, target);
             else if (choice === "inventory") await inventoryMenu(player, target);
             else if (choice === "transmog") await transmogMenu(player, target);
             else if (choice === "spells") await spellMenu(player, target);

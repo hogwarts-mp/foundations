@@ -38,6 +38,9 @@ export interface HmpAdminPlayer {
     location?(): HogwartsMpPlayerLocation | null;
 }
 
+/** Where actions.travel sends a player: a map by package path, at its own start or a PlayerStart tag, or an intro place. */
+export type HmpAdminTravelDestination = { map: string; playerStart?: string } | { place: "intro.gringotts" | "intro.vault" | "intro.cliffside" };
+
 export interface HmpAdminRoleRule {
     group: string;
     minimumGrade?: number;
@@ -117,6 +120,8 @@ export interface HmpAdminActionsApi<P = HmpAdminPlayer> {
     kick(actor: P, target: P | number, reason: string): Promise<boolean>;
     goto(actor: P, target: P | number, reason?: string): Promise<number>;
     bring(actor: P, target: P | number, reason?: string): Promise<number>;
+    /** Sends a player, the actor included, to another map or intro place; resolves once they are playable there. */
+    travel(actor: P, target: P | number, destination: HmpAdminTravelDestination, reason?: string): Promise<HogwartsMpMapTravelCompletion>;
     freeze(actor: P, target: P | number, reason?: string): Promise<boolean>;
     release(actor: P, target: P | number, reason?: string): Promise<boolean>;
     /** Stands a dead player up where they lie (player.revive). Refused unless the target is dead. */

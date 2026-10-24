@@ -191,6 +191,24 @@ declare global {
         groundSnapped: boolean;
     }
 
+    /** Where player.travelToMap stands the player: a position, or a PlayerStart tag; neither is the map's own start. */
+    interface HogwartsMpMapTravelOptions {
+        position?: HogwartsMpVector3;
+        yaw?: number;
+        playerStart?: string;
+        levels?: string[];
+    }
+
+    /** How a travelToMap or travelToPlace request ended. status: 0 arrived, 1 superseded, 2 unavailable, 3 declined, 4 timed out, 5 failed, 6 level failed. */
+    interface HogwartsMpMapTravelCompletion {
+        requestId: number;
+        status: number;
+        map: string;
+        place: string | null;
+        areaId: string | null;
+        destination: (HogwartsMpVector3 & { yaw: number }) | null;
+    }
+
     interface HogwartsMpInventoryCatalogDefinition {
         readonly itemId: string;
         readonly itemType: string;
@@ -276,6 +294,10 @@ declare global {
         teleport(x: number, y: number, z: number, options?: HogwartsMpTeleportOptions): number;
         /** Where this player's loads stand them, ahead of World.spawn: the connect load if set in playerConnect, then respawns without a position. null falls back to World.spawn. */
         setSpawn?(spawn: HogwartsMpSpawnPoint | null): void;
+        /** Loads a map by package path on this player's client; the request id is reported by playerMapTravelComplete. */
+        travelToMap?(map: string, options?: HogwartsMpMapTravelOptions): number;
+        /** Map travel to a place the game builds from several maps; 0 when the name is no place. */
+        travelToPlace?(name: "intro.gringotts" | "intro.vault" | "intro.cliffside"): number;
         sendChat?(message: string): void;
         kick?(reason?: string): void;
         getIP?(): string;
@@ -336,6 +358,7 @@ declare global {
         on(eventName: "playerGearChanged", listener: (player: HogwartsMpPlayer) => unknown): void;
         on(eventName: "playerAppearanceChanged", listener: (player: HogwartsMpPlayer, look: HogwartsMpLook, revision: number) => unknown): void;
         on(eventName: "playerTeleportComplete", listener: (player: HogwartsMpPlayer, requestId: number, status: number, completion: HogwartsMpTeleportCompletion) => unknown): void;
+        on(eventName: "playerMapTravelComplete", listener: (player: HogwartsMpPlayer, requestId: number, status: number, completion: HogwartsMpMapTravelCompletion) => unknown): void;
         on(eventName: "playerHoldEnded", listener: (player: HogwartsMpPlayer, owner: string, reason: string) => unknown): void;
         on(eventName: "playerLocationChanged", listener: (player: HogwartsMpPlayer, current: HogwartsMpPlayerLocation | null, previous: HogwartsMpPlayerLocation | null) => unknown): void;
         /** A player's own map pick, held until every handler has run; one returning `false` refuses it. */

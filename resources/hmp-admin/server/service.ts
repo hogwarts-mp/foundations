@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { HmpAdminCapability, HmpAdminPlayerSummary } from "../types";
+import type { HmpAdminCapability, HmpAdminPlayerSummary, HmpAdminTravelDestination } from "../types";
 import type {
     AdminConfig,
     AdminPermissions,
@@ -17,14 +17,24 @@ import type {
 import type { HmpCoreGroup, HmpCoreSession } from "../../hmp-core/types";
 import type { HmpWorldSeason } from "../../hmp-world/types";
 
-interface TeleportWaiter {
+interface TeleportWaiter<T = number> {
     playerId: number;
-    resolve: (requestId: number) => void;
+    resolve: (result: T) => void;
     reject: (error: Error) => void;
     timer: ReturnType<typeof setTimeout>;
 }
 
 const ADMIN_HOLD = "hmp-admin";
+const TRAVEL_PLACES = ["intro.gringotts", "intro.vault", "intro.cliffside"] as const;
+// The host answers every map travel within 180 s, timed out or not; this only covers an answer that never comes.
+const MAP_TRAVEL_GUARD_MS = 190000;
+const MAP_TRAVEL_FAILURES: Record<number, string> = {
+    1: "a newer map travel replaced it",
+    2: "the player's client could not travel",
+    3: "the player's client does not have that map installed",
+    4: "it timed out before the player was playable there",
+    5: "the load settled in another map",
+};
 
 function adminError(code: string, message: string): Error & { code: string } {
     return Object.assign(new Error(message), { code });
@@ -48,6 +58,7 @@ function createAdminService(options: {
 }) {
     const { repository, permissions, core, inventory, banking, characters, jobs, spells, world, config, logger, migrations, listPlayers, getPlayer } = options;
     const pendingTeleports = new Map<string, TeleportWaiter>();
+    const pendingMapTravels = new Map<string, TeleportWaiter<HogwartsMpMapTravelCompletion>>();
     const activeNoclip = new Set<number>();
     let groupChanges: Promise<unknown> = Promise.resolve();
     const startedAt = Date.now();
@@ -216,6 +227,33 @@ function createAdminService(options: {
         return true;
     }
 
+    function waitForMapTravel(player: Player, start: () => number): Promise<HogwartsMpMapTravelCompletion> {
+        let requestId: number;
+        try { requestId = Number(start()); }
+        catch (error) { return Promise.reject(error); }
+        if (!Number.isSafeInteger(requestId) || requestId < 1) return Promise.reject(adminError("HMP_ADMIN_TRAVEL_REJECTED", "The map travel was not accepted."));
+        const key = `${player.id}:${requestId}`;
+        return new Promise<HogwartsMpMapTravelCompletion>((resolve, reject) => {
+            const timer = setTimeout(() => {
+                pendingMapTravels.delete(key);
+                reject(adminError("HMP_ADMIN_TRAVEL_TIMEOUT", "The map travel never reported back."));
+            }, MAP_TRAVEL_GUARD_MS);
+            pendingMapTravels.set(key, { playerId: player.id, resolve, reject, timer });
+        });
+    }
+
+    function onMapTravelComplete(player: Player, requestId: number, status: number, completion?: HogwartsMpMapTravelCompletion): boolean {
+        const key = `${player.id}:${Number(requestId)}`;
+        const pending = pendingMapTravels.get(key);
+        if (!pending) return false;
+        clearTimeout(pending.timer);
+        pendingMapTravels.delete(key);
+        // 6 still arrived, only without one of the extra levels; the caller reads it from the completion.
+        if ((Number(status) === 0 || Number(status) === 6) && completion) pending.resolve(completion);
+        else pending.reject(adminError("HMP_ADMIN_TRAVEL_FAILED", `The map travel did not arrive: ${MAP_TRAVEL_FAILURES[Number(status)] || `status ${status}`}.`));
+        return true;
+    }
+
     const players = Object.freeze({
         async list(actor: Player) {
             await permissions.require(actor, "admin.view");
@@ -345,6 +383,19 @@ function createAdminService(options: {
             if (Number(actor.virtualWorld) !== Number(player.virtualWorld)) throw adminError("HMP_ADMIN_WORLD_MISMATCH", "Both players must be in the same virtual world.");
             requireSameArea(actor, player);
             return audited(actor, "admin.teleport", "player.bring", player, reason, {}, () => waitForTeleport(player, { x: actor.position.x + 100, y: actor.position.y, z: actor.position.z + 50 }));
+        },
+        async travel(actor: Player, target: Player | number, destination: HmpAdminTravelDestination, reason = "") {
+            const player = targetPlayer(target);
+            const place = "place" in destination ? String(destination.place || "").trim().toLowerCase() as typeof TRAVEL_PLACES[number] : null;
+            const map = "map" in destination ? String(destination.map || "").trim() : "";
+            const playerStart = "map" in destination ? String(destination.playerStart || "").trim() : "";
+            if (place !== null && !TRAVEL_PLACES.includes(place)) throw new TypeError(`place must be one of ${TRAVEL_PLACES.join(", ")}`);
+            if (place === null && !map) throw new TypeError("map must be a package path such as /Game/Levels/Overland/Overland");
+            return audited(actor, "admin.teleport", "player.travel", player, reason, place ? { place } : { map, playerStart }, () => {
+                const method = place ? "travelToPlace" : "travelToMap";
+                if (typeof player[method] !== "function") throw adminError("HMP_ADMIN_ACTION_UNAVAILABLE", `Sending a player to a map needs a HogwartsMP host with player.${method}.`);
+                return waitForMapTravel(player, () => place ? player.travelToPlace!(place) : player.travelToMap!(map, playerStart ? { playerStart } : undefined));
+            });
         },
         async freeze(actor: Player, target: Player | number, reason = "Freeze player") {
             const player = targetPlayer(target);
@@ -549,10 +600,10 @@ function createAdminService(options: {
             catch (_) { /* the connection may already be gone */ }
         }
         permissions.revoke(player);
-        for (const [key, pending] of pendingTeleports) {
+        for (const waiters of [pendingTeleports, pendingMapTravels]) for (const [key, pending] of waiters) {
             if (pending.playerId !== player.id) continue;
             clearTimeout(pending.timer);
-            pendingTeleports.delete(key);
+            waiters.delete(key);
             pending.reject(adminError("HMP_ADMIN_PLAYER_DISCONNECTED", "The player disconnected during teleport."));
         }
     }
@@ -571,9 +622,9 @@ function createAdminService(options: {
             try { player.release?.(ADMIN_HOLD); }
             catch (error) { logger.warn(`Could not release player #${player.id} on shutdown: ${error instanceof Error ? error.message : String(error)}`); }
         }
-        for (const [key, pending] of pendingTeleports) {
+        for (const waiters of [pendingTeleports, pendingMapTravels]) for (const [key, pending] of waiters) {
             clearTimeout(pending.timer);
-            pendingTeleports.delete(key);
+            waiters.delete(key);
             pending.reject(adminError("HMP_ADMIN_STOPPED", "hmp-admin stopped during teleport."));
         }
     }
@@ -588,6 +639,7 @@ function createAdminService(options: {
         ready: () => startPromise,
         onSessionReady,
         onTeleportComplete,
+        onMapTravelComplete,
         onHoldEnded,
         revalidateNoclip,
         disconnect,

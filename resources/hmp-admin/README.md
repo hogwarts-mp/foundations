@@ -31,7 +31,7 @@ The default `admin` group grants capabilities cumulatively:
 
 | Grade | Capabilities |
 |---:|---|
-| 1 | View players, kick, go to/bring, freeze/release, revive, warn, announce, no-clip |
+| 1 | View players, kick, go to/bring, send to a map, freeze/release, revive, warn, announce, no-clip |
 | 2 | Groups, employment, inventory, player transmog, personal spell grants, banking, treasury inspection, audit history, environment controls |
 | 3 | Verified-identity bans and pending bank reconciliation |
 
@@ -69,9 +69,10 @@ as shown above, to appoint the highest grade.
 - Connected-player inspection: account, character, identity trust, groups, world, game area/region, ping, position,
   and administrative freeze state.
 - Moderation: durable warnings, kick, verified-identity timed or permanent bans, ban review/revoke.
-- Intervention: acknowledged streamed go-to/bring and Framework-authoritative freeze/release. A frozen
-  player's own input is stopped too, so they stay put on their screen; camera look still works. A dead
-  player can be revived where they lie, at full health and with no reload.
+- Intervention: acknowledged streamed go-to/bring, acknowledged travel to another map or intro place,
+  and Framework-authoritative freeze/release. A frozen player's own input is stopped too, so they stay
+  put on their screen; camera look still works. A dead player can be revived where they lie, at full
+  health and with no reload.
 - Staff movement: audited, server-authorized no-clip from the main menu, with camera-relative WASD,
   Space/Ctrl vertical movement, Shift boost, Alt slow movement for precise positioning, collision
   bypass, and protected landing: leaving no-clip on the ground or in mid-air costs no health. While
@@ -134,6 +135,17 @@ reports that the host cannot revive. A death the server respawns on its own (ser
 `"mod": { "autoRespawn": true }`, the default) has its respawn ordered as the player dies, and a
 revive cannot overtake it, so Revive stands up a death held with `"autoRespawn": false` or a
 resource's `player.setAutoRespawn(false)`; otherwise it reports the respawn already on its way.
+
+Send to a map loads another map on the target's client, granted with `admin.teleport`; pick yourself
+in Connected players to go there. It offers Overland, the intro's Gringotts lobby, vault and
+cliffside (places the game builds from several maps), or any map by package path: a dungeon such as
+`/Game/Environment/Azkaban/Maps/Azkaban_Dungeon`, or a mod's `/<ModFolder>/Maps/<MapName>`, which the
+player must have installed. An optional PlayerStart tag stands them at it, and on Overland a
+dungeon's name lands at its entrance. The menu waits until the player is playable there, then
+reports the area they arrived in, or why they did not: their client lacks the map, a newer travel
+replaced it, or it timed out. Players only see others in the same map. It needs a HogwartsMP host
+with `player.travelToMap`, and `player.travelToPlace` for the intro places; on an older host it
+reports that the host cannot travel.
 
 ## Suggested closed-test feedback
 

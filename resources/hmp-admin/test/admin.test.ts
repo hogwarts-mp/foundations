@@ -440,6 +440,55 @@ test("waits for matching player-local streamed teleport completion", async () =>
     assert.strictEqual(await second, 2);
 });
 
+test("sends a player to a map or intro place and reports how the travel ended", async () => {
+    const state = setup();
+    const { verifiedAdmin: admin, verifiedTarget: target } = state;
+    const DUNGEON = "/Game/Environment/Azkaban/Maps/Azkaban_Dungeon";
+    const OVERLAND = "/Game/Levels/Overland/Overland";
+    await assert.rejects(state.service.actions.travel(admin, target, { map: OVERLAND }), { code: "HMP_ADMIN_ACTION_UNAVAILABLE" }, "a host without player.travelToMap");
+    const requests: unknown[][] = [];
+    let nextRequest = 1;
+    target.travelToMap = (map, options) => { requests.push([map, options]); return nextRequest++; };
+    await assert.rejects(state.service.actions.travel(admin, target, { place: "intro.vault" }), { code: "HMP_ADMIN_ACTION_UNAVAILABLE" }, "a host without player.travelToPlace");
+    target.travelToPlace = (name) => { requests.push([name]); return nextRequest++; };
+    await assert.rejects(state.service.actions.travel(admin, target, { place: "hogsmeade" as never }), /place must be one of/);
+    await assert.rejects(state.service.actions.travel(admin, target, { map: " " }), /map must be a package path/);
+    await assert.rejects(state.service.actions.travel(state.assertedAdmin, target, { map: OVERLAND }), { code: "HMP_ADMIN_FORBIDDEN" });
+
+    const sent = async (count: number) => { while (requests.length < count) await new Promise<void>((resolve) => setImmediate(resolve)); return nextRequest - 1; };
+    const ended = (requestId: number, status: number, areaId: string | null) => ({ requestId, status, map: "", place: null, areaId, destination: status === 0 || status === 6 ? { x: 1, y: 2, z: 3, yaw: 0 } : null });
+    const dungeon = state.service.actions.travel(admin, target, { map: DUNGEON });
+    const first = await sent(1);
+    assert.strictEqual(state.service.onMapTravelComplete(admin, first, 0, ended(first, 0, "Azkaban_Dungeon")), false, "another player's request");
+    assert.strictEqual(state.service.onMapTravelComplete(target, first, 0, ended(first, 0, "Azkaban_Dungeon")), true);
+    assert.strictEqual((await dungeon).areaId, "Azkaban_Dungeon");
+
+    const missing = state.service.actions.travel(admin, target, { map: OVERLAND, playerStart: "Sil_LondonDungeon_DungeonMap" });
+    const second = await sent(2);
+    state.service.onMapTravelComplete(target, second, 3, ended(second, 3, null));
+    await assert.rejects(missing, { code: "HMP_ADMIN_TRAVEL_FAILED", message: /does not have that map installed/ });
+
+    const vault = state.service.actions.travel(admin, target, { place: "intro.vault" });
+    const third = await sent(3);
+    state.service.onMapTravelComplete(target, third, 6, ended(third, 6, "Intro_Vault_Render"));
+    assert.strictEqual((await vault).status, 6, "arrived without an extra level still arrives");
+
+    const interrupted = state.service.actions.travel(admin, target, { place: "intro.cliffside" });
+    await sent(4);
+    state.service.disconnect(target);
+    await assert.rejects(interrupted, { code: "HMP_ADMIN_PLAYER_DISCONNECTED" });
+    target.travelToPlace = () => 0;
+    await assert.rejects(state.service.actions.travel(admin, target, { place: "intro.gringotts" }), { code: "HMP_ADMIN_TRAVEL_REJECTED" });
+
+    assert.deepStrictEqual(requests, [[DUNGEON, undefined], [OVERLAND, { playerStart: "Sil_LondonDungeon_DungeonMap" }], ["intro.vault"], ["intro.cliffside"]]);
+    assert.deepStrictEqual(state.audit.map((entry) => [entry.metadata, entry.status]), [
+        [{ map: OVERLAND, playerStart: "" }, "failed"], [{ place: "intro.vault" }, "failed"],
+        [{ map: DUNGEON, playerStart: "" }, "completed"], [{ map: OVERLAND, playerStart: "Sil_LondonDungeon_DungeonMap" }, "failed"],
+        [{ place: "intro.vault" }, "completed"], [{ place: "intro.cliffside" }, "failed"], [{ place: "intro.gringotts" }, "failed"],
+    ]);
+    assert.ok(state.audit.every((entry) => entry.action === "player.travel"));
+});
+
 test("rejects administrative teleports across coordinate spaces", async () => {
     const state = setup();
     state.verifiedTarget.location = () => ({ areaId: "Overland", regionId: "Hogsmeade", destinationId: null, x: 0, y: 0, z: 0, yaw: 0, revision: 2 });

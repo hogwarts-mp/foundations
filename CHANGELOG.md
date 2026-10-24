@@ -50,6 +50,13 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   has that respawn on its way, so Revive stands up a death held with server.json
   `"mod": { "autoRespawn": false }` or `player.setAutoRespawn(false)`. It needs a HogwartsMP host with
   `player.revive`; on an older host the action reports that the host cannot revive.
+- `hmp-admin` Send to a map loads another map on a player's client, or on the admin's own: Overland,
+  the intro's Gringotts lobby, vault and cliffside, or any map by package path, a mod's included, at
+  its own start or a PlayerStart tag. It is granted with `admin.teleport` and audited. The menu waits
+  until the player is playable there, then reports the area they arrived in or why they did not, such
+  as a map their client does not have installed. It needs a HogwartsMP host with `player.travelToMap`,
+  and `player.travelToPlace` for the intro places; on an older host the action reports that the host
+  cannot travel.
 
 ### Changed
 
