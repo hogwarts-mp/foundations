@@ -29,6 +29,7 @@ Events.on("hmp:character:loaded", (payload: unknown) => {
     const player = session && typeof session === "object" && "player" in session ? session.player as HmpWorldPlayer : null;
     if (player) world.policy.sync(player);
 });
+Events.on("playerConnect", (player: HmpWorldPlayer) => world.connect(player));
 Events.on("playerDisconnect", (player: HmpWorldPlayer) => world.disconnect(player));
 Events.on("resourceStop", (name?: string) => { if (!name || name === "hmp-world") world.stop(); });
 

@@ -11,6 +11,13 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   through `World.setPlayerCollision`, from the JSON baseline or `policy.set`. Nobody can push anyone,
   and NPCs, spells and the world are unaffected. It defaults to `false`, so players still walk through
   each other. It needs a HogwartsMP host with `World.setPlayerCollision`; an older host ignores it.
+- `hmp-world` `policy.fastTravel: false` stops players fast travelling from their own map through
+  `player.setFastTravelEnabled`: their game dims every Floo flame and refuses a pick, while story travel
+  and `player.fastTravel` still go. It reaches each player on connect and everyone online when
+  `policy.set` changes it, and stopping `hmp-world` gives it back. It defaults to `true`, as before. A
+  resource that refuses only some trips handles the host's `playerFastTravelRequest` and returns
+  `false`, now in the shared typings. It needs a HogwartsMP host with `player.setFastTravelEnabled`; an
+  older host ignores it.
 
 ### Changed
 

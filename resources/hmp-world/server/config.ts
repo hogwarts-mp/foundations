@@ -76,6 +76,7 @@ function normalizeConfig(raw: unknown): WorldConfig {
             ambientPopulation: boolean(policy.ambientPopulation, "hmp-world policy.ambientPopulation"),
             encounters: encounters(policy.encounters, "hmp-world policy.encounters"),
             playerCollision: boolean(policy.playerCollision, "hmp-world policy.playerCollision", false),
+            fastTravel: boolean(policy.fastTravel, "hmp-world policy.fastTravel", true),
         },
     };
 }
@@ -94,6 +95,7 @@ function loadConfig(Hmp: HmpLibServer<HmpWorldPlayer>, options: { env?: NodeJS.P
             ambientPopulation: false,
             encounters: "suppressed",
             playerCollision: false,
+            fastTravel: true,
         },
     };
     const loaded = Hmp.config.load<WorldConfig & Record<string, unknown>>(env.HMP_WORLD_CONFIG || "data/hmp-world.json", {

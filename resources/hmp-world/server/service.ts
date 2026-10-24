@@ -8,9 +8,15 @@ import type {
 } from "../types";
 import { SEASONS, type WorldServiceOptions } from "./internal";
 
+type PlayerPolicy = Pick<HmpWorldPolicy, "fastTravel">;
+
+// What a connection starts with on the host.
+const PLAYER_DEFAULTS: Readonly<PlayerPolicy> = Object.freeze({ fastTravel: true });
+
 interface WorldService<P extends HmpWorldPlayer> extends HmpWorld<P> {
     stop(): void;
     clientReady(player: P): number;
+    connect(player: P): void;
     disconnect(player: P): void;
 }
 
@@ -33,7 +39,7 @@ function numericSeason(value: HmpWorldSeason): 0 | 1 | 2 | 3 {
 
 function normalizePolicyPatch(current: HmpWorldPolicy, patch: Partial<HmpWorldPolicy>): HmpWorldPolicy {
     if (!patch || typeof patch !== "object" || Array.isArray(patch)) throw new TypeError("world policy patch must be an object");
-    for (const key of ["removeBoundaryVolumes", "ambientPopulation", "playerCollision"] as const) {
+    for (const key of ["removeBoundaryVolumes", "ambientPopulation", "playerCollision", "fastTravel"] as const) {
         if (patch[key] !== undefined && typeof patch[key] !== "boolean") throw new TypeError(`world policy ${key} must be a boolean`);
     }
     if (patch.encounters !== undefined && patch.encounters !== "suppressed" && patch.encounters !== "server") {
@@ -94,9 +100,20 @@ function createWorldService<P extends HmpWorldPlayer>(options: WorldServiceOptio
         if (!native.setPlayerCollision(value.playerCollision)) throw new Error("Framework rejected the player collision policy");
     }
 
+    // The host holds these per connection, so a player is sent only what differs from what they have. A host
+    // without the setter leaves them at its default.
+    function applyPlayerPolicy(player: P, next: PlayerPolicy, previous: PlayerPolicy): void {
+        if (player.connected === false) return;
+        try {
+            if (next.fastTravel !== previous.fastTravel) player.setFastTravelEnabled?.(next.fastTravel);
+        }
+        catch (_) { /* left before it applied */ }
+    }
+
     function commitPolicy(next: HmpWorldPolicy): Readonly<HmpWorldPolicy> {
         if (next.encounters !== currentPolicy.encounters) applyEncounterPolicy(next);
         if (next.playerCollision !== currentPolicy.playerCollision) applyPlayerCollision(next);
+        for (const player of players()) applyPlayerPolicy(player, next, currentPolicy);
         currentPolicy = Object.freeze(next);
         sync();
         return currentPolicy;
@@ -149,6 +166,7 @@ function createWorldService<P extends HmpWorldPlayer>(options: WorldServiceOptio
     applyEnvironment();
     applyEncounterPolicy(currentPolicy);
     applyPlayerCollision(currentPolicy);
+    for (const player of players()) applyPlayerPolicy(player, currentPolicy, PLAYER_DEFAULTS);
 
     return Object.freeze({
         environment,
@@ -158,11 +176,17 @@ function createWorldService<P extends HmpWorldPlayer>(options: WorldServiceOptio
             if (state === "stopped") return;
             state = "stopped";
             readyClients.clear();
+            // A new connection starts at the host's defaults, so those online get theirs back too.
+            for (const player of players()) applyPlayerPolicy(player, PLAYER_DEFAULTS, currentPolicy);
         },
         clientReady(player: P) {
             ensureReady();
             readyClients.add(player.id);
             return sync(player);
+        },
+        connect(player: P) {
+            if (state === "stopped") return;
+            applyPlayerPolicy(player, currentPolicy, PLAYER_DEFAULTS);
         },
         disconnect(player: P) { readyClients.delete(player.id); },
     }) as WorldService<P>;

@@ -37,6 +37,8 @@ export interface HmpWorldPolicy {
     encounters: HmpWorldEncounters;
     /** Players block each other's movement, applied by the server for every client (`World.setPlayerCollision`). */
     playerCollision: boolean;
+    /** Let players fast travel from their own map, applied by the server to each player (`player.setFastTravelEnabled`). */
+    fastTravel: boolean;
 }
 
 /** The part of the policy each client applies itself. */
@@ -87,6 +89,8 @@ export interface HmpWorldPlayer {
     nickname: string;
     connected?: boolean;
     emit(eventName: string, payload?: unknown): void;
+    /** Absent on a host older than the fast-travel gate. */
+    setFastTravelEnabled?(on: boolean): void;
 }
 
 export interface HmpWorld<P = HmpWorldPlayer> {

@@ -268,6 +268,9 @@ declare global {
         holds?(): Array<{ owner: string }>;
         location?(): HogwartsMpPlayerLocation | null;
         setHealthRecovery?(on: boolean): void;
+        /** Allows or stops this player's own fast travel from their map, for this connection. On by default. */
+        setFastTravelEnabled?(on: boolean): void;
+        getFastTravelEnabled?(): boolean;
     }
 
     interface HogwartsMpNpc {
@@ -310,6 +313,8 @@ declare global {
         on(eventName: "playerTeleportComplete", listener: (player: HogwartsMpPlayer, requestId: number, status: number, completion: HogwartsMpTeleportCompletion) => unknown): void;
         on(eventName: "playerHoldEnded", listener: (player: HogwartsMpPlayer, owner: string, reason: string) => unknown): void;
         on(eventName: "playerLocationChanged", listener: (player: HogwartsMpPlayer, current: HogwartsMpPlayerLocation | null, previous: HogwartsMpPlayerLocation | null) => unknown): void;
+        /** A player's own map pick, held until every handler has run; one returning `false` refuses it. */
+        on(eventName: "playerFastTravelRequest", listener: (player: HogwartsMpPlayer, request: { destinationId: string; from: "map" }) => boolean | void): void;
         on(eventName: "resourceStop", listener: (name?: string) => unknown): void;
         on(eventName: "pvpDefeat", listener: (victim: HogwartsMpPlayer, killer: HogwartsMpPlayer, kind: "death" | "kneel") => unknown): void;
         on(eventName: "pvpRulesChanged", listener: (rules: HogwartsMpPvpRules) => unknown): void;

@@ -18,6 +18,7 @@
     "removeBoundaryVolumes": true,
     "ambientPopulation": false,
     "encounters": "suppressed",
-    "playerCollision": false
+    "playerCollision": false,
+    "fastTravel": true
   }
 }

@@ -19,6 +19,8 @@ const config = normalizeConfig({
 assert.strictEqual(config.environment.season, "autumn");
 assert.strictEqual(config.policy.encounters, "suppressed");
 assert.strictEqual(config.policy.playerCollision, false);
+assert.strictEqual(config.policy.fastTravel, true);
+assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, fastTravel: "no" } }), /fastTravel must be a boolean/);
 assert.strictEqual(normalizeConfig({ ...config, policy: { ...config.policy, encounters: "server" } }).policy.encounters, "server");
 assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, encounters: "native" } }), /"suppressed" or "server"/);
 assert.throws(() => normalizeConfig({ ...config, policy: { ...config.policy, removeBoundaryVolumes: "yes" } }), /boolean/);
@@ -95,6 +97,35 @@ assert.strictEqual(olderHost.policy.current().playerCollision, true);
 assert.strictEqual(olderHost.policy.set({ playerCollision: false }).playerCollision, false);
 assert.ok(!nativeCalls.slice(callsBeforeOlderHost).some(([name]) => name === "collision"));
 olderHost.stop();
+
+// Fast travel is held per connection, and a connection starts allowed, so only a refusal is sent on connect.
+const travellers = [
+    { id: 7, nickname: "Floo", connected: true, fastTravel: [] as boolean[], emit() {}, setFastTravelEnabled(on: boolean) { this.fastTravel.push(on); } },
+    { id: 8, nickname: "OlderHost", connected: true, emit() {} },
+    { id: 9, nickname: "Leaving", connected: true, emit() {}, setFastTravelEnabled() { throw new Error("Player is not connected"); } },
+];
+const traveller = travellers[0];
+const travel = createWorldService({
+    config: normalizeConfig({ ...config, policy: { ...config.policy, fastTravel: false } }),
+    native,
+    players: () => travellers,
+    events: { emitAllClients: () => {} },
+});
+assert.deepStrictEqual(traveller.fastTravel, [false], "players already online when the resource starts are switched off");
+travel.connect(traveller);
+assert.deepStrictEqual(traveller.fastTravel, [false, false]);
+travel.policy.set({ fastTravel: true });
+assert.deepStrictEqual(traveller.fastTravel, [false, false, true]);
+travel.connect(traveller);
+travel.policy.set({ ambientPopulation: true });
+assert.deepStrictEqual(traveller.fastTravel, [false, false, true], "an allowed connection and other policy changes send nothing");
+assert.throws(() => travel.policy.set({ fastTravel: "no" as never }), /fastTravel must be a boolean/);
+travel.policy.reset();
+assert.deepStrictEqual(traveller.fastTravel.at(-1), false);
+travel.stop();
+assert.deepStrictEqual(traveller.fastTravel.at(-1), true, "stopping gives online players their fast travel back");
+travel.connect(traveller);
+assert.deepStrictEqual(traveller.fastTravel.length, 5);
 
 assert.strictEqual(parsePolicy("bad"), null);
 assert.deepStrictEqual(parsePolicy(JSON.stringify(config.policy)), { removeBoundaryVolumes: true, ambientPopulation: false });

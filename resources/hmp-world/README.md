@@ -29,7 +29,8 @@ the Overland's enemy encounters:
     "removeBoundaryVolumes": true,
     "ambientPopulation": false,
     "encounters": "suppressed",
-    "playerCollision": false
+    "playerCollision": false,
+    "fastTravel": true
   }
 }
 ```
@@ -49,6 +50,15 @@ until they separate, and hidden, mounted, dead, disillusioned and animal-form pl
 default `false` lets players walk through each other, as before. Another resource can take one player
 out of it with the host's `player.setCollidable(false)`. It needs a HogwartsMP host with
 `World.setPlayerCollision`; an older host ignores it and players keep walking through each other.
+
+`fastTravel: false` stops players fast travelling from their own map (`player.setFastTravelEnabled`):
+their game dims every Floo flame and refuses a pick. Story travel and the server's `player.fastTravel`
+still go. It reaches each player as they connect, and everyone online when `policy.set` changes it;
+stopping `hmp-world` gives online players their fast travel back. The default `true` leaves it as
+before. To refuse only some trips, another resource handles the host's `playerFastTravelRequest` event
+and returns `false`: every handler runs, and any `false` refuses. It needs a HogwartsMP host with
+`player.setFastTravelEnabled`; an older host ignores it, raises no `playerFastTravelRequest`, and
+players keep fast travelling.
 
 `time.scale` is in-game minutes per real second: `1` gives a 24-minute in-game day and `0` freezes
 the clock. `date.year: 0` preserves the game's native year. Seasons accept `spring`, `summer`,
