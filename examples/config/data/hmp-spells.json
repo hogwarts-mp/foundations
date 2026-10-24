@@ -22,6 +22,16 @@
       }
     }
   ],
+  "lessons": [
+    {
+      "id": "FirestormLesson",
+      "spell": "Firestorm",
+      "lesson": {
+        "title": "Firestorm",
+        "look": "Confringo"
+      }
+    }
+  ],
   "rules": [
     {
       "id": "closed-testing-starter",

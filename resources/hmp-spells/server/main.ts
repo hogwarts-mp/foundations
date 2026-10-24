@@ -31,6 +31,7 @@ Exports.register("rules", spells.rules);
 Exports.register("providers", spells.providers);
 Exports.register("definitions", spells.definitions);
 Exports.register("grants", spells.grants);
+Exports.register("lessons", spells.lessons);
 Exports.register("loadouts", spells.loadouts);
 Exports.register("status", spells.status);
 
@@ -46,7 +47,10 @@ function safeSync(player: HmpSpellPlayer): void {
 
 Events.onClient("hmp-spells:ready", safeSync);
 Events.on("playerConnect", safeSync);
-Events.on("playerDisconnect", (player: HmpSpellPlayer) => castWindows.delete(Number(player.id)));
+Events.on("playerDisconnect", (player: HmpSpellPlayer) => {
+    castWindows.delete(Number(player.id));
+    spells.forgetPlayer(player);
+});
 Events.on("hmp:session:ready", (session: unknown) => {
     const player = session && typeof session === "object" && "player" in session ? session.player as HmpSpellPlayer : null;
     if (player) safeSync(player);
@@ -91,6 +95,10 @@ Events.onClient("hmp-spells:assignments", (player: HmpSpellPlayer, raw: unknown)
             assignments: payload.assignments,
         }));
     }).catch((error) => logger.warn(`Could not persist spell assignments for #${player.id}: ${messageOf(error)}`));
+});
+
+Events.onClient("hmp-spells:lesson-finished", (player: HmpSpellPlayer, raw: unknown) => {
+    void spells.acceptLessonResult(player, parsePayload(raw)).catch((error) => logger.warn(`Could not settle a spell lesson for #${player.id}: ${messageOf(error)}`));
 });
 
 const castWindows = new Map<number, { startedAt: number; count: number }>();
@@ -158,7 +166,7 @@ if (config.enableCommands) Events.on("chatCommand", (player: HmpSpellPlayer, _me
         }
         if (!await isAdmin(player)) { reply("You do not have permission to manage spells."); return; }
         if (action === "reload") { reply(`policy re-applied to ${await spells.policy.syncAll()} player(s)`); return; }
-        if (["grant", "revoke", "grants", "clear", "loadouts", "unmanage-loadouts"].includes(action)) {
+        if (["grant", "revoke", "grants", "clear", "loadouts", "unmanage-loadouts", "teach"].includes(action)) {
             const target = Hmp.player.find(args[0] || "me", player);
             if (!target) { reply("Player not found. Use me, an exact nickname, or #id."); return; }
             const context = { resource: "hmp-spells:command", actor: player, reason: "closed-testing command" };
@@ -184,6 +192,15 @@ if (config.enableCommands) Events.on("chatCommand", (player: HmpSpellPlayer, _me
                 reply(`${changed ? "returned" : "already left"} ${target.nickname || `#${target.id}`} loadouts to native progression ownership`);
                 return;
             }
+            if (action === "teach") {
+                const lesson = String(args[1] || "").trim();
+                if (!lesson) { reply(`Usage: /${config.command} teach <me|nick|#id> <lesson>`); return; }
+                const offered = await spells.lessons.offer(target, lesson, context);
+                reply(offered
+                    ? `offered the '${lesson}' lesson to ${target.nickname || `#${target.id}`}`
+                    : `${target.nickname || `#${target.id}`} already has that spell or a lesson pending`);
+                return;
+            }
             const spellName = args.slice(1).join(" ").trim();
             if (!spellName) { reply(`Usage: /${config.command} ${action} <me|nick|#id> <SpellName>`); return; }
             const changed = action === "grant"
@@ -193,7 +210,7 @@ if (config.enableCommands) Events.on("chatCommand", (player: HmpSpellPlayer, _me
             reply(`${changed ? action === "grant" ? "granted" : "revoked" : "no change for"} '${label}' ${action === "grant" ? "to" : "from"} ${target.nickname || `#${target.id}`}`);
             return;
         }
-        reply(`Usage: /${config.command} <status|list|loadout|reload|grant|revoke|grants|clear|loadouts|unmanage-loadouts>`);
+        reply(`Usage: /${config.command} <status|list|loadout|reload|grant|revoke|grants|clear|loadouts|unmanage-loadouts|teach>`);
     })().catch((error) => { logger.warn(`Spell command failed: ${messageOf(error)}`); reply(messageOf(error)); });
 });
 

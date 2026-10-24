@@ -35,8 +35,17 @@ interface NativeSpells {
     castRecord(recordPath: string, aimMode?: number): NativeSpellCastResult;
 }
 
+// SpellLearning's lessons of a resource's own; a host without define has none of this.
+interface NativeSpellLearning {
+    start(spell: string): { started: boolean; requestId: number | null; reason: string | null };
+    cancel(requestId: number): boolean;
+    define(id: string, lesson: { title: string }): { ok: boolean; reason: string | null };
+    undefine(id: string): boolean;
+}
+
 interface ClientDependencies {
     spells: NativeSpells;
+    learning?: NativeSpellLearning | null;
     events: { emitServer(eventName: string, payload?: unknown): void };
     notify?(message: string): void;
     log?(message: string): void;
@@ -77,6 +86,7 @@ function createSpellClient(dependencies: ClientDependencies) {
     let revokedLocks = new Set<string>();
     let assignmentsDirty = false;
     let internalProjectionDepth = 0;
+    let lesson: { token: number; id: string; requestId: number } | null = null;
     let ready = false;
     let stopped = false;
 
@@ -261,6 +271,54 @@ function createSpellClient(dependencies: ClientDependencies) {
         dependencies.events.emitServer("hmp-spells:cast", JSON.stringify({ spell, name }));
     }
 
+    function reportLesson(token: number, id: string, status: string, reason: string | null): void {
+        if (status !== "completed") {
+            dependencies.log?.(`[hmp-spells] lesson ${id} ${status}: ${reason}`);
+            if (status === "failed") dependencies.notify?.(`[spells] the ${id} lesson could not run (${reason})`);
+        }
+        dependencies.events.emitServer("hmp-spells:lesson-finished", JSON.stringify({ token, status, reason }));
+    }
+
+    // Defined just for the run and undefined after it, so any number of configured lessons stays
+    // under the host's per-resource limit.
+    function startLesson(raw: unknown): boolean {
+        const payload = parsePayload(raw);
+        const token = Number(payload.token);
+        const id = String(payload.id || "");
+        const learning = dependencies.learning;
+        const refuse = (reason: string) => { reportLesson(token, id, "failed", reason); return false; };
+        if (stopped) return false;
+        if (!learning) return refuse("unsupported");
+        if (lesson) return refuse("busy");
+        try {
+            const defined = learning.define(id, payload.lesson as { title: string });
+            if (!defined.ok) return refuse(defined.reason || "refused");
+            const request = learning.start(id);
+            if (!request.started || request.requestId === null) {
+                learning.undefine(id);
+                return refuse(request.reason || "refused");
+            }
+            lesson = { token, id, requestId: request.requestId };
+            return true;
+        }
+        catch (error) { return refuse(error instanceof Error ? error.message : String(error)); }
+    }
+
+    function lessonFinished(raw: unknown): void {
+        const result = parsePayload(raw);
+        if (!lesson || Number(result.requestId) !== lesson.requestId) return;
+        const { token, id } = lesson;
+        lesson = null;
+        dependencies.learning?.undefine(id);
+        reportLesson(token, id, String(result.status || "failed"), typeof result.reason === "string" ? result.reason : null);
+    }
+
+    // The server has already withdrawn the offer; the host's result for the cancel then cleans up.
+    function cancelLesson(raw: unknown): boolean {
+        if (!lesson || Number(parsePayload(raw).token) !== lesson.token) return false;
+        return !!dependencies.learning?.cancel(lesson.requestId);
+    }
+
     function stop(): void {
         if (stopped) return;
         stopped = true;
@@ -272,13 +330,14 @@ function createSpellClient(dependencies: ClientDependencies) {
         providers = [];
         revokedLocks = new Set();
         assignmentsDirty = false;
+        lesson = null; // the host cancels a stopping resource's lesson and drops its definitions
         ready = false;
     }
 
     dependencies.events.emitServer("hmp-spells:ready");
     return Object.freeze({
         apply, acknowledgeAssignments, loadout, setLoadoutSlot, cast, importNativeAssignments,
-        diagnostic, reportCast, stop,
+        diagnostic, reportCast, startLesson, lessonFinished, cancelLesson, stop,
         status: () => ({ ready, stopped, characterId, assignments, providers, assignmentsDirty, policy: current }),
     });
 }

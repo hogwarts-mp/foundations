@@ -13,7 +13,7 @@ import providersModule = require("../shared/providers");
 import type { HmpSpellLoadoutAssignments, HmpSpellRule } from "../types";
 
 const { catalog } = catalogModule;
-const { normalizeDefinition, normalizeRule, loadConfig } = configModule;
+const { normalizeDefinition, normalizeLesson, normalizeRule, loadConfig } = configModule;
 const { evaluateRules, ALL_LOCKS } = policyModule;
 const { createSpellService, ASSIGNMENTS_METADATA_KEY, METADATA_KEY } = serviceModule;
 const { createSpellClient } = clientModule;
@@ -108,6 +108,7 @@ async function run(): Promise<void> {
         assert.ok(!baseline.lockSpells.includes(lockId), `default config re-locks ${lockId}`);
     }
     assert.deepStrictEqual(shipped.definitions, [], "the default defines no spells");
+    assert.deepStrictEqual(shipped.lessons, [], "and offers no lessons");
     // ...and neither must an owner's own config file: config.load replaces arrays wholesale, so
     // stating `rules` drops the baseline and the policy revokes right-click aim and Stupefy.
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), "hmp-spells-config-"));
@@ -127,10 +128,12 @@ async function run(): Promise<void> {
         fs.writeFileSync(path.join(definedCwd, "data", "hmp-spells.json"), JSON.stringify({
             definitions: [{ id: "Firestorm", base: "Confringo", stats: { damage: 40 } }],
             rules: [{ id: "fire", priority: 1000, action: "allow", spells: ["firestorm"] }],
+            lessons: [{ id: "FirestormLesson", spell: "Firestorm", lesson: { title: "Firestorm", look: "Incendio" } }],
         }));
         const definedConfig = loadConfig({ config: libConfig } as never, { env: {}, cwd: definedCwd });
         assert.deepStrictEqual(definedConfig.definitions, [{ id: "Firestorm", resource: "hmp-spells", base: "Confringo", stats: { damage: 40 } }]);
         assert.deepStrictEqual(definedConfig.rules.find((rule) => rule.id === "fire")?.spells, ["Spell_Firestorm"]);
+        assert.deepStrictEqual(definedConfig.lessons, [{ id: "FirestormLesson", spell: "Spell_Firestorm", lesson: { title: "Firestorm", look: "Incendio" } }]);
     }
     finally {
         fs.rmSync(temp, { recursive: true, force: true });
@@ -176,7 +179,7 @@ async function run(): Promise<void> {
     };
     const service = createSpellService({
         core: core as never,
-        config: { command: "spells", enableCommands: true, adminGroups: [], rules, definitions: [], maxCastReportsPerSecond: 12 },
+        config: { command: "spells", enableCommands: true, adminGroups: [], rules, definitions: [], lessons: [], maxCastReportsPerSecond: 12 },
         players: () => [player], emit: (name, ...args) => emitted.push({ name, args }),
     });
 
@@ -362,7 +365,7 @@ async function run(): Promise<void> {
     const countRules: HmpSpellRule[] = [];
     const counts = createSpellService({
         core: core as never,
-        config: { command: "spells", enableCommands: true, adminGroups: [], rules: countRules, definitions: [], maxCastReportsPerSecond: 12 },
+        config: { command: "spells", enableCommands: true, adminGroups: [], rules: countRules, definitions: [], lessons: [], maxCastReportsPerSecond: 12 },
         players: () => [player],
     });
     await counts.loadouts.set(player, 3);
@@ -406,7 +409,7 @@ async function run(): Promise<void> {
     const definedRules: HmpSpellRule[] = [];
     const defined = createSpellService({
         core: core as never,
-        config: { command: "spells", enableCommands: true, adminGroups: [], rules: definedRules, definitions: [], maxCastReportsPerSecond: 12 },
+        config: { command: "spells", enableCommands: true, adminGroups: [], rules: definedRules, definitions: [], lessons: [], maxCastReportsPerSecond: 12 },
         definitions: host,
         players: () => [player],
     });
@@ -450,7 +453,7 @@ async function run(): Promise<void> {
     // A host without Spells.define keeps the game's own spells and refuses a definition.
     const older = createSpellService({
         core: core as never,
-        config: { command: "spells", enableCommands: true, adminGroups: [], rules: [], definitions: [], maxCastReportsPerSecond: 12 },
+        config: { command: "spells", enableCommands: true, adminGroups: [], rules: [], definitions: [], lessons: [], maxCastReportsPerSecond: 12 },
         players: () => [player],
     });
     assert.strictEqual(older.definitions.supported(), false);
@@ -458,6 +461,56 @@ async function run(): Promise<void> {
     assert.deepStrictEqual(older.definitions.list(), []);
     assert.strictEqual(older.catalog.resolve("Firestorm"), null);
     older.stop();
+
+    // A lesson gates a grant: only the pending offer's own completed result grants its spell, and
+    // only to the character it was offered to.
+    assert.throws(() => normalizeLesson({ id: "bad id", spell: "Lumos", lesson: { title: "Lumos" } }, "lesson", catalog.resolve), /letters, digits/);
+    assert.throws(() => normalizeLesson({ id: "Lesson", spell: "Typo", lesson: { title: "Typo" } }, "lesson", catalog.resolve), /unknown spell/);
+    assert.throws(() => normalizeLesson({ id: "Lesson", spell: "Lumos", lesson: { look: "Lumos" } }, "lesson", catalog.resolve), /title/);
+    const fireLesson = normalizeLesson({ id: "FirestormLesson", spell: "Spell_Firestorm", lesson: { title: "Firestorm", look: "Incendio", chaser: null } }, "lesson", catalog.resolve);
+    const outcomes: Array<Record<string, unknown>> = [];
+    const teacher = createSpellService({
+        core: core as never,
+        config: { command: "spells", enableCommands: true, adminGroups: [], rules: [], definitions: [], lessons: [fireLesson], maxCastReportsPerSecond: 12 },
+        players: () => [player],
+        emit: (name, payload) => { if (name === "hmp:spells:lesson") outcomes.push(payload as Record<string, unknown>); },
+    });
+    activeCharacterId = 45;
+    const offerLesson = async (context = {}) => {
+        assert.strictEqual(await teacher.lessons.offer(player, "FirestormLesson", context), true);
+        assert.strictEqual(player.emitted.at(-1)?.name, "hmp-spells:lesson");
+        return JSON.parse(String(player.emitted.at(-1)?.payload)) as { token: number; id: string; lesson: unknown };
+    };
+    await assert.rejects(() => teacher.lessons.offer(player, "Nope"), /Unknown spell lesson/);
+    const offered = await offerLesson({ resource: "hmp-quests", reason: "met the fire tutor" });
+    assert.deepStrictEqual(offered.lesson, fireLesson.lesson, "the client gets the lesson to define");
+    assert.strictEqual(await teacher.lessons.offer(player, "FirestormLesson"), false, "one lesson pending at a time");
+    assert.strictEqual(await teacher.acceptLessonResult(player, { token: offered.token + 1, status: "completed" }), false, "a result answers only its own offer");
+    assert.strictEqual(await teacher.acceptLessonResult(player, { token: offered.token, status: "completed" }), true);
+    assert.deepStrictEqual(await teacher.grants.list(player), ["Spell_Firestorm"]);
+    assert.deepStrictEqual(outcomes.at(-1), { ...outcomes.at(-1), lesson: "FirestormLesson", spell: "Spell_Firestorm", status: "completed", failure: null, granted: true, resource: "hmp-quests", reason: "met the fire tutor" });
+    assert.strictEqual(await teacher.acceptLessonResult(player, { token: offered.token, status: "completed" }), false, "a settled offer cannot be replayed");
+    assert.strictEqual(await teacher.lessons.offer(player, "FirestormLesson"), false, "an unlocked spell needs no lesson");
+    await teacher.grants.revoke(player, "Spell_Firestorm");
+    const failed = await offerLesson();
+    assert.strictEqual(await teacher.acceptLessonResult(player, { token: failed.token, status: "failed", reason: "unsupported" }), false);
+    assert.deepStrictEqual([outcomes.at(-1)?.status, outcomes.at(-1)?.failure, outcomes.at(-1)?.granted], ["failed", "unsupported", false]);
+    const switched = await offerLesson();
+    activeCharacterId = 46;
+    assert.strictEqual(await teacher.acceptLessonResult(player, { token: switched.token, status: "completed" }), false);
+    assert.strictEqual(outcomes.at(-1)?.failure, "character-changed");
+    activeCharacterId = 45;
+    assert.deepStrictEqual(await teacher.grants.list(player), [], "a lesson finished on another character teaches nothing");
+    const withdrawn = await offerLesson();
+    assert.strictEqual(teacher.lessons.cancel(player), true);
+    assert.deepStrictEqual([player.emitted.at(-1)?.name, JSON.parse(String(player.emitted.at(-1)?.payload)).token], ["hmp-spells:lesson-cancel", withdrawn.token]);
+    assert.deepStrictEqual([outcomes.at(-1)?.status, outcomes.at(-1)?.failure], ["cancelled", "withdrawn"]);
+    assert.strictEqual(teacher.lessons.cancel(player), false);
+    assert.strictEqual(await teacher.acceptLessonResult(player, { token: withdrawn.token, status: "completed" }), false);
+    await offerLesson();
+    teacher.forgetPlayer(player);
+    await offerLesson();
+    teacher.stop();
     activeCharacterId = 42;
 
     // Modded gameplay names use the same native diamond and persist without a vanilla whitelist.
@@ -511,6 +564,55 @@ async function run(): Promise<void> {
     client.apply({ characterId: 42, lockSpells: ["Spell_Firestorm"], assignments: definedSlots });
     assert.strictEqual(nativeAssignments[0][0], null, "a revoked defined spell must leave its quick slots");
     assert.strictEqual(client.setLoadoutSlot(1, "Firestorm", 0), false);
+
+    // A host without SpellLearning.define can't run an offered lesson: it fails, and says so.
+    const lastLessonReport = () => {
+        const report = serverEvents.filter((event) => event.name === "hmp-spells:lesson-finished").at(-1);
+        return report ? JSON.parse(String(report.payload)) : null;
+    };
+    assert.strictEqual(client.startLesson(JSON.stringify({ token: 1, id: "FirestormLesson", lesson: { title: "Firestorm" } })), false);
+    assert.deepStrictEqual(lastLessonReport(), { token: 1, status: "failed", reason: "unsupported" });
+    const learning: string[] = [];
+    let defineResult: { ok: boolean; reason: string | null } = { ok: true, reason: null };
+    let startResult: { started: boolean; requestId: number | null; reason: string | null } = { started: true, requestId: 9, reason: null };
+    const learner = createSpellClient({
+        events: { emitServer: (name, payload) => serverEvents.push({ name, payload }) },
+        spells: {
+            setPolicy() {}, currentLoadout: () => 0, loadout: () => null, setLoadoutSlot: () => true,
+            cast: (slot) => ({ accepted: false, slot, spellName: null, reason: null }),
+            castRecord: () => ({ accepted: false, slot: -1, spellName: null, reason: null }),
+        },
+        learning: {
+            define: (id, lesson) => { learning.push(`define ${id} ${lesson.title}`); return defineResult; },
+            undefine: (id) => { learning.push(`undefine ${id}`); return true; },
+            start: (id) => { learning.push(`start ${id}`); return startResult; },
+            cancel: (requestId) => { learning.push(`cancel ${requestId}`); return true; },
+        },
+    });
+    assert.strictEqual(learner.startLesson(JSON.stringify({ token: 3, id: "FirestormLesson", lesson: { title: "Firestorm" } })), true);
+    assert.deepStrictEqual(learning.splice(0), ["define FirestormLesson Firestorm", "start FirestormLesson"]);
+    assert.strictEqual(learner.startLesson(JSON.stringify({ token: 4, id: "Other", lesson: { title: "Other" } })), false);
+    assert.deepStrictEqual(lastLessonReport(), { token: 4, status: "failed", reason: "busy" }, "a client runs one lesson at a time");
+    learner.lessonFinished({ requestId: 8, spell: "Revelio", status: "completed", reason: null });
+    assert.strictEqual(lastLessonReport().token, 4, "a result for another request does not end this lesson");
+    assert.strictEqual(learner.cancelLesson(JSON.stringify({ token: 99 })), false);
+    assert.strictEqual(learner.cancelLesson(JSON.stringify({ token: 3 })), true);
+    learner.lessonFinished({ requestId: 9, spell: "FirestormLesson", status: "cancelled", reason: "script-cancelled" });
+    assert.deepStrictEqual(lastLessonReport(), { token: 3, status: "cancelled", reason: "script-cancelled" });
+    assert.deepStrictEqual(learning.splice(0), ["cancel 9", "undefine FirestormLesson"], "a lesson is undefined once it ends");
+    assert.strictEqual(learner.startLesson(JSON.stringify({ token: 5, id: "FirestormLesson", lesson: { title: "Firestorm" } })), true);
+    learner.lessonFinished({ requestId: 9, spell: "FirestormLesson", status: "completed", reason: null });
+    assert.deepStrictEqual(lastLessonReport(), { token: 5, status: "completed", reason: null });
+    defineResult = { ok: false, reason: "stock-name" };
+    assert.strictEqual(learner.startLesson(JSON.stringify({ token: 6, id: "Revelio", lesson: { title: "Revelio" } })), false);
+    assert.deepStrictEqual(lastLessonReport(), { token: 6, status: "failed", reason: "stock-name" });
+    defineResult = { ok: true, reason: null };
+    startResult = { started: false, requestId: null, reason: "ui-busy" };
+    learning.length = 0;
+    assert.strictEqual(learner.startLesson(JSON.stringify({ token: 7, id: "FirestormLesson", lesson: { title: "Firestorm" } })), false);
+    assert.deepStrictEqual(learning, ["define FirestormLesson Firestorm", "start FirestormLesson", "undefine FirestormLesson"]);
+    assert.deepStrictEqual(lastLessonReport(), { token: 7, status: "failed", reason: "ui-busy" });
+    learner.stop();
     client.stop();
     assert.deepStrictEqual(policies.at(-1), { ids: [], loadouts: -1, relock: [] });
 }

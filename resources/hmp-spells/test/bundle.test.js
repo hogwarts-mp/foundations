@@ -9,11 +9,15 @@ const serverExports = new Map();
 const serverHandlers = new Map();
 const warnings = [];
 const logger = { info() {}, warn(message) { warnings.push(message); }, error() {}, debug() {} };
-const configured = { definitions: [{ id: "Firestorm", base: "Confringo", stats: { damage: 40 } }, { id: "Icebolt", base: "Typo" }] };
+const configured = {
+    definitions: [{ id: "Firestorm", base: "Confringo", stats: { damage: 40 } }, { id: "Icebolt", base: "Typo" }],
+    lessons: [{ id: "FirestormLesson", spell: "Firestorm", lesson: { title: "Firestorm", look: "Incendio" } }],
+};
 const serverReplies = [];
+const chat = [];
 const metadata = new Map();
 let activeCharacter = null;
-const player = { id: 1, nickname: "Smoke", emit(name, payload) { serverReplies.push({ name, payload }); }, sendChat() {} };
+const player = { id: 1, nickname: "Smoke", emit(name, payload) { serverReplies.push({ name, payload }); }, sendChat(message) { chat.push(message); } };
 const core = {
     sessions: { isReady: () => true },
     characters: { active: () => activeCharacter },
@@ -68,10 +72,11 @@ assert.deepStrictEqual([...definedSpells.keys()], ["firestorm"], "configured def
 assert.ok(warnings.some((message) => message.includes("Could not define spell 'Icebolt'")), "a definition the host refuses leaves the others");
 assert.strictEqual(serverExports.get("catalog").resolve("firestorm"), "Spell_Firestorm");
 assert.strictEqual(serverExports.get("definitions").list("hmp-spells")[0].resource, "hmp-spells");
-assert.deepStrictEqual([...serverExports.keys()], ["catalog", "policy", "rules", "providers", "definitions", "grants", "loadouts", "status"]);
+assert.deepStrictEqual([...serverExports.keys()], ["catalog", "policy", "rules", "providers", "definitions", "grants", "lessons", "loadouts", "status"]);
 assert.ok(serverHandlers.has("client:hmp-spells:ready"));
 assert.ok(serverHandlers.has("client:hmp-spells:assignments"));
 assert.ok(serverHandlers.has("client:hmp-spells:cast"));
+assert.ok(serverHandlers.has("client:hmp-spells:lesson-finished"));
 assert.ok(serverHandlers.has("playerSpellCast"));
 assert.ok(serverHandlers.has("worldReady"));
 assert.ok(serverHandlers.has("loadingFinished"));
@@ -117,6 +122,11 @@ clientHandlers.get("spellAssignment")({ source: "native-menu" });
 assert.strictEqual(clientEmits.at(-1).name, "hmp-spells:assignments");
 assert.strictEqual(JSON.parse(clientEmits.at(-1).payload).assignments[0][0], "native:Bombarda");
 clientHandlers.get("spellCast")("/Game/Spells/Lumos/DA_LumosSpellRecord");
+assert.ok(clientHandlers.has("hmp-spells:lesson-cancel"));
+assert.ok(clientHandlers.has("spellLearningFinished"));
+// HogwartsMP 1.9.2 has no SpellLearning.define, so an offered lesson fails as unsupported.
+clientHandlers.get("hmp-spells:lesson")(JSON.stringify({ token: 1, id: "FirestormLesson", lesson: { title: "Firestorm" } }));
+assert.deepStrictEqual([clientEmits.at(-1).name, JSON.parse(clientEmits.at(-1).payload)], ["hmp-spells:lesson-finished", { token: 1, status: "failed", reason: "unsupported" }]);
 clientHandlers.get("resourceStop")("hmp-spells");
 async function assignmentSaveContract() {
     // Defining the configured spells re-syncs connected players; start from a quiet reply log.
@@ -155,8 +165,17 @@ async function assignmentSaveContract() {
     await serverExports.get("policy").sync(player);
     assert.strictEqual(JSON.parse(serverReplies.at(-1).payload).bonusLoadouts, 3);
     assert.ok(JSON.parse(serverReplies.at(-1).payload).lockSpells.includes("Spell_Firestorm"), "an ungranted defined spell is re-locked");
-    await serverExports.get("grants").grant(player, "Firestorm");
+    // The lesson is how it is learned: /spells teach offers it and the client's result settles it.
+    serverHandlers.get("chatCommand")(player, "", "spells", ["teach", "me", "FirestormLesson"]);
+    await new Promise(setImmediate);
+    assert.ok(chat.at(-1).includes("offered the 'FirestormLesson' lesson"), chat.at(-1));
+    const offer = serverReplies.at(-1);
+    assert.strictEqual(offer.name, "hmp-spells:lesson");
+    assert.deepStrictEqual(JSON.parse(offer.payload).lesson, { title: "Firestorm", look: "Incendio" });
+    serverHandlers.get("client:hmp-spells:lesson-finished")(player, JSON.stringify({ token: JSON.parse(offer.payload).token, status: "completed", reason: null }));
+    await new Promise(setImmediate);
     assert.ok(JSON.parse(serverReplies.at(-1).payload).unlockSpells.includes("Spell_Firestorm"));
+    assert.strictEqual(serverEmits.find((event) => event.name === "hmp:spells:lesson").payload.granted, true);
 
     // A defined spell's cast comes from the host's playerSpellCast alone; the client relay still
     // reports the game's spells, as it does on an older host.

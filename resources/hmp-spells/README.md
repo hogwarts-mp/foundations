@@ -178,6 +178,48 @@ Defined spells need a HogwartsMP host with `Spells.define`. On an older host `hm
 with a warning and skips its configured definitions, `definitions.supported()` is false and
 `register` throws; a rule naming a configured spell by id is harmless there.
 
+## Spell lessons
+
+A lesson is the game's own spell lesson (trace the glyph, press the buttons as the spark reaches
+them) run on the learner's screen, and completing it grants a spell. Declare them in `lessons`: each
+names the spell it teaches (a game spell, a configured definition's id, or a raw `Spell_*` lock) and
+the lesson the client defines with `SpellLearning.define`:
+
+```json
+"lessons": [{
+  "id": "FirestormLesson",
+  "spell": "Firestorm",
+  "lesson": { "title": "Firestorm", "look": "Confringo", "chaser": 1.5 }
+}]
+```
+
+`lesson` starts from a stock `look` (one of `SpellLearning.supportedSpells()`, such as `Confringo`) or
+brings its own `path` on the 1024 x 1024 canvas, with `checkpoints`, `finalButton`, `chaser`, `icon`
+(a spell whose icon to show) and `stroke`. The client checks it, and a lesson it refuses fails with
+the host's reason (`invalid-path`, `stock-name`...). The `id` can't be a stock lesson's name.
+Hand-drawn `art` and PNG icons are read from the defining resource's own files, here `hmp-spells`,
+so a configured lesson can't use them.
+
+A gameplay resource decides who learns what, and when, and offers the lesson:
+
+```ts
+await Spells.lessons.offer(player, "FirestormLesson", { resource: "hmp-quests", reason: "met the fire tutor" });
+Events.on("hmp:spells:lesson", (outcome) => { /* outcome.status, outcome.failure, outcome.granted */ });
+```
+
+`offer` returns false while a lesson is pending for the player or the spell is already unlocked. A
+completed lesson grants the spell through `grants.grant` with the offer's context, so
+`hmp:spells:granted` follows, as long as the player is still on the character it was offered to.
+`hmp:spells:lesson` reports every outcome: `completed`, `cancelled` (the player closed it, or
+`lessons.cancel` withdrew it), or `failed`. Disconnecting drops a pending offer.
+
+The host tells only the client that a lesson was completed, so a modified client can skip the lesson
+itself. It still learns only what the server offered: the server decides what can be learned, and
+the lesson paces when.
+
+Lessons need a HogwartsMP host with `SpellLearning.define`. On an older host an offered lesson fails
+at once as `unsupported`, the player is told so, and nothing is granted.
+
 ## Catalog and policy APIs
 
 - `catalog.resolve/get/list` normalize names, raw lock IDs and defined spells' ids.
@@ -187,6 +229,7 @@ with a warning and skips its configured definitions, `definitions.supported()` i
 - `providers.register/unregister/clear/get/list/resolve` manage cast adapters and spell definitions.
 - `definitions.supported/register/unregister/clear/get/list` manage server-defined spells.
 - `grants.list/grant/revoke/clear` manage persistent character grants.
+- `lessons.list/offer/cancel` run the configured lessons that grant a spell.
 - `loadouts.get/set/unmanage` manage the 0-3 bonus diamonds.
 - `loadouts.getAssignments/setAssignments/setSlot` inspect or change character-scoped slots.
 - `status()` reports catalog, rule, synchronization, and lifecycle state.
@@ -235,6 +278,7 @@ Members of a configured `adminGroups` entry may use:
 /spells clear <me|nick|#id>
 /spells loadouts <me|nick|#id> <0-3>
 /spells unmanage-loadouts <me|nick|#id>
+/spells teach <me|nick|#id> <lesson>
 /spells reload
 ```
 

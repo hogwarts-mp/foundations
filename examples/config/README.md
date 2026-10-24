@@ -30,7 +30,9 @@ world, not catchable again.
 `hmp-blips` includes one for marker lifetimes, player visibility, native tint/scale, and private probes.
 `hmp-spells` includes a closed-testing starter kit, group rules, admin commands, cast-report limits, and
 one server-defined spell, Firestorm, which stays locked until granted (`/spells grant me Firestorm`) and
-needs a HogwartsMP host with `Spells.define`; an older host skips it with a warning.
+needs a HogwartsMP host with `Spells.define`; an older host skips it with a warning. Its lesson,
+`FirestormLesson`, grants it once completed (`/spells teach me FirestormLesson`) and needs a host with
+`SpellLearning.define`; on an older host it fails as unsupported and grants nothing.
 `hmp-progression` includes XP/talent bounds, reconciliation timeouts, and closed-test admin permissions.
 `hmp-houses` includes group projection, point-balance policy, and closed-testing command permissions.
 `hmp-activities` includes bounded lobby settings and an opt-in dungeon-party-shaped test definition.

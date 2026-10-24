@@ -3,7 +3,7 @@ import loadoutsModule = require("../shared/loadouts");
 import configModule = require("./config");
 import policyModule = require("./policy");
 import providersModule = require("../shared/providers");
-import type { HmpDefinedSpell, HmpDefinedSpellInfo, HmpSpellEntitlements, HmpSpellLoadoutAssignments, HmpSpellPlayer, HmpSpellProviderDefinition, HmpSpellProviderInfo, HmpSpellRule } from "../types";
+import type { HmpDefinedSpell, HmpDefinedSpellInfo, HmpSpellEntitlements, HmpSpellLesson, HmpSpellLoadoutAssignments, HmpSpellPlayer, HmpSpellProviderDefinition, HmpSpellProviderInfo, HmpSpellRule } from "../types";
 import type { SpellDependencies, SpellService } from "./internal";
 
 const { createCatalog, resolveSpell } = catalogModule;
@@ -324,6 +324,57 @@ function createSpellService<P extends HmpSpellPlayer>(dependencies: SpellDepende
         return owned.length;
     }
 
+    // One lesson per player at a time, as a client runs one at once. A result counts only for the
+    // offer it answers: the client can skip the lesson itself, never learn a spell it wasn't offered.
+    type PendingLesson = { token: number; lesson: HmpSpellLesson; characterId: number; context: { resource?: string; actor?: P; reason?: string } };
+    const pendingLessons = new Map<number, PendingLesson>();
+    let lessonTokens = 0;
+
+    function settleLesson(player: P, pending: PendingLesson, status: string, failure: string | null, granted: boolean): void {
+        dependencies.emit?.("hmp:spells:lesson", { ...contextPayload(player, pending.lesson.spell, pending.context), lesson: pending.lesson.id, status, failure, granted });
+    }
+
+    async function offerLesson(player: P, rawId: string, context = {}): Promise<boolean> {
+        if (stopped) throw new Error("hmp-spells is stopped");
+        const lesson = config.lessons.find((entry) => entry.id === String(rawId));
+        if (!lesson) throw new TypeError(`Unknown spell lesson '${rawId}'`);
+        const character = activeCharacter(player);
+        if (!character) throw new Error("No character is active");
+        const id = Number(player.id);
+        if (pendingLessons.has(id)) return false;
+        const { policy } = await resolve(player);
+        // Checked again, as another offer may have landed while the policy resolved.
+        if (policy.unlockSpells.includes(lesson.spell) || pendingLessons.has(id)) return false;
+        const token = ++lessonTokens;
+        pendingLessons.set(id, { token, lesson, characterId: character.id, context });
+        player.emit("hmp-spells:lesson", JSON.stringify({ token, id: lesson.id, lesson: lesson.lesson }));
+        return true;
+    }
+
+    function cancelLesson(player: P): boolean {
+        const pending = pendingLessons.get(Number(player.id));
+        if (!pending) return false;
+        pendingLessons.delete(Number(player.id));
+        player.emit("hmp-spells:lesson-cancel", JSON.stringify({ token: pending.token }));
+        settleLesson(player, pending, "cancelled", "withdrawn", false);
+        return true;
+    }
+
+    async function acceptLessonResult(player: P, result: { token?: unknown; status?: unknown; reason?: unknown }): Promise<boolean> {
+        const pending = pendingLessons.get(Number(player.id));
+        if (!pending || Number(result.token) !== pending.token) return false;
+        pendingLessons.delete(Number(player.id));
+        const status = result.status === "completed" || result.status === "cancelled" ? result.status : "failed";
+        // The offer was for one character; finishing after a switch teaches the new one nothing.
+        if (status === "completed" && activeCharacter(player)?.id !== pending.characterId) {
+            settleLesson(player, pending, "failed", "character-changed", false);
+            return false;
+        }
+        const granted = status === "completed" && await grant(player, pending.lesson.spell, pending.context);
+        settleLesson(player, pending, status, status === "completed" ? null : String(result.reason || status).slice(0, 100), granted);
+        return granted;
+    }
+
     return Object.freeze({
         catalog,
         // The network handler acknowledges this save separately. Replaying all slots here would
@@ -355,6 +406,13 @@ function createSpellService<P extends HmpSpellPlayer>(dependencies: SpellDepende
             list: (resource?: string) => hostDefinitions().map(definitionInfo).filter((definition) => !resource || definition.resource === resource),
         }),
         grants: Object.freeze({ list: async (player: P) => (await read(player)).spells, grant, revoke, clear }),
+        lessons: Object.freeze({
+            list: () => config.lessons.map((lesson) => ({ ...lesson, lesson: { ...lesson.lesson } })),
+            offer: offerLesson,
+            cancel: cancelLesson,
+        }),
+        acceptLessonResult,
+        forgetPlayer: (player: P) => { pendingLessons.delete(Number(player.id)); },
         loadouts: Object.freeze({
             get: async (player: P) => (await read(player)).bonusLoadouts,
             set: setLoadouts,
@@ -367,7 +425,7 @@ function createSpellService<P extends HmpSpellPlayer>(dependencies: SpellDepende
         stop: () => {
             stopped = true; synced.clear(); runtimeRules.clear(); runtimeProviders.clear();
             for (const entry of [...definitionOwners.values()]) dropDefinition(entry);
-            retiredLocks.clear();
+            retiredLocks.clear(); pendingLessons.clear();
         },
     });
 }

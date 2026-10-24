@@ -118,6 +118,13 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   relayed by the client. Both sources stay `advisory: true`, since the host's event is the caster's
   client's word too. It needs a HogwartsMP host with `playerSpellCast`; an older host reports every
   cast through the client relay as before.
+- `hmp-spells` spell lessons. `lessons` in `data/hmp-spells.json` pairs a spell, a game spell or a
+  defined one, with the game's own spell lesson, which the client defines with
+  `SpellLearning.define`. `lessons.offer`, or `/spells teach`, runs it on a player's screen, and
+  completing it grants the spell to the character it was offered to; `hmp:spells:lesson` reports how
+  it ended. Only the client sees a lesson completed, so a modified client can skip one, but it never
+  learns a spell it wasn't offered. It needs a HogwartsMP host with `SpellLearning.define`; on an
+  older host an offered lesson fails as `unsupported` and grants nothing.
 
 ### Changed
 

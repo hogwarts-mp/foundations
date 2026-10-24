@@ -151,6 +151,50 @@ export interface HmpSpellResolution<P = HmpSpellPlayer> {
     policy: HmpResolvedSpellPolicy;
 }
 
+/** The game's spell lesson, reshaped (host `SpellLessonDefinition`); points are on its 1024 x 1024 canvas, x right, y down. */
+export interface HmpSpellLessonDefinition {
+    /** Up to 128 characters. */
+    title: string;
+    /** A stock lesson (SpellLearning.supportedSpells) to start from: its path, art, checkpoints, delays and icon. */
+    look?: string;
+    /** 3-65 points, 800-4000 px in all; the stroke is drawn from them. */
+    path?: Array<[number, number]>;
+    /** Up to 16, each `at` 0-1 along the path. */
+    checkpoints?: Array<{ at: number; button?: 1 | 2 | 3 | 4; window?: [number, number] }>;
+    finalButton?: 1 | 2 | 3 | 4;
+    /** The bad spark's head start in seconds on Normal, null for none (the lesson then can't be failed), or per difficulty. */
+    chaser?: number | null | { story?: number | null; easy?: number | null; normal?: number | null; hard?: number | null };
+    /** A spell whose spell-bar icon to show. */
+    icon?: string;
+    /** Drawn stroke width, 8-160. */
+    stroke?: number;
+}
+
+/** A lesson a player runs to learn a spell; completing it grants the spell. */
+export interface HmpSpellLesson {
+    /** Letters, digits and _, up to 32; not a stock lesson's name. */
+    id: string;
+    /** The lock a completed lesson grants. */
+    spell: string;
+    lesson: HmpSpellLessonDefinition;
+}
+
+/** The `hmp:spells:lesson` payload: how an offered lesson ended. */
+export interface HmpSpellLessonOutcome<P = HmpSpellPlayer> {
+    player: P;
+    character: HmpCoreCharacter | null;
+    lesson: string;
+    spell: string;
+    status: "completed" | "cancelled" | "failed";
+    /** Why it was cancelled or failed: the host's reason, `unsupported` on a host without SpellLearning.define, or `withdrawn`. */
+    failure: string | null;
+    /** True when completing it granted the spell. */
+    granted: boolean;
+    resource: string;
+    actor: P | null;
+    reason: string;
+}
+
 /** The `hmp:spells:cast` payload. Every report is the caster's client's word: never authorize consequences with it. */
 export interface HmpSpellCastReport<P = HmpSpellPlayer> {
     player: P;
@@ -228,6 +272,15 @@ export interface HmpSpellDefinitionsApi {
     list(resource?: string): HmpDefinedSpellInfo[];
 }
 
+export interface HmpSpellLessonsApi<P = HmpSpellPlayer> {
+    /** The configured lessons. */
+    list(): HmpSpellLesson[];
+    /** Runs the lesson on the player's screen; completing it grants its spell. False while one is pending or the spell is already unlocked. */
+    offer(player: P, lesson: string, context?: { resource?: string; actor?: P; reason?: string }): Promise<boolean>;
+    /** Withdraws the player's pending lesson and closes it on their screen; false when none is pending. */
+    cancel(player: P): boolean;
+}
+
 export interface HmpSpellsStatus {
     state: "ready" | "stopped";
     catalogSize: number;
@@ -246,6 +299,7 @@ export interface HmpSpellsServer<P = HmpSpellPlayer> {
     providers: HmpSpellProvidersApi;
     definitions: HmpSpellDefinitionsApi;
     grants: HmpSpellGrantsApi<P>;
+    lessons: HmpSpellLessonsApi<P>;
     loadouts: HmpSpellLoadoutsApi<P>;
     status(): HmpSpellsStatus;
 }

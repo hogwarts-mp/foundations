@@ -1,5 +1,5 @@
 import type { HmpCore, HmpCoreGroup } from "../../hmp-core/types";
-import type { HmpDefinedSpell, HmpSpellPlayer, HmpSpellRule, HmpSpellsServer } from "../types";
+import type { HmpDefinedSpell, HmpSpellLesson, HmpSpellPlayer, HmpSpellRule, HmpSpellsServer } from "../types";
 
 export interface SpellConfig {
     command: string;
@@ -7,6 +7,7 @@ export interface SpellConfig {
     adminGroups: Array<{ key: string; minimumGrade?: number }>;
     rules: HmpSpellRule[];
     definitions: HmpDefinedSpell[];
+    lessons: HmpSpellLesson[];
     maxCastReportsPerSecond: number;
 }
 
@@ -25,6 +26,9 @@ export interface SpellDependencies<P extends HmpSpellPlayer> {
 export interface SpellService<P extends HmpSpellPlayer> extends HmpSpellsServer<P> {
     // Client-originated slots are already applied locally; persist without replaying policy.
     acceptClientAssignments: HmpSpellsServer<P>["loadouts"]["setAssignments"];
+    // The client's word that an offered lesson ended; only the pending offer's token counts.
+    acceptLessonResult(player: P, result: { token?: unknown; status?: unknown; reason?: unknown }): Promise<boolean>;
+    forgetPlayer(player: P): void;
     stop(): void;
 }
 

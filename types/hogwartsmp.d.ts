@@ -439,6 +439,8 @@ declare global {
         on(eventName: "pvpRulesChanged", listener: (rules: HogwartsMpPvpRules) => unknown): void;
         /** A server-defined spell's cast, by id; reported by the caster's client and rate-limited to 4 a second. */
         on(eventName: "playerSpellCast", listener: (player: HogwartsMpPlayer, spell: string, cast: HogwartsMpSpellCastInfo) => unknown): void;
+        /** Client: a lesson this resource started ended. */
+        on(eventName: "spellLearningFinished", listener: (result: HogwartsMpSpellLearningResult) => unknown): void;
         on<TArgs extends unknown[]>(eventName: string, listener: (...args: TArgs) => unknown): void;
         onClient<TArgs extends unknown[]>(eventName: string, listener: (player: HogwartsMpPlayer, ...args: TArgs) => unknown): void;
         emit(eventName: string, ...args: unknown[]): unknown;
@@ -773,5 +775,23 @@ declare global {
         /** Server: one defined spell by id, case-blind. */
         get(id: string): HogwartsMpSpellDefinitionInfo | null;
         list(): HogwartsMpSpellDefinitionInfo[];
+    };
+    /** Client: how a lesson ended, delivered only to the resource that started it. */
+    interface HogwartsMpSpellLearningResult {
+        readonly requestId: number;
+        readonly spell: string;
+        readonly status: "completed" | "cancelled" | "failed";
+        readonly reason: string | null;
+    }
+    /** Client: the game's spell lesson, run on this client only; it grants nothing. */
+    const SpellLearning: {
+        /** A stock lesson or an id this resource defined; one lesson runs client-wide, and a refusal says why. */
+        start(spell: string): { readonly started: boolean; readonly requestId: number | null; readonly reason: string | null };
+        cancel(requestId: number): boolean;
+        /** Adds or replaces one of this resource's lessons (a title, then a stock look, a path, checkpoints...), gone when it stops. */
+        define(id: string, lesson: { title: string; [key: string]: unknown }): { readonly ok: boolean; readonly reason: string | null };
+        /** False when this resource has no such lesson, or it is running. */
+        undefine(id: string): boolean;
+        lessons(): string[];
     };
 }

@@ -1,6 +1,6 @@
 import catalogModule = require("../shared/catalog");
 import type { HmpLibServer } from "../../hmp-lib/types";
-import type { HmpDefinedSpell, HmpSpellPlayer, HmpSpellRule } from "../types";
+import type { HmpDefinedSpell, HmpSpellLesson, HmpSpellLessonDefinition, HmpSpellPlayer, HmpSpellRule } from "../types";
 import type { SpellConfig } from "./internal";
 
 const { createCatalog, resolveSpell } = catalogModule;
@@ -88,6 +88,20 @@ function normalizeDefinition(raw: unknown, label: string, resource: string): Hmp
     return definition;
 }
 
+// The client's SpellLearning.define checks the lesson itself and a refusal ends it as failed.
+function normalizeLesson(raw: unknown, label: string, resolve: (spell: string) => string | null): HmpSpellLesson {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new TypeError(`${label} must be an object`);
+    const value = raw as Record<string, unknown>;
+    const id = String(value.id || "").trim();
+    if (!/^[A-Za-z0-9_]{1,32}$/.test(id)) throw new TypeError(`${label} id must be 1-32 letters, digits or _`);
+    const spell = resolve(String(value.spell || ""));
+    if (!spell) throw new TypeError(`${label} names unknown spell '${String(value.spell)}'`);
+    const lesson = value.lesson as Record<string, unknown> | undefined;
+    if (!lesson || typeof lesson !== "object" || Array.isArray(lesson)) throw new TypeError(`${label} lesson must be an object`);
+    if (typeof lesson.title !== "string" || !lesson.title.trim() || lesson.title.length > 128) throw new TypeError(`${label} lesson title must be 1-128 characters`);
+    return { id, spell, lesson: { ...lesson } as unknown as HmpSpellLessonDefinition };
+}
+
 function loadConfig(Hmp: HmpLibServer<HmpSpellPlayer>, options: { env?: NodeJS.ProcessEnv; cwd?: string } = {}): SpellConfig {
     const env = options.env || process.env;
     const defaults: SpellConfig = {
@@ -96,6 +110,7 @@ function loadConfig(Hmp: HmpLibServer<HmpSpellPlayer>, options: { env?: NodeJS.P
         adminGroups: [{ key: "admin", minimumGrade: 1 }],
         rules: [FREERIDE_BASELINE],
         definitions: [],
+        lessons: [],
         maxCastReportsPerSecond: 12,
     };
     const loaded = Hmp.config.load<SpellConfig & Record<string, unknown>>(env.HMP_SPELLS_CONFIG || "data/hmp-spells.json", {
@@ -110,6 +125,9 @@ function loadConfig(Hmp: HmpLibServer<HmpSpellPlayer>, options: { env?: NodeJS.P
     // Rules may name a configured spell by id before the host defines it; on a host without
     // Spells.define its Spell_<id> lock is simply never used.
     const known = createCatalog(() => definitions.map((definition) => ({ name: definition.id, lockId: `Spell_${definition.id}` })));
+    if (!Array.isArray(loaded.lessons)) throw new TypeError("hmp-spells lessons must be an array");
+    const lessons = loaded.lessons.map((lesson, index) => normalizeLesson(lesson, `hmp-spells lesson ${index}`, known.resolve));
+    if (new Set(lessons.map((lesson) => lesson.id)).size !== lessons.length) throw new TypeError("hmp-spells lessons has duplicate ids");
     const adminGroups = loaded.adminGroups.map((entry, index) => ({
         key: cleanId(entry?.key, `admin group ${index} key`).toLowerCase(),
         minimumGrade: Number.isSafeInteger(Number(entry?.minimumGrade)) ? Number(entry.minimumGrade) : 0,
@@ -126,8 +144,9 @@ function loadConfig(Hmp: HmpLibServer<HmpSpellPlayer>, options: { env?: NodeJS.P
         adminGroups,
         rules,
         definitions,
+        lessons,
         maxCastReportsPerSecond,
     };
 }
 
-export = { loadConfig, normalizeDefinition, normalizeRule };
+export = { loadConfig, normalizeDefinition, normalizeLesson, normalizeRule };
