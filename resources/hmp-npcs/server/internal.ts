@@ -18,6 +18,8 @@ export interface NativeNpc {
     setMaxHealth(health: number): void;
     setHealth(health: number): void;
     destroy(): void;
+    /** An older host takes the world alone and ignores `map`. */
+    setVirtualWorld?(world: number, map?: string): void;
     // Movement: absent on a host before NPC paths.
     moveAlong?(waypoints: HmpNpcWaypoint[], options?: HmpNpcMoveOptions): boolean;
     moveTo?(x: number, y: number, z: number, options?: HmpNpcMoveOptions): boolean;

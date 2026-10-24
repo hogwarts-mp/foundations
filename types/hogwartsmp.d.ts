@@ -402,6 +402,10 @@ declare global {
         kill(): void;
         setDisposition(disposition: "hostile" | "friendly"): void;
         forceTarget(playerId: number, holdSeconds?: number, applyTicks?: number): void;
+        /** The virtual world scripts put it in; outside Overland it replicates combined with its map. */
+        readonly virtualWorld: number;
+        /** Moves it into a world within `map` (a `location().areaId`; left out, its current map). An older host ignores `map`. */
+        setVirtualWorld(world: number, map?: string): void;
         /** Walks 1-64 waypoints with the game's own pathfinding, replacing a running path; false when gone or dead, throws on bad input. */
         moveAlong(waypoints: HogwartsMpMoveWaypoint[], options?: HogwartsMpNpcMoveOptions): boolean;
         /** `moveAlong` with one point. */

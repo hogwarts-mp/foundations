@@ -145,6 +145,22 @@ export function createNpcsService(options: NpcsServiceOptions): NpcsService {
         return ids.length;
     }
 
+    function setVirtualWorld(id: number, resource: string, world: number, map?: string): boolean {
+        ensureReady();
+        const owner = resourceName(resource);
+        const key = integer(id, "NPC id", 0);
+        const virtualWorld = integer(world, "NPC virtual world", 0);
+        if (virtualWorld > 4_294_967_295) throw new TypeError("NPC virtual world must be at most 4294967295");
+        if (map !== undefined && (typeof map !== "string" || map.length > 128)) throw new TypeError("NPC map must be an area id up to 128 characters");
+        const entry = managed.get(key);
+        if (!entry || entry.resource !== owner || typeof entry.npc.setVirtualWorld !== "function") return false;
+        const npc = entry.npc as Required<Pick<NativeNpc, "setVirtualWorld">>;
+        // Without a map, the call an older host's world-only setVirtualWorld knows.
+        if (map === undefined) npc.setVirtualWorld(virtualWorld);
+        else npc.setVirtualWorld(virtualWorld, map);
+        return true;
+    }
+
     /** The NPC, when `resource` owns it and the host can move it. */
     function owned(id: number, resource: string) {
         ensureReady();
@@ -281,6 +297,7 @@ export function createNpcsService(options: NpcsServiceOptions): NpcsService {
                 maximumPerResource: config.maximumPerResource,
             };
         },
+        setVirtualWorld,
         movement,
         died(id: number) { return managed.delete(id); },
         waypoint: (id: number, index: number, lap: number) => forward(id, "hmp:npcs:waypoint", { index, lap }),

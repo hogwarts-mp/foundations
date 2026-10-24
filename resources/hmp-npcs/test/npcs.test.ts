@@ -102,6 +102,21 @@ assert.deepStrictEqual(events.map((event) => [event.name, event.payload.npc.reso
 assert.strictEqual(paths.moveEnded(9999, "arrived"), false, "an NPC this service does not manage is not forwarded");
 assert.strictEqual(events.length, 2);
 
+// Virtual worlds: the owner's alone, with the map passed only when given.
+const placed: unknown[][] = [];
+const placing = createNpcsService({
+    config: { maximumManagedNpcs: 2, maximumPerResource: 2 },
+    native: { create: (...args: Parameters<typeof native.create>) => Object.assign(native.create(...args), { setVirtualWorld: (...place: unknown[]) => { placed.push(place); } }) },
+});
+const instanced = placing.spawn({ resource: "dungeons", enemyId: "Inferius", position: { x: 0, y: 0, z: 0 } });
+assert.strictEqual(placing.setVirtualWorld(instanced.id, "dungeons", 7, "Dungeon_Crypt"), true);
+assert.strictEqual(placing.setVirtualWorld(instanced.id, "dungeons", 8), true);
+assert.deepStrictEqual(placed, [[7, "Dungeon_Crypt"], [8]]);
+assert.strictEqual(placing.setVirtualWorld(instanced.id, "intruder", 9), false);
+assert.throws(() => placing.setVirtualWorld(instanced.id, "dungeons", -1), /virtual world/);
+assert.throws(() => placing.setVirtualWorld(instanced.id, "dungeons", 1, 5 as never), /NPC map/);
+assert.strictEqual(placed.length, 2);
+
 // A host before NPC paths: the handle has no moveAlong, so every call is a plain false.
 const older = createNpcsService({ config: { maximumManagedNpcs: 2, maximumPerResource: 2 }, native });
 const still = older.spawn({ resource: "patrols", enemyId: "Wolf", position: { x: 0, y: 0, z: 0 } });

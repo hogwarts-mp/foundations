@@ -19,6 +19,7 @@ Exports.register("get", service.get);
 Exports.register("list", service.list);
 Exports.register("status", service.status);
 Exports.register("movement", service.movement);
+Exports.register("setVirtualWorld", service.setVirtualWorld);
 
 Events.on("npcDied", (id: number) => service.died(id));
 // A host without NPC paths never raises these.

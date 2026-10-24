@@ -150,6 +150,11 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   `hmp:npcs:waypoint` and `hmp:npcs:moveEnded` forward the host's `npcWaypoint` and `npcMoveEnded` for
   managed NPCs, with the NPC's snapshot and so its owning `resource`. It needs a HogwartsMP host with
   `NPC.moveAlong`; on an older host every call is false and `get` is null.
+- `hmp-npcs` `setVirtualWorld(id, resource, world, map?)` moves an NPC the resource spawned into a
+  virtual world within a map, where it meets the players in that world of that map, so one world of a
+  dungeon is one instance of it. It is false for an NPC another resource spawned. It needs a HogwartsMP
+  host whose `setVirtualWorld` takes a map; an older host ignores `map`, so outside Overland the NPC
+  never reaches the players in that world.
 
 ### Changed
 

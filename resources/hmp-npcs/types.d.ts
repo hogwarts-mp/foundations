@@ -120,6 +120,11 @@ export interface HmpNpcs {
     list(resource?: string): HmpNpcSnapshot[];
     status(): HmpNpcStatus;
     /**
+     * Moves an NPC the resource spawned into a virtual world within a map (a `player.location().areaId`; "Overland"
+     * or "" the shared map), where it meets the players in that world of that map. Left out, the map stays.
+     */
+    setVirtualWorld(id: number, resource: string, world: number, map?: string): boolean;
+    /**
      * Paths for NPCs the calling resource spawned. Each call is false for an NPC another resource owns, a gone or dead
      * NPC, or a host without NPC movement, and throws on malformed input.
      */

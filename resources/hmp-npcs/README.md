@@ -26,9 +26,20 @@ const enemy = npcs.spawn({
 
 npcs.catalog.list();
 npcs.get(enemy.id);
+npcs.setVirtualWorld(enemy.id, "my-gamemode", instance, player.location().areaId);
 npcs.destroy(enemy.id, "my-gamemode");
 npcs.clear("my-gamemode");
 ```
+
+`setVirtualWorld(id, resource, world, map?)` moves an NPC the resource spawned into a virtual world
+within a map, where it meets the players in that world of that map, so world 7 of a dungeon is one
+instance of it. `map` is a `player.location().areaId` (`"Overland"` or `""` for the shared map); left
+out, the NPC keeps its map. It is false for an NPC another resource spawned. An NPC spawned with an
+`ownerId` starts in that player's world and map by itself on a host that combines them.
+
+Placing an NPC in a map's world needs a HogwartsMP host whose `setVirtualWorld` takes a map. An
+older host ignores `map` and keeps the bare world number, so outside Overland the NPC never reaches
+the players in that world.
 
 Wave composition, encounter behavior, rewards, and boss rules belong to the consuming gamemode.
 The catalog documents inert or encounter-dependent entries but does not hide them.
