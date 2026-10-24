@@ -8,6 +8,8 @@
     }
   ],
   "shareUnlocks": false,
+  "gateSchedule": "local",
+  "heldGates": {},
   "rules": [
     {
       "priority": 1000,

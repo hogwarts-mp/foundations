@@ -55,7 +55,7 @@ async function run(): Promise<void> {
     assert.deepStrictEqual(granted.lockDoors, []);
     assert.deepStrictEqual(granted.unlockDoors, ["Tie"]);
 
-    assert.throws(() => normalizeRule({ priority: 1, action: "lock", locks: ["GateLock"] }, 0), /only to a doors target/);
+    assert.throws(() => normalizeRule({ priority: 1, action: "lock", locks: ["GateLock"] }, 0), /only to a doors or gates target/);
     assert.throws(() => normalizeRule({ priority: 1, action: "lock", doors: "*" }, 0), /not '\*'/);
     assert.throws(() => normalizeRule({ priority: 1, action: "seal", doors: ["x"] }, 0), /allow, deny or lock/);
 
@@ -86,6 +86,54 @@ async function run(): Promise<void> {
     assert.strictEqual(configFrom({ shareUnlocks: true }).shareUnlocks, true);
     assert.throws(() => configFrom({ shareUnlocks: "yes" }), /shareUnlocks must be a boolean/);
 
+    // Gates are their own target: a door rule never reaches one, and a gate rule never a door.
+    assert.deepStrictEqual(normalizeRule({ priority: 1, action: "allow", gates: "*", kind: "portcullis", open: true }, 0), { priority: 1, action: "allow", gates: "*", kind: ["portcullis"], open: true });
+    assert.deepStrictEqual(normalizeRule({ priority: 1, action: "lock", gates: ["BP_Gate"] }, 0).gates, ["BP_Gate"]);
+    assert.throws(() => normalizeRule({ priority: 1, action: "allow", gates: "*", doors: "*" }, 0), /exactly one of doors, gates/);
+    assert.throws(() => normalizeRule({ priority: 1, action: "lock", gates: "*" }, 0), /not '\*'/);
+    assert.throws(() => normalizeRule({ priority: 1, action: "allow", gates: [] }, 0), /gates must be/);
+    assert.throws(() => normalizeRule({ priority: 1, action: "allow", gates: ["BP_Gate"], kind: "portcullis" }, 0), /kind applies only to a gates '\*' rule/);
+    assert.throws(() => normalizeRule({ priority: 1, action: "allow", gates: "*", kind: ["portcullis", "drawbridge"] }, 0), /kind must be portcullis, runeGate/);
+    assert.throws(() => normalizeRule({ priority: 1, action: "deny", gates: ["BP_Gate"], open: true }, 0), /open must be true, on an allow rule targeting gates/);
+    assert.throws(() => normalizeRule({ priority: 1, action: "allow", doors: ["BP_Door"], open: true }, 0), /open must be true/);
+    assert.throws(() => normalizeRule({ priority: 1, action: "lock", gates: ["BP_Gate"], lockLevel: 2 }, 0), /naming doors/);
+
+    const gateRules = [
+        normalizeRule({ priority: 1000, action: "allow", gates: "*", kind: "portcullis" }, 0),
+        normalizeRule({ priority: 900, action: "allow", gates: "*", kind: ["swingGate"], open: true }, 1),
+        normalizeRule({ priority: 900, action: "deny", gates: ["BP_Shut_Portcullis"] }, 2),
+        normalizeRule({ priority: 800, action: "allow", gates: ["BP_Camp_Gate"] }, 3),
+        normalizeRule({ priority: 800, action: "lock", gates: ["BP_Vault_Portcullis"] }, 4),
+        normalizeRule({ priority: 700, action: "allow", gates: ["BP_ZZS_TundraGate_2"], open: true, match: { groups: [{ key: "staff" }] } }, 5),
+    ];
+    const visitorGates = evaluateRules(gateRules, []);
+    assert.deepStrictEqual(visitorGates.unlockGateKinds, ["portcullis"]);
+    assert.deepStrictEqual(visitorGates.openGateKinds, ["swingGate"]);
+    assert.deepStrictEqual(visitorGates.lockGates, ["BP_Vault_Portcullis"]);
+    // A named deny leaves the sweeps; a named plain allow leaves the opening one, since the client opens first.
+    assert.deepStrictEqual(visitorGates.unlockGates, ["BP_Camp_Gate"]);
+    assert.deepStrictEqual(visitorGates.gateAllExcept, ["BP_Camp_Gate", "BP_Shut_Portcullis"]);
+    assert.deepStrictEqual(visitorGates.openGates, []);
+    assert.strictEqual(visitorGates.freezeGateSchedule, false);
+    assert.deepStrictEqual(evaluateRules(gateRules, [{ key: "staff", grade: 0 }], [], true).openGates, ["BP_ZZS_TundraGate_2"]);
+    assert.strictEqual(evaluateRules(gateRules, [], [], true).freezeGateSchedule, true);
+    // A door rule leaves gates alone, and at the strongest priority a plain allow beats an opening one.
+    assert.deepStrictEqual(evaluateRules(rules, []).unlockGateKinds, []);
+    const tiedGates = evaluateRules([
+        normalizeRule({ priority: 5, action: "allow", gates: "*", open: true }, 0),
+        normalizeRule({ priority: 5, action: "allow", gates: "*", kind: "crawlGrate" }, 1),
+    ], []);
+    assert.deepStrictEqual(tiedGates.openGateKinds, ["portcullis", "runeGate", "swingGate"]);
+    assert.deepStrictEqual(tiedGates.unlockGateKinds, ["crawlGrate"]);
+
+    assert.strictEqual(configFrom({}).gateSchedule, "local", "each client's clock keeps moving portcullises by default");
+    assert.deepStrictEqual(configFrom({}).heldGates, {});
+    assert.deepStrictEqual(configFrom({ heldGates: { " BP_ZZS_TundraGate_2 ": { open: true } } }).heldGates, { BP_ZZS_TundraGate_2: { open: true } });
+    assert.throws(() => configFrom({ gateSchedule: "paused" }), /gateSchedule must be local or freeze/);
+    assert.throws(() => configFrom({ heldGates: [] }), /heldGates must be an object/);
+    assert.throws(() => configFrom({ heldGates: { BP_Gate: {} } }), /must hold locked, open, or both/);
+    assert.throws(() => configFrom({ heldGates: { BP_Gate: { locked: "yes" } } }), /locked must be a boolean/);
+
     const player = { id: 7, nickname: "Test", emitted: [] as Array<{ name: string; payload: unknown }>, emit(name: string, payload?: unknown) { this.emitted.push({ name, payload }); } };
     const metadata = new Map<string, unknown>();
     let sessionReady = true;
@@ -99,7 +147,7 @@ async function run(): Promise<void> {
             setCharacter: async (_id: number, key: string, value: unknown) => { metadata.set(key, value); return value; },
         },
     };
-    const service = createDoorService({ core: core as never, config: { command: "doors", enableCommands: true, adminGroups: [], shareUnlocks: false, rules }, players: () => [player] });
+    const service = createDoorService({ core: core as never, config: { command: "doors", enableCommands: true, adminGroups: [], shareUnlocks: false, gateSchedule: "local", heldGates: {}, rules }, players: () => [player] });
 
     // hmp-core creates its session after an awaited database round-trip, so playerConnect beats it.
     // Syncing then must be a quiet no-op, not a logged failure.
@@ -123,7 +171,7 @@ async function run(): Promise<void> {
     // Each level is held when the service starts, and stopping releases that axis alone.
     const warnings: string[] = [];
     const logger = { warn: (message: unknown) => { warnings.push(String(message)); return true; } };
-    const config = { command: "doors", enableCommands: true, adminGroups: [], shareUnlocks: false, rules: leveled };
+    const config = { command: "doors", enableCommands: true, adminGroups: [], shareUnlocks: false, gateSchedule: "local" as const, heldGates: {}, rules: leveled };
     const levelCalls: Array<[string, unknown]> = [];
     const heldLevels = new Map<string, 1 | 2 | 3>();
     const leveledService = createDoorService({
@@ -181,6 +229,26 @@ async function run(): Promise<void> {
     createDoorService({ core: core as never, config: { ...config, rules, shareUnlocks: true }, players: () => [], logger, doors: olderDoors }).stop();
     assert.strictEqual(warnings.length, 1);
     assert.match(warnings[0], /shareUnlocks needs a HogwartsMP host with Doors.setShareUnlocks/);
+
+    // heldGates are held at start, and a stop releases only the axes the config held.
+    warnings.length = 0;
+    const gateCalls: Array<[string, unknown]> = [];
+    const gatesHost = {
+        set: (selector: string, state: object) => { if (selector === "Bad:Gate") throw new TypeError("refused"); gateCalls.push([selector, state]); return true; },
+        get: () => null, list: () => [],
+    };
+    const heldGates = { BP_ZZS_TundraGate_2: { open: true }, "Bad:Gate": { locked: true }, BP_Portcullis: { locked: true, open: false } };
+    const gateService = createDoorService({ core: core as never, config: { ...config, rules, heldGates, gateSchedule: "freeze" }, players: () => [player], logger, gates: gatesHost });
+    assert.deepStrictEqual(gateCalls, [["BP_ZZS_TundraGate_2", { open: true }], ["BP_Portcullis", { locked: true, open: false }]]);
+    assert.deepStrictEqual(warnings, ["Could not hold gate 'Bad:Gate': refused"]);
+    assert.strictEqual((await gateService.policy.resolve(player)).policy.freezeGateSchedule, true);
+    gateService.stop();
+    assert.deepStrictEqual(gateCalls.slice(2), [["BP_ZZS_TundraGate_2", { open: null }], ["BP_Portcullis", { locked: null, open: null }]]);
+    // A host without the server Gates builtin holds nothing and says so once.
+    warnings.length = 0;
+    createDoorService({ core: core as never, config: { ...config, rules, heldGates }, players: () => [], logger }).stop();
+    assert.strictEqual(warnings.length, 1);
+    assert.match(warnings[0], /heldGates needs a HogwartsMP host with the server Gates builtin/);
 
     const lockCalls: Array<[string, boolean | undefined]> = [];
     const lockedCalls: Array<[string, boolean | undefined]> = [];
@@ -245,6 +313,49 @@ async function run(): Promise<void> {
         },
     }).list(800);
     assert.deepStrictEqual(padlocks.slice(1), ["100cm BP_Padlock_Door [PadlockDoor] Lv.2", "200cm BP_Key_Door [PadlockDoor] key-only"]);
+
+    // A client with Gates gets the gate half of every push, the whole of it, and an empty one at stop.
+    const gatePolicies: unknown[] = [];
+    const drivenGates: Array<[string, string, boolean | undefined]> = [];
+    const gateChat: string[] = [];
+    const gateClient = createDoorClient({
+        events: { emitServer: () => { /* ready ping */ } },
+        notify: (message) => { gateChat.push(message); },
+        doors: {
+            setLock: () => true, superAlohomora: () => true, setPolicy: () => { /* doors */ },
+            list: () => [], openNearby: () => 0, unlockNearby: () => 0, setOpen: () => true, setLocked: () => 0,
+        },
+        gates: {
+            setPolicy: (policy) => { gatePolicies.push(policy); return 0; },
+            setOpen: (selector, open) => { drivenGates.push(["open", selector, open]); return 1; },
+            setLocked: (selector, locked) => { drivenGates.push(["locked", selector, locked]); return 1; },
+            list: () => [
+                { name: "BP_HW_ClocktowerPortcullis2", cls: "BP_Portcullis_C", path: "/Game/Maps/HW/Clock.Clock:PersistentLevel.BP_HW_ClocktowerPortcullis2", kind: "portcullis", dist: 300, bearing: 0, isOpen: false, isLocked: true, useSchedule: true },
+                { name: "BP_ZZS_TundraGate_2", cls: "BP_ZZS_TundraGate_C", path: "", kind: "runeGate", dist: 900, bearing: 0, isOpen: true, isLocked: null },
+            ],
+        },
+    });
+    gateClient.apply({ unlockGateKinds: ["portcullis", "drawbridge"], openGates: ["BP_ZZS_TundraGate_2"], freezeGateSchedule: true });
+    assert.deepStrictEqual(gatePolicies, [{
+        unlockAll: ["portcullis"], openAll: [], freezeSchedule: true,
+        unlockGates: [], openGates: ["BP_ZZS_TundraGate_2"], allExcept: [], lockGates: [],
+    }], "an unknown kind is dropped rather than handed to a native that throws on it");
+    assert.strictEqual((gateClient.diagnostic({ action: "gates" }) as unknown[]).length, 2);
+    assert.deepStrictEqual(gateChat.slice(0, 4), [
+        "[doors] 2 gate(s) loaded",
+        "300cm BP_HW_ClocktowerPortcullis2 [portcullis, shut, locked, on the clock]",
+        "/Game/Maps/HW/Clock.Clock:PersistentLevel.BP_HW_ClocktowerPortcullis2",
+        "900cm BP_ZZS_TundraGate_2 [runeGate, open]",
+    ]);
+    assert.strictEqual(gateClient.diagnostic({ action: "set-gate", selector: "BP_ZZS_TundraGate_2", verb: "close" }), 1);
+    assert.strictEqual(gateClient.diagnostic({ action: "set-gate", selector: "BP_HW_ClocktowerPortcullis2", verb: "unlock" }), 1);
+    assert.deepStrictEqual(drivenGates, [["open", "BP_ZZS_TundraGate_2", false], ["locked", "BP_HW_ClocktowerPortcullis2", false]]);
+    gateClient.stop();
+    assert.deepStrictEqual(gatePolicies.at(-1), {});
+
+    // A client without Gates leaves every gate to the game: diagnostics decline instead of throwing.
+    assert.strictEqual(client.diagnostic({ action: "gates" }), false);
+    assert.strictEqual(client.diagnostic({ action: "set-gate", selector: "BP_Gate", verb: "open" }), false);
 
     // Label mode is inert without the Hud and LocalPlayer natives rather than throwing.
     assert.strictEqual(client.diagnostic({ action: "label" }), false);

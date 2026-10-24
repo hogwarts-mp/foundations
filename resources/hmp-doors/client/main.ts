@@ -11,6 +11,20 @@ declare const Doors: {
     setPolicy(policy: { unlockAll?: boolean; unlockDoors?: string[]; unlockAllExcept?: string[]; lockDoors?: string[] }): void;
 };
 
+/** Absent on a host older than the client Gates builtin. */
+declare const Gates: {
+    list(radius?: number): Array<{
+        name: string; cls: string; path: string; kind: "portcullis" | "runeGate" | "swingGate" | "crawlGrate";
+        dist: number; bearing: number; isOpen: boolean; isLocked: boolean | null; useSchedule?: boolean;
+    }>;
+    setOpen(selector: string, open?: boolean): number;
+    setLocked(selector: string, locked?: boolean): number;
+    setPolicy(policy: {
+        unlockAll?: boolean | string[]; openAll?: boolean | string[]; freezeSchedule?: boolean;
+        unlockGates?: string[]; openGates?: string[]; allExcept?: string[]; lockGates?: string[];
+    }): number;
+} | undefined;
+
 declare const Hud: {
     showPrompt(key: string, label: string, x: number, y: number, z: number): void;
     hidePrompt(): void;
@@ -24,6 +38,7 @@ declare const LocalPlayer: {
 const { createDoorClient } = clientModule;
 const client = createDoorClient({
     doors: Doors,
+    gates: typeof Gates === "undefined" ? undefined : Gates,
     events: Events,
     hud: Hud,
     localPlayer: LocalPlayer,

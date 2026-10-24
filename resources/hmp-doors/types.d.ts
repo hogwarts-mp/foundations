@@ -18,6 +18,9 @@ export interface HmpDoorMatch {
     groupMode?: "any" | "all";
 }
 
+/** Every family of gate the host's `Gates` builtin drives; only a portcullis has a lock. */
+export type HmpDoorGateKind = "portcullis" | "runeGate" | "swingGate" | "crawlGrate";
+
 export interface HmpDoorRule {
     priority: number;
     /** `deny` withholds an unlock, leaving the game's own state; `lock` actively locks and beats both. */
@@ -27,6 +30,12 @@ export interface HmpDoorRule {
      * within its Outer, so a repeated one matches every placement carrying it — prefer a path to target one.
      */
     doors?: "*" | ReadonlyArray<string>;
+    /** Gate actor names, or path names when an entry holds `/` or `:`. A gate is never a door, nor a door a gate. */
+    gates?: "*" | ReadonlyArray<string>;
+    /** On a `gates: "*"` rule: only gates of these kinds. */
+    kind?: ReadonlyArray<HmpDoorGateKind>;
+    /** On an `allow` targeting gates: open them, keeping a portcullis raised, rather than only unlock them. */
+    open?: true;
     locks?: ReadonlyArray<string>;
     alohomora?: true;
     /**
@@ -44,6 +53,21 @@ export interface HmpResolvedDoorPolicy {
     lockDoors: string[];
     unlockLocks: string[];
     superAlohomora: boolean;
+    /** Every gate of these kinds outside `gateAllExcept` is unlocked, or opened. */
+    unlockGateKinds: HmpDoorGateKind[];
+    openGateKinds: HmpDoorGateKind[];
+    unlockGates: string[];
+    openGates: string[];
+    gateAllExcept: string[];
+    lockGates: string[];
+    /** Takes every portcullis off its clock, which each client runs on its own. */
+    freezeGateSchedule: boolean;
+}
+
+/** Gate state the server holds for every player; an axis left out is not held. */
+export interface HmpDoorHeldGate {
+    locked?: boolean;
+    open?: boolean;
 }
 
 export interface HmpDoorResolution<P = HmpDoorPlayer> {

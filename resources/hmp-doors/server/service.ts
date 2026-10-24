@@ -1,5 +1,5 @@
 import policyModule = require("./policy");
-import type { HmpDoorPlayer, HmpDoorResolution } from "../types";
+import type { HmpDoorHeldGate, HmpDoorPlayer, HmpDoorResolution } from "../types";
 import type { DoorDependencies, DoorService } from "./internal";
 
 const { evaluateRules, lockLevels } = policyModule;
@@ -20,6 +20,7 @@ function createDoorService<P extends HmpDoorPlayer>(dependencies: DoorDependenci
     let stopped = false;
     let heldLevels = holdLockLevels();
     const hostShareUnlocks = applyShareUnlocks();
+    let heldGates = holdGates();
 
     // A shared unlock is held for everyone and beats every player's policy. The setting is host-wide, so the
     // one found here is put back when the resource stops.
@@ -62,6 +63,26 @@ function createDoorService<P extends HmpDoorPlayer>(dependencies: DoorDependenci
         heldLevels = [];
     }
 
+    // A stop releases only the axes the config held, so another resource's hold on the same gate stays.
+    function holdGates(): Array<[string, HmpDoorHeldGate]> {
+        const entries = Object.entries(config.heldGates);
+        const native = dependencies.gates;
+        if (entries.length && !native) logger?.warn("heldGates needs a HogwartsMP host with the server Gates builtin; no gate is held");
+        if (!native) return [];
+        return entries.filter(([selector, state]) => {
+            try { native.set(selector, state); return true; }
+            catch (error) { logger?.warn(`Could not hold gate '${selector}': ${messageOf(error)}`); return false; }
+        });
+    }
+
+    function releaseGates(): void {
+        for (const [selector, state] of heldGates) {
+            try { dependencies.gates?.set(selector, Object.fromEntries(Object.keys(state).map((axis) => [axis, null]))); }
+            catch (error) { logger?.warn(`Could not release gate '${selector}': ${messageOf(error)}`); }
+        }
+        heldGates = [];
+    }
+
     function activeCharacter(player: P) {
         return core.characters.active(player);
     }
@@ -83,7 +104,7 @@ function createDoorService<P extends HmpDoorPlayer>(dependencies: DoorDependenci
     async function resolve(player: P): Promise<HmpDoorResolution<P>> {
         if (stopped) throw new Error("hmp-doors is stopped");
         const [groups, grants] = await Promise.all([core.groups.effective(player), list(player)]);
-        return { player, character: activeCharacter(player), groups, grants, policy: evaluateRules(config.rules, groups, grants) };
+        return { player, character: activeCharacter(player), groups, grants, policy: evaluateRules(config.rules, groups, grants, config.gateSchedule === "freeze") };
     }
 
     // hmp-core creates the session only after an awaited database round-trip, so playerConnect always
@@ -138,6 +159,7 @@ function createDoorService<P extends HmpDoorPlayer>(dependencies: DoorDependenci
             stopped = true;
             synced.clear();
             releaseLockLevels();
+            releaseGates();
         },
     });
 }

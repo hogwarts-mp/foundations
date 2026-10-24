@@ -1,6 +1,6 @@
 # hmp-doors
 
-`hmp-doors` gives the server final authority over which Hogwarts Legacy doors and logical locks each
+`hmp-doors` gives the server final authority over which Hogwarts Legacy doors, gates and logical locks each
 player may pass. The shipped configuration unlocks every physical door while leaving it closed, which
 matches Foundations's open-world default. Remove that rule for vanilla locking or add ranked exceptions.
 
@@ -18,6 +18,8 @@ Create `data/hmp-doors.json` or copy the supplied example:
   "enableCommands": true,
   "adminGroups": [{ "key": "admin", "minimumGrade": 1 }],
   "shareUnlocks": false,
+  "gateSchedule": "local",
+  "heldGates": {},
   "rules": [
     { "priority": 1000, "action": "allow", "doors": "*" },
     { "priority": 500, "action": "deny", "doors": ["BP_Door_Headmaster"] },
@@ -35,6 +37,7 @@ Lower priority numbers are stronger. At an equal priority, `lock` beats `deny`, 
 personal grant beats all three. A rule targets exactly one of:
 
 - `"doors": "*"` or an array of physical actor names;
+- `"gates": "*"` or an array of gate actor names (see [Gates](#gates));
 - `"locks": ["LockID"]` for logical/scripted locks;
 - `"alohomora": true` for the native Alohomora master policy.
 
@@ -65,9 +68,9 @@ it. Get the path from `/doors list`, which echoes the nearest five doors into ch
 own line, because the F8 console cannot be copied from. Every match still goes to the console and to
 `logs/HogwartsMP.log`, so widen the radius and read there when five is not enough.
 
-`lock` needs explicit doors: it is rejected on a `locks` or `alohomora` target, and on `"*"`. A locked door
-is also emitted as an `unlockAllExcept` entry, so a client too old to honour `lockDoors` leaves it alone
-rather than unlocking it under a wildcard allow.
+`lock` needs explicit doors or gates: it is rejected on a `locks` or `alohomora` target, and on `"*"`. A
+locked door is also emitted as an `unlockAllExcept` entry, so a client too old to honour `lockDoors` leaves
+it alone rather than unlocking it under a wildcard allow.
 
 `/doors lock <selector>` and `/doors unlock <selector>` apply the same thing live for testing. They are
 diagnostics — nothing re-applies them as cells stream, so persist a rule once you know the selector works.
@@ -105,6 +108,56 @@ Alohomora, so any resource can react to one directly.
 Sharing needs a HogwartsMP host with `Doors.setShareUnlocks`. An older host keeps every unlock private; asked
 to share, `hmp-doors` logs a warning at startup.
 
+## Gates
+
+A gate is not a door. Portcullises, the Astronomy rune gate, goblin camp gates and goblin crawl grates are
+each their own actor class, so a `doors` rule never matches one and a `gates` rule never matches a door.
+Names and path names come from `/doors gates`. Gate rules rank and `match` like door rules; personal grants
+are doors only.
+
+| `kind` | What | Lock |
+|---|---|---|
+| `portcullis` | Clocktower, OuterGate and DungeonA gates | yes |
+| `runeGate` | the Astronomy rune-puzzle gate | no |
+| `swingGate` | goblin temporary camp gates | no |
+| `crawlGrate` | breakable grates over goblin crawl spaces | no |
+
+- `allow` unlocks a gate and leaves it closed: an unlocked portcullis rises as a player walks up to it and
+  lowers a second after the last one leaves. Only a portcullis has a lock, so on other kinds it does nothing.
+- `"open": true` on an `allow` opens the gate instead, keeping a portcullis raised. On a crawl grate that
+  breaks it, which nothing undoes; on the rune gate it skips the puzzle. At equal priority a plain allow
+  beats it.
+- `deny` withholds an unlock or an open. `lock` closes and locks, beating both, and needs named gates; a kind
+  without a lock is closed instead, until a player opens it their own way.
+- `"kind"`, one kind or an array, narrows a `"gates": "*"` rule. Without it `"*"` covers every kind, so scope
+  any wide `open`. A rule naming gates applies whatever their kind; the server never sees a gate, so only a
+  `"*"` rule without `kind` weighs in on a named one.
+
+```json
+{ "priority": 1000, "action": "allow", "gates": "*", "kind": "portcullis" },
+{ "priority": 500, "action": "lock", "gates": ["BP_HW_ClocktowerPortcullis2"] }
+```
+
+`heldGates` holds gates the same for every player through the server's `Gates.set`, whatever their save or
+rules say: a held axis beats the rules, and a held lock beats a held open. It maps a selector, an actor name
+or a path name when it holds `/` or `:`, to `locked`, `open`, or both:
+
+```json
+"heldGates": { "BP_ZZS_TundraGate_2": { "open": true } }
+```
+
+They are held when the resource starts, and only the axes the config holds are released when it stops. A
+lockless gate held closed still opens for a player who solves or casts at it, until it next streams in.
+
+Most portcullises rise at 06:00 and lower at 20:00 off each client's own clock, which the server's time does
+not drive, so two players can see one gate in different places. `"gateSchedule": "freeze"` takes every
+portcullis off its clock; the default, `"local"`, leaves the game's schedule running. A frozen portcullis
+stays off its clock until it streams in again.
+
+Gate rules need a HogwartsMP client with the `Gates` builtin; an older client ignores them and leaves every
+gate to the game. `heldGates`, `gateset` and `gatesheld` need a host with the server `Gates` builtin. On an
+older host `hmp-doors` logs a warning for `heldGates` at startup and the commands say they are unavailable.
+
 ## API
 
 Server exports:
@@ -132,6 +185,10 @@ Members of one configured `adminGroups` entry may use:
 /doors unlock <DoorActorName|/Game/...asset path>
 /doors unlock-nearby [radius]
 /doors open-nearby [radius]
+/doors gates [radius]
+/doors gate <open|close|lock|unlock> <GateActorName|path name>
+/doors gateset <locked|unlocked|open|closed|release> <GateActorName|path name>
+/doors gatesheld
 /doors reload
 /doors grant <me|nick|#id> <DoorActorName>
 /doors revoke <me|nick|#id> <DoorActorName>
@@ -142,6 +199,12 @@ Members of one configured `adminGroups` entry may use:
 `list` prints loaded physical actor names to the client console, with a padlocked door's lock level where
 the host reports it. The nearby/open actions are diagnostics, not durable policy. Set `enableCommands` to
 false outside testing if script APIs are the only desired management surface.
+
+`gates` lists every loaded gate, or those within the radius, with its kind and state; the nearest five go to
+chat with their path names. `gate` drives matching gates on your own client only, until they stream in again.
+`gateset` holds a gate for everyone through `Gates.set` and `release` lets go of both axes; a hold lasts until
+it is released or the server restarts, past a stop of this resource. `gatesheld` lists every gate the server
+holds, other resources' included.
 
 `label` floats the nearest door's actor name in the world, rendered as `[2.4m] BP_Door_Name`, so names can
 be read while walking rather than matched up against a console dump. It labels one door at a time because

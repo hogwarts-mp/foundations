@@ -3,9 +3,10 @@ import serviceModule = require("./service");
 import type { HmpCore } from "../../hmp-core/types";
 import type { HmpLibServer } from "../../hmp-lib/types";
 import type { HmpDoorPlayer } from "../types";
-import type { NativeServerDoors } from "./internal";
+import type { NativeGateState, NativeServerDoors, NativeServerGates } from "./internal";
 
 declare const Doors: NativeServerDoors | undefined;
+declare const Gates: NativeServerGates | undefined;
 
 const { loadConfig } = configModule;
 const { createDoorService } = serviceModule;
@@ -19,8 +20,14 @@ const doors = createDoorService<HmpDoorPlayer>({
     config,
     players: () => PlayerManager.getAll(),
     doors: typeof Doors === "undefined" ? undefined : Doors,
+    gates: typeof Gates === "undefined" ? undefined : Gates,
     logger,
 });
+// What each /doors gateset verb holds; release lets go of both axes.
+const GATE_AXES: Record<string, { locked?: boolean | null; open?: boolean | null }> = {
+    locked: { locked: true }, unlocked: { locked: false }, open: { open: true }, closed: { open: false }, release: { locked: null, open: null },
+};
+const describeGate = (held: NativeGateState) => `${held.selector} [${held.kind}] locked=${held.locked ?? "-"} open=${held.open ?? "-"}`;
 
 Exports.register("policy", doors.policy);
 Exports.register("grants", doors.grants);
@@ -78,6 +85,33 @@ if (config.enableCommands) Events.on("chatCommand", (player: HmpDoorPlayer, _mes
             reply(off ? "door labels off" : "labelling the nearest door; walk up to one.");
             return;
         }
+        if (action === "gates") {
+            player.emit("hmp-doors:diagnostic", JSON.stringify({ action: "gates", radius: Number(args[0]) || undefined }));
+            reply("gates requested; see the client console for gate names.");
+            return;
+        }
+        if (action === "gate" || action === "gateset") {
+            const verb = (args.shift() || "").toLowerCase();
+            const selector = args.join(" ").trim();
+            const verbs = action === "gate" ? ["open", "close", "lock", "unlock"] : Object.keys(GATE_AXES);
+            if (!selector || !verbs.includes(verb)) { reply(`Usage: /${config.command} ${action} <${verbs.join("|")}> <GateActorName|path name>`); return; }
+            if (action === "gate") {
+                player.emit("hmp-doors:diagnostic", JSON.stringify({ action: "set-gate", selector, verb }));
+                reply(`gate ${verb} requested for '${selector}'; this is a live diagnostic on your client only — use a gates rule or gateset to persist it.`);
+                return;
+            }
+            if (typeof Gates === "undefined") { reply("gateset needs a HogwartsMP host with the server Gates builtin."); return; }
+            Gates.set(selector, GATE_AXES[verb]);
+            const held = Gates.get(selector);
+            reply(held ? `held for everyone: ${describeGate(held)}` : `'${selector}' released`);
+            return;
+        }
+        if (action === "gatesheld") {
+            if (typeof Gates === "undefined") { reply("gatesheld needs a HogwartsMP host with the server Gates builtin."); return; }
+            const held = Gates.list();
+            reply(`${held.length} gate(s) held: ${held.map(describeGate).join("; ") || "none"}`);
+            return;
+        }
         if (["list", "open-nearby", "unlock-nearby"].includes(action)) {
             player.emit("hmp-doors:diagnostic", JSON.stringify({ action, radius: Number(args[0]) || undefined }));
             reply(`${action} requested; see the client console for door names when listing.`);
@@ -95,7 +129,7 @@ if (config.enableCommands) Events.on("chatCommand", (player: HmpDoorPlayer, _mes
             reply(`${changed ? action === "grant" ? "granted" : "revoked" : "no change for"} '${name}' ${action === "grant" ? "to" : "from"} ${target.nickname || `#${target.id}`}`);
             return;
         }
-        reply(`Usage: /${config.command} <status|list|label|lock|unlock|open-nearby|unlock-nearby|reload|grant|revoke|grants|clear>`);
+        reply(`Usage: /${config.command} <status|list|label|lock|unlock|open-nearby|unlock-nearby|gates|gate|gateset|gatesheld|reload|grant|revoke|grants|clear>`);
     })().catch((error) => { logger.warn(`Door command failed: ${messageOf(error)}`); reply(messageOf(error)); });
 });
 

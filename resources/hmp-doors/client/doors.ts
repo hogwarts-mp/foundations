@@ -1,4 +1,7 @@
-import type { HmpResolvedDoorPolicy } from "../types";
+import gatesModule = require("../shared/gates");
+import type { HmpDoorGateKind, HmpResolvedDoorPolicy } from "../types";
+
+const { isGateKind } = gatesModule;
 
 /**
  * `path` and `x`/`y`/`z` arrive only from client builds carrying the door-position change; older ones
@@ -17,6 +20,21 @@ interface NativeDoors {
     setOpen(name: string, open?: boolean): boolean;
     setLocked(selector: string, locked?: boolean): number;
     setPolicy(policy: { unlockAll?: boolean; unlockDoors?: string[]; unlockAllExcept?: string[]; lockDoors?: string[] }): void;
+}
+
+/** `dist` is -1 for an unlocated gate; `isLocked` is null for a kind without a lock. */
+interface NativeGate { name: string; cls: string; path: string; kind: HmpDoorGateKind; dist: number; bearing: number; isOpen: boolean; isLocked: boolean | null; useSchedule?: boolean }
+
+/** The client `Gates` builtin, absent on a host older than it. Gates are a separate actor class from doors. */
+interface NativeGates {
+    /** Nearest first; radius 0 lists every loaded gate. */
+    list(radius?: number): NativeGate[];
+    setOpen(selector: string, open?: boolean): number;
+    setLocked(selector: string, locked?: boolean): number;
+    setPolicy(policy: {
+        unlockAll?: HmpDoorGateKind[]; openAll?: HmpDoorGateKind[]; freezeSchedule?: boolean;
+        unlockGates?: string[]; openGates?: string[]; allExcept?: string[]; lockGates?: string[];
+    }): number;
 }
 
 interface Vec3Like { x: number; y: number; z: number }
@@ -45,6 +63,7 @@ interface DoorLabelOptions {
 
 interface ClientDependencies {
     doors: NativeDoors;
+    gates?: NativeGates;
     events: { emitServer(eventName: string, payload?: unknown): void };
     hud?: NativeHud;
     localPlayer?: NativeLocalPlayer;
@@ -79,6 +98,13 @@ function normalizePolicy(raw: unknown): HmpResolvedDoorPolicy {
         lockDoors: stringList(value.lockDoors),
         unlockLocks: stringList(value.unlockLocks),
         superAlohomora: value.superAlohomora === true,
+        unlockGateKinds: stringList(value.unlockGateKinds).filter(isGateKind),
+        openGateKinds: stringList(value.openGateKinds).filter(isGateKind),
+        unlockGates: stringList(value.unlockGates),
+        openGates: stringList(value.openGates),
+        gateAllExcept: stringList(value.gateAllExcept),
+        lockGates: stringList(value.lockGates),
+        freezeGateSchedule: value.freezeGateSchedule === true,
     };
 }
 
@@ -137,8 +163,15 @@ function isAnchorable(door: NativeDoor, hasYaw: boolean): boolean {
     return hasYaw && Number.isFinite(door.bearing) && Math.abs(door.bearing) <= 180;
 }
 
+function gatePolicy(policy: HmpResolvedDoorPolicy): Parameters<NativeGates["setPolicy"]>[0] {
+    return {
+        unlockAll: policy.unlockGateKinds, openAll: policy.openGateKinds, freezeSchedule: policy.freezeGateSchedule,
+        unlockGates: policy.unlockGates, openGates: policy.openGates, allExcept: policy.gateAllExcept, lockGates: policy.lockGates,
+    };
+}
+
 function createDoorClient(dependencies: ClientDependencies) {
-    const { doors } = dependencies;
+    const { doors, gates } = dependencies;
     let current = normalizePolicy({});
     let ready = false;
     let stopped = false;
@@ -154,9 +187,37 @@ function createDoorClient(dependencies: ClientDependencies) {
         for (const lockId of next.unlockLocks) doors.setLock(lockId, true);
         doors.superAlohomora(next.superAlohomora);
         doors.setPolicy({ unlockAll: next.unlockAll, unlockDoors: next.unlockDoors, unlockAllExcept: next.unlockAllExcept, lockDoors: next.lockDoors });
+        // Gates are not doors, so the call above never reaches one. Every push carries the whole gate policy,
+        // which clears rules a new one dropped. A host without Gates leaves every gate to the game.
+        gates?.setPolicy(gatePolicy(next));
         current = next;
         ready = true;
         return current;
+    }
+
+    function listGates(radius: number): NativeGate[] | false {
+        if (!gates) { dependencies.notify?.("[doors] gates need a HogwartsMP client with the Gates builtin"); return false; }
+        const bounded = Math.max(0, Math.min(20000, Number(radius) || 0));
+        const scope = bounded ? `within ${bounded}cm` : "loaded";
+        const found = gates.list(bounded);
+        const state = (gate: NativeGate) => `${gate.kind}, ${gate.isOpen ? "open" : "shut"}${gate.isLocked ? ", locked" : ""}${gate.useSchedule ? ", on the clock" : ""}`;
+        dependencies.log?.(`[hmp-doors] ${found.length} gate(s) ${scope} (distance | bearing | name):`);
+        for (const gate of found) dependencies.log?.(`  ${gate.dist.toFixed(0)}cm | ${gate.bearing.toFixed(0)}deg | ${gate.name} [${state(gate)}]${gate.path ? `\n      ${gate.path}` : ""}`);
+        const shown = found.slice(0, CHAT_ROWS);
+        const overflow = found.length - shown.length;
+        dependencies.notify?.(`[doors] ${found.length} gate(s) ${scope}${overflow > 0 ? `; nearest ${shown.length} below, ${overflow} more in the console` : ""}`);
+        for (const gate of shown) {
+            dependencies.notify?.(`${gate.dist.toFixed(0)}cm ${gate.name} [${state(gate)}]`);
+            if (gate.path) dependencies.notify?.(gate.path);
+        }
+        return found;
+    }
+
+    function setGate(selector: string, verb: string): number | false {
+        if (!gates) { dependencies.notify?.("[doors] gates need a HogwartsMP client with the Gates builtin"); return false; }
+        const matched = verb === "lock" || verb === "unlock" ? gates.setLocked(selector, verb === "lock") : gates.setOpen(selector, verb !== "close");
+        dependencies.notify?.(`[doors] gate ${verb} '${selector}': ${matched} matched`);
+        return matched;
     }
 
     function list(radius: number = 3000) {
@@ -248,6 +309,8 @@ function createDoorClient(dependencies: ClientDependencies) {
         if (action === "unlock-nearby") return doors.unlockNearby(radius);
         if (action === "set-open") return doors.setOpen(String(value.name || ""), value.open !== false);
         if (action === "set-locked") return doors.setLocked(String(value.selector || ""), value.locked !== false);
+        if (action === "gates") return listGates(Number(value.radius));
+        if (action === "set-gate") return setGate(String(value.selector || ""), String(value.verb || ""));
         return false;
     }
 
@@ -258,6 +321,7 @@ function createDoorClient(dependencies: ClientDependencies) {
         for (const lockId of current.unlockLocks) doors.setLock(lockId, false);
         doors.superAlohomora(false);
         doors.setPolicy({ unlockAll: false, unlockDoors: [], unlockAllExcept: [], lockDoors: [] });
+        gates?.setPolicy({});
         current = normalizePolicy({});
         ready = false;
     }

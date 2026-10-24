@@ -96,6 +96,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   It is `false` by default, keeping each unlock in the opener's game as on every older host, and the host's
   own setting is put back when the resource stops. It needs a HogwartsMP host with
   `Doors.setShareUnlocks`; an older host keeps every unlock private.
+- `hmp-doors` manages gates: portcullises, the Astronomy rune gate, goblin camp gates and crawl grates,
+  which no door rule reaches. A `gates` rule target takes the same `allow`, `deny` and `lock` and the
+  same priorities, with `open: true` to open a gate rather than only unlock it and `kind` to narrow a
+  `"*"` rule. `heldGates` holds gates the same for every player while the resource runs,
+  `gateSchedule: "freeze"` takes portcullises off each client's own clock, and `/doors gates`, `gate`,
+  `gateset` and `gatesheld` list, drive and hold gates. The defaults leave every gate as the game has
+  it. Gate rules need a HogwartsMP client with `Gates`, and held gates a host with the server `Gates`;
+  an older host leaves every gate to the game.
 
 ### Changed
 

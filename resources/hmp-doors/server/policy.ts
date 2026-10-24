@@ -1,5 +1,9 @@
-import type { HmpDoorRule, HmpResolvedDoorPolicy } from "../types";
+import gatesModule = require("../shared/gates");
+import type { HmpDoorGateKind, HmpDoorRule, HmpResolvedDoorPolicy } from "../types";
 import type { EffectiveGroups } from "./internal";
+
+const { GATE_KINDS } = gatesModule;
+type GatePolicy = Pick<HmpResolvedDoorPolicy, "unlockGateKinds" | "openGateKinds" | "unlockGates" | "openGates" | "gateAllExcept" | "lockGates">;
 
 function applies(rule: HmpDoorRule, groups: EffectiveGroups): boolean {
     if (!rule.match) return true;
@@ -16,7 +20,45 @@ function verdict(rules: HmpDoorRule[]): "allow" | "deny" | "lock" | null {
     return strongest.some((rule) => rule.action === "deny") ? "deny" : "allow";
 }
 
-function evaluateRules(rules: ReadonlyArray<HmpDoorRule>, groups: EffectiveGroups, grants: ReadonlyArray<string> = []): HmpResolvedDoorPolicy {
+/** Called on rules whose verdict is allow: at the strongest priority a plain allow beats an opening one. */
+function opens(rules: HmpDoorRule[]): boolean {
+    const priority = Math.min(...rules.map((rule) => rule.priority));
+    return rules.filter((rule) => rule.priority === priority).every((rule) => rule.open === true);
+}
+
+function evaluateGateRules(gateRules: HmpDoorRule[]): GatePolicy {
+    const wildcards = gateRules.filter((rule) => rule.gates === "*");
+    const unlockGateKinds: HmpDoorGateKind[] = [];
+    const openGateKinds: HmpDoorGateKind[] = [];
+    for (const kind of GATE_KINDS) {
+        const covering = wildcards.filter((rule) => !rule.kind || rule.kind.includes(kind));
+        if (verdict(covering) === "allow") (opens(covering) ? openGateKinds : unlockGateKinds).push(kind);
+    }
+    // The server never sees a gate, so a named one's kind is unknown here: only a wildcard covering every kind
+    // weighs in on it.
+    const everyKind = wildcards.filter((rule) => !rule.kind);
+    const named = new Set<string>();
+    for (const rule of gateRules) if (Array.isArray(rule.gates)) for (const name of rule.gates) named.add(name);
+    const unlockGates: string[] = [];
+    const openGates: string[] = [];
+    const gateAllExcept: string[] = [];
+    const lockGates: string[] = [];
+    for (const name of named) {
+        const relevant = [...everyKind, ...gateRules.filter((rule) => Array.isArray(rule.gates) && rule.gates.includes(name))];
+        const decision = verdict(relevant);
+        if (decision === "lock") lockGates.push(name);
+        else if (decision === "allow" && opens(relevant)) openGates.push(name);
+        else if (decision === "allow") {
+            unlockGates.push(name);
+            // The client opens a kind sweep's gates before it unlocks a named one, so a plain allow leaves the sweep.
+            if (openGateKinds.length) gateAllExcept.push(name);
+        }
+        else if (decision === "deny" && (unlockGateKinds.length || openGateKinds.length)) gateAllExcept.push(name);
+    }
+    return { unlockGateKinds, openGateKinds, unlockGates: unlockGates.sort(), openGates: openGates.sort(), gateAllExcept: gateAllExcept.sort(), lockGates: lockGates.sort() };
+}
+
+function evaluateRules(rules: ReadonlyArray<HmpDoorRule>, groups: EffectiveGroups, grants: ReadonlyArray<string> = [], freezeGateSchedule = false): HmpResolvedDoorPolicy {
     const applicable = rules.filter((rule) => applies(rule, groups));
     const doorRules = applicable.filter((rule) => rule.doors !== undefined);
     const lockRules = applicable.filter((rule) => rule.locks !== undefined);
@@ -56,6 +98,8 @@ function evaluateRules(rules: ReadonlyArray<HmpDoorRule>, groups: EffectiveGroup
         lockDoors: lockDoors.sort(),
         unlockLocks: unlockLocks.sort(),
         superAlohomora: verdict(alohomoraRules) === "allow",
+        ...evaluateGateRules(applicable.filter((rule) => rule.gates !== undefined)),
+        freezeGateSchedule,
     };
 }
 
