@@ -431,6 +431,8 @@ declare global {
         on(eventName: "playerMapTravelComplete", listener: (player: HogwartsMpPlayer, requestId: number, status: number, completion: HogwartsMpMapTravelCompletion) => unknown): void;
         on(eventName: "playerHoldEnded", listener: (player: HogwartsMpPlayer, owner: string, reason: string) => unknown): void;
         on(eventName: "playerMoveEnded", listener: (player: HogwartsMpPlayer, owner: string, reason: HogwartsMpPlayerMoveEnd) => unknown): void;
+        /** Client: the local player's anchor ended, the frame after; `reason` is "script" for a `releaseAnchor`. */
+        on(eventName: "anchorReleased", listener: (reason: string, at: HogwartsMpVector3) => unknown): void;
         on(eventName: "playerLocationChanged", listener: (player: HogwartsMpPlayer, current: HogwartsMpPlayerLocation | null, previous: HogwartsMpPlayerLocation | null) => unknown): void;
         /** A player's own map pick, held until every handler has run; one returning `false` refuses it. */
         on(eventName: "playerFastTravelRequest", listener: (player: HogwartsMpPlayer, request: { destinationId: string; from: "map" }) => boolean | void): void;
@@ -653,6 +655,12 @@ declare global {
         clearVelocity(): boolean;
         /** Skips the next landing's fall damage and measures a fall from here, as the game does after a teleport past 1 m. */
         resetFall(): boolean;
+        /** Seats the player exactly on a floor-level point, held there with collision on until released; `false` while it cannot. */
+        anchor(at: { x: number; y: number; z: number; yaw?: number; camera?: boolean }): boolean;
+        /** Ends an anchor, standing up at a floor-level `exit` or in place; `anchorReleased` follows. */
+        releaseAnchor(exit?: { x: number; y: number; z: number; yaw?: number }): boolean;
+        /** Plays an AnimSequence on the local body, replicated as state; `loop: false, hold: true` holds its last frame, `""` clears it. */
+        playClip(clipPath?: string, options?: { loop?: boolean; hold?: boolean; rate?: number }): boolean;
         /** Freezes movement and actions through the game's own suppressor; camera look stays. `null` without a pawn. */
         stopPlayerInput(): boolean | null;
         restorePlayerInput(): boolean | null;

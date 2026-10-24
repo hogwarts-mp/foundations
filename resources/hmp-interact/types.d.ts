@@ -79,6 +79,17 @@ export interface HmpInteractionCharacter {
     label?: string;
 }
 
+export interface HmpInteractionSeat {
+    /** Floor-level sit point in world centimetres, such as a seat mesh's `AnimStart` socket. Within `radius`. */
+    position: HmpInteractVector3;
+    /** Facing while seated, in degrees; the current facing when omitted. */
+    yaw?: number;
+    /** AnimSequence path held as the seated pose. */
+    clip?: string;
+    /** Floor-level point to stand up at, clear of a table; omitted, the player stands up in place. Within `radius`. */
+    exit?: HmpInteractVector3;
+}
+
 export interface HmpInteractionDefinition<P = HmpInteractPlayer> {
     id: string;
     /** Owning resource, used for safe cleanup when it stops. */
@@ -107,6 +118,8 @@ export interface HmpInteractionDefinition<P = HmpInteractPlayer> {
     object?: HmpInteractionWorldObject;
     /** Spawn a replicated Framework Character (dressed, stationary human) at `position`, owned by this interaction. */
     character?: HmpInteractionCharacter;
+    /** Seat the player once the handler succeeds; F stands them up. One player per seat; not with `options`. */
+    seat?: HmpInteractionSeat;
     handler?(context: HmpInteractionContext<P>): unknown | Promise<unknown>;
     options?: ReadonlyArray<HmpInteractionOption<P>>;
 }

@@ -150,6 +150,51 @@ the game files him as a professor; expect his look to be odd.
 | Staff and enforcers | AgnesScriven, GladwinMoon, NoreenBlainey, RuthSinger, T2AuthorityFemale1, T2AuthorityFemale2, T2AuthorityMale1, T2AuthorityMale2 |
 | Other | AnneThisbe, CarriageDriver, IgnatiaFlooTravel, IsidoraBrother, IsidoraMorganachFather, NiamhFitzgerald, PensieveStudent, StudentVictim |
 
+## Optional seats
+
+An interaction can seat the player: a bench, a chair, a stool at a bar. Once its requirements,
+progress and handler succeed, `seat` sits the player on a floor-level point through the client's
+`LocalPlayer.anchor`, which holds them there inside the furniture where a teleport would shove them
+clear. A seat with no `handler` only seats. Other players see the seated body where it is.
+
+```ts
+// A stock station bench at yaw 0, centred on a floor point. Its AnimStart socket, (-36, 56.3) cm in
+// the mesh's own space, is the sit point; the sitter faces out along the mesh's +Y, the bench's yaw + 90.
+const floor = { x: 1000, y: 2000, z: 300 };
+Interact.register({
+    id: "courtyard.bench.1",
+    resource: "hmp-furniture",
+    label: "Sit",
+    position: floor,
+    radius: 250,
+    object: { model: "/Game/Gameplay/Stations/Bench/Props/SM_HM_Bench_A.SM_HM_Bench_A", yaw: 0 },
+    seat: {
+        position: { x: floor.x - 36, y: floor.y + 56.3, z: floor.z },
+        yaw: 90,
+        clip: "/Game/Animation/Human/Stations/Sitting/HUF_STN_SIT_Bench_Idle_EatingApple_ANM.HUF_STN_SIT_Bench_Idle_EatingApple_ANM",
+        exit: { x: floor.x - 36, y: floor.y + 120, z: floor.z },
+    },
+});
+```
+
+- `position` is at **floor level**: on the game's station furniture, the mesh's `AnimStart` socket, in
+  front of the seat, facing away from it; the seated `clip` carries the body back onto the seat. Use
+  the station copy of a mesh (`/Game/Gameplay/Stations/...`); the environment copy has no sockets. For
+  a bench turned by `yaw`, turn the socket offset with it and face `yaw + 90`.
+- `clip` is an AnimSequence held on its last frame as the seated pose. Without one the player is held
+  standing on the point.
+- `exit` is where to stand up, at floor level, so a chair under a table lets them out clear of it;
+  omitted, they stand up in place and the game pushes them out of whatever they overlap.
+- One player per seat: another gets "Someone is already sitting there." The seat and exit must lie
+  within `radius`, and a seat takes no `options`.
+- While seated the prompt reads **Stand up** and F stands the player up. They also stand up when the
+  interaction is unregistered, when they leave its virtual world or area, on `setEnabled(false)`, and
+  when `hmp-interact` stops. Death, a kneel, mounting, a server hold or teleport, a fast travel and a
+  map load end the seat on the host's side, and the seat is free again.
+
+Seats need a HogwartsMP host with `LocalPlayer.anchor`. On an older host the interaction still runs
+its handler, the player stays standing, and the seat is free again at once.
+
 ## Selection and concurrency
 
 - The client scans every 100 ms and displays at most one `Hud.showPrompt`.

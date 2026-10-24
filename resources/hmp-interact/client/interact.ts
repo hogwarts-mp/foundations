@@ -21,6 +21,15 @@ interface ClientHud {
 
 interface ClientPlayer {
     getPosition(): { x: number; y: number; z: number } | null;
+    anchor?(at: { x: number; y: number; z: number; yaw?: number; camera?: boolean }): boolean;
+    releaseAnchor?(exit?: { x: number; y: number; z: number }): boolean;
+    playClip?(clipPath?: string, options?: { loop?: boolean; hold?: boolean }): boolean;
+}
+
+interface Seat {
+    id: string;
+    clip?: string;
+    exit?: { x: number; y: number; z: number };
 }
 
 interface ClientGame {
@@ -38,6 +47,12 @@ function parse(raw: unknown): Record<string, unknown> {
         catch (_) { return {}; }
     }
     return raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+}
+
+function point(raw: unknown): { x: number; y: number; z: number } | undefined {
+    const value = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+    const coordinates = [value.x, value.y, value.z].map(Number);
+    return coordinates.every(Number.isFinite) ? { x: coordinates[0], y: coordinates[1], z: coordinates[2] } : undefined;
 }
 
 function zone(raw: unknown): HmpInteractionClientZone | null {
@@ -78,6 +93,7 @@ function createInteractClient(options: {
     let promptSignature = "";
     let lastPressAt = 0;
     let stopped = false;
+    let seat: Seat | null = null;
 
     function hide(): void {
         const ownedPrompt = promptSignature !== "";
@@ -86,10 +102,9 @@ function createInteractClient(options: {
         if (ownedPrompt) options.hud.hidePrompt();
     }
 
-    function scan(): HmpInteractionClientZone | null {
-        if (!enabled || stopped || options.game.areControlsLocked()) { hide(); return null; }
+    function nearestZone(): HmpInteractionClientZone | null {
         const position = options.localPlayer.getPosition();
-        if (!position) { hide(); return null; }
+        if (!position) return null;
         let nearest: { zone: HmpInteractionClientZone; distance: number } | null = null;
         for (const candidate of zones.values()) {
             const measured = Math.hypot(position.x - candidate.position.x, position.y - candidate.position.y, position.z - candidate.position.z);
@@ -98,14 +113,71 @@ function createInteractClient(options: {
                 nearest = { zone: candidate, distance: measured };
             }
         }
-        if (!nearest) { hide(); return null; }
-        active = nearest.zone;
-        const signature = `${active.id}\0${active.label}\0${active.position.x}\0${active.position.y}\0${active.position.z}\0${active.promptOffsetZ}`;
+        return nearest?.zone || null;
+    }
+
+    function scan(): HmpInteractionClientZone | null {
+        if (!enabled || stopped || options.game.areControlsLocked()) { hide(); return null; }
+        // A seated player's F stands them up, whichever zone is nearest.
+        const current = (seat && zones.get(seat.id)) || nearestZone();
+        if (!current) { hide(); return null; }
+        active = current;
+        const label = seat ? "Stand up" : active.label;
+        const signature = `${active.id}\0${label}\0${active.position.x}\0${active.position.y}\0${active.position.z}\0${active.promptOffsetZ}`;
         if (signature !== promptSignature) {
             promptSignature = signature;
-            options.hud.showPrompt("F", active.label, active.position.x, active.position.y, active.position.z + active.promptOffsetZ);
+            options.hud.showPrompt("F", label, active.position.x, active.position.y, active.position.z + active.promptOffsetZ);
         }
         return active;
+    }
+
+    /** The server seated the player after a seat interaction ran; a client that cannot sit hands the seat back. */
+    function sit(payload: unknown): boolean {
+        const value = parse(payload);
+        const id = String(value.id || "");
+        const at = point(value.position);
+        if (stopped || !id || !at) return false;
+        const yaw = typeof value.yaw === "number" && Number.isFinite(value.yaw) ? { yaw: value.yaw } : {};
+        let seated = false;
+        if (typeof options.localPlayer.anchor === "function") {
+            try { seated = options.localPlayer.anchor({ ...at, ...yaw, camera: true }) === true; }
+            catch (_) { /* no local pawn while loading */ }
+        }
+        if (!seated) {
+            options.events.emitServer("hmp-interact:stand", JSON.stringify({ id }));
+            return false;
+        }
+        const clip = typeof value.clip === "string" && value.clip ? value.clip : undefined;
+        seat = { id, clip, exit: point(value.exit) };
+        if (clip) {
+            try { options.localPlayer.playClip?.(clip, { loop: false, hold: true }); }
+            catch (_) { /* the seat holds without its pose */ }
+        }
+        scan();
+        return true;
+    }
+
+    /** Ends the seat this resource holds, whoever released the anchor. */
+    function seatEnded(): void {
+        const current = seat;
+        if (!current) return;
+        seat = null;
+        if (current.clip) {
+            try { options.localPlayer.playClip?.(""); }
+            catch (_) { /* no local pawn */ }
+        }
+        options.events.emitServer("hmp-interact:stand", JSON.stringify({ id: current.id }));
+        scan();
+    }
+
+    function standUp(): void {
+        const current = seat;
+        if (!current) return;
+        try {
+            if (current.exit) options.localPlayer.releaseAnchor?.(current.exit);
+            else options.localPlayer.releaseAnchor?.();
+        } catch (_) { /* the host already released it */ }
+        seatEnded();
     }
 
     function receiveSnapshot(payload: unknown): boolean {
@@ -121,6 +193,8 @@ function createInteractClient(options: {
         for (const [id, interaction] of next) zones.set(id, interaction);
         revision = nextRevision;
         ready = true;
+        // The seat's interaction went away, or the player left its world or area.
+        if (seat && !zones.has(seat.id)) standUp();
         scan();
         return true;
     }
@@ -131,12 +205,13 @@ function createInteractClient(options: {
         const time = now();
         if (!current || time - lastPressAt < 250) return;
         lastPressAt = time;
-        options.events.emitServer("hmp-interact:trigger", JSON.stringify({ id: current.id, revision }));
+        if (seat) standUp();
+        else options.events.emitServer("hmp-interact:trigger", JSON.stringify({ id: current.id, revision }));
     }
 
     function setEnabled(value: boolean): boolean {
         enabled = value === true;
-        if (!enabled) hide();
+        if (!enabled) { standUp(); hide(); }
         else scan();
         return enabled;
     }
@@ -144,6 +219,7 @@ function createInteractClient(options: {
     function stop(): boolean {
         if (stopped) return false;
         stopped = true;
+        standUp();
         timers.clearInterval(timer);
         removeShortcut();
         hide();
@@ -157,6 +233,9 @@ function createInteractClient(options: {
         handler: () => onInteract(),
     });
     options.events.on("hmp-interact:snapshot", receiveSnapshot);
+    options.events.on("hmp-interact:seat", sit);
+    // Death, a kneel, a teleport, a server hold or a map load end the anchor without this resource.
+    options.events.on("anchorReleased", seatEnded);
     const timer = timers.setInterval(scan, 100);
     options.events.emitServer("hmp-interact:ready", "{}");
 

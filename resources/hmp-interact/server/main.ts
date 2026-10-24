@@ -20,11 +20,16 @@ const interact = createInteractService<HmpInteractPlayer>({
 
 for (const name of ["register", "unregister", "get", "list", "trigger", "sync", "status"] as const) Exports.register(name, interact[name]);
 
+function payloadId(raw: unknown): string {
+    const payload = typeof raw === "string" ? (() => { try { return JSON.parse(raw) as Record<string, unknown>; } catch (_) { return {}; } })() : raw as Record<string, unknown>;
+    return String(payload?.id || "");
+}
+
 Events.onClient("hmp-interact:ready", (player) => interact.sync(player));
 Events.onClient("hmp-interact:trigger", (player, raw: unknown) => {
-    const payload = typeof raw === "string" ? (() => { try { return JSON.parse(raw) as Record<string, unknown>; } catch (_) { return {}; } })() : raw as Record<string, unknown>;
-    interact.trigger(player, String(payload?.id || "")).catch((error) => logger.error("interaction trigger failed", error));
+    interact.trigger(player, payloadId(raw)).catch((error) => logger.error("interaction trigger failed", error));
 });
+Events.onClient("hmp-interact:stand", (player, raw: unknown) => interact.stand(player, payloadId(raw)));
 Events.on("playerConnect", (player: HmpInteractPlayer) => interact.sync(player));
 Events.on("playerDisconnect", (player: HmpInteractPlayer) => interact.disconnect(player));
 Events.on("playerLocationChanged", (player: HmpInteractPlayer) => interact.sync(player));

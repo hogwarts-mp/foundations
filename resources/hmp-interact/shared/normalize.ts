@@ -1,4 +1,5 @@
 import type {
+    HmpInteractVector3,
     HmpInteractionDefinition,
     HmpInteractionOption,
     HmpInteractionProgress,
@@ -17,6 +18,11 @@ function clean(value: unknown, maximum = 120): string {
 function finite(value: unknown, fallback: number, minimum: number, maximum: number): number {
     const number = Number(value);
     return Math.min(maximum, Math.max(minimum, Number.isFinite(number) ? number : fallback));
+}
+
+function point(value: HmpInteractVector3 | undefined): HmpInteractVector3 | undefined {
+    if (!value || ![value.x, value.y, value.z].every((entry) => Number.isFinite(Number(entry)))) return undefined;
+    return Object.freeze({ x: Number(value.x), y: Number(value.y), z: Number(value.z) });
 }
 
 function id(value: unknown, name: string): string {
@@ -84,7 +90,7 @@ function normalizeInteraction<P>(raw: HmpInteractionDefinition<P>): HmpInteracti
     const radius = finite(raw.radius, 250, 25, 10000);
     const optionIds = new Set<string>();
     const options = (raw.options || []).slice(0, 24).map((entry) => option(entry, optionIds));
-    if (!options.length && typeof raw.handler !== "function") throw new TypeError(`interaction '${interactionId}' needs a handler or options`);
+    if (!options.length && typeof raw.handler !== "function" && !raw.seat) throw new TypeError(`interaction '${interactionId}' needs a handler, options or a seat`);
     const object = raw.object ? {
         model: typeof raw.object.model === "string" ? clean(raw.object.model, 500) : raw.object.model,
         pitch: finite(raw.object.pitch, 0, -360000, 360000),
@@ -104,6 +110,22 @@ function normalizeInteraction<P>(raw: HmpInteractionDefinition<P>): HmpInteracti
     } : undefined;
     if (character && !/^[A-Za-z0-9_]+$/.test(character.characterId)) {
         throw new TypeError(`interaction '${interactionId}' has an invalid character id`);
+    }
+    const seat = raw.seat ? {
+        position: point(raw.seat.position),
+        yaw: raw.seat.yaw === undefined ? undefined : finite(raw.seat.yaw, 0, -360000, 360000),
+        clip: clean(raw.seat.clip, 500) || undefined,
+        exit: point(raw.seat.exit),
+    } : undefined;
+    if (seat) {
+        if (!seat.position || (raw.seat?.exit !== undefined && !seat.exit)) throw new TypeError(`interaction '${interactionId}' needs a finite seat position and exit`);
+        if (options.length) throw new TypeError(`interaction '${interactionId}' cannot seat a menu of options`);
+        // anchor places the player exactly, so a mistyped seat would carry them off rather than sit them down.
+        for (const spot of [seat.position, seat.exit]) {
+            if (spot && Math.hypot(spot.x - Number(position.x), spot.y - Number(position.y), spot.z - Number(position.z)) > radius) {
+                throw new TypeError(`interaction '${interactionId}' must seat within its radius`);
+            }
+        }
     }
     return Object.freeze({
         id: interactionId,
@@ -125,6 +147,7 @@ function normalizeInteraction<P>(raw: HmpInteractionDefinition<P>): HmpInteracti
         progress: progress(raw.progress),
         object: object ? Object.freeze(object) : undefined,
         character: character ? Object.freeze(character) : undefined,
+        seat: seat ? Object.freeze(seat) as HmpInteractionDefinition<P>["seat"] : undefined,
         handler: typeof raw.handler === "function" ? raw.handler : undefined,
         options: Object.freeze(options),
     });

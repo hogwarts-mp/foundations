@@ -55,6 +55,8 @@ export interface InteractDependencies<P extends HmpInteractPlayer> {
 export interface InteractService<P extends HmpInteractPlayer> extends HmpInteractServer<P> {
     unregisterResource(resource: string): number;
     disconnect(player: P): boolean;
+    /** The player's client reports them standing up from the interaction's seat, or never seated. */
+    stand(player: P, id: string): boolean;
     stop(): number;
 }
 

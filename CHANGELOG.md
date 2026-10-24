@@ -125,6 +125,13 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   it ended. Only the client sees a lesson completed, so a modified client can skip one, but it never
   learns a spell it wasn't offered. It needs a HogwartsMP host with `SpellLearning.define`; on an
   older host an offered lesson fails as `unsupported` and grants nothing.
+- `hmp-interact` interactions can seat the player. A registration's `seat` (a floor-level sit point,
+  a facing, a held seated clip and an optional exit) sits the player there once the interaction
+  succeeds, one player per seat, through `LocalPlayer.anchor`, which holds them inside the furniture
+  where a teleport would shove them clear. F stands them up; so does the interaction going away or the
+  player leaving its world or area, and the host's own releases (death, a kneel, mounting, a server hold
+  or teleport, a fast travel, a map load) free the seat. It needs a HogwartsMP host with
+  `LocalPlayer.anchor`; on an older host the interaction runs and the player stays standing.
 
 ### Changed
 

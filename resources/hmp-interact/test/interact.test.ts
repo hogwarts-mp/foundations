@@ -158,6 +158,45 @@ test("publishes an optional character at the zone position and destroys it with 
     assert.deepStrictEqual(state.destroyed, []);
 });
 
+test("seats one player at a time and frees the seat when they stand, leave or it goes away", async () => {
+    const state = setup();
+    const seatMessages = (player: TestPlayer) => player.messages.filter((message) => message.event === "hmp-interact:seat").map((message) => JSON.parse(String(message.payload)));
+    let sat = 0;
+    state.service.register({
+        id: "bench.1",
+        resource: "hmp-furniture",
+        label: "Sit",
+        position: { x: 0, y: 0, z: 0 },
+        object: { model: "/Game/Gameplay/Stations/Bench/Props/SM_HM_Bench_A.SM_HM_Bench_A" },
+        seat: { position: { x: 0, y: 56, z: -90 }, yaw: 180, clip: "/Game/Sit.Sit", exit: { x: 0, y: 120, z: -90 } },
+        handler() { sat++; },
+    });
+    assert.strictEqual(await state.service.trigger(state.first, "bench.1"), true);
+    assert.strictEqual(sat, 1);
+    assert.deepStrictEqual(seatMessages(state.first), [{
+        id: "bench.1", position: { x: 0, y: 56, z: -90 }, yaw: 180, clip: "/Game/Sit.Sit", exit: { x: 0, y: 120, z: -90 },
+    }]);
+    assert.strictEqual(await state.service.trigger(state.second, "bench.1"), false);
+    assert.deepStrictEqual(state.notifications.at(-1), { description: "Someone is already sitting there.", tone: "warning" });
+    assert.strictEqual(sat, 1, "an occupied seat runs no handler");
+    assert.strictEqual(state.service.stand(state.second, "bench.1"), false, "only the occupant can free a seat");
+    assert.strictEqual(state.service.stand(state.first, "bench.1"), true);
+    state.advance(1000);
+    assert.strictEqual(await state.service.trigger(state.second, "bench.1"), true);
+    state.service.disconnect(state.second);
+    state.advance(1000);
+    assert.strictEqual(await state.service.trigger(state.first, "bench.1"), true, "a seated player leaving frees the seat");
+    state.service.unregister("bench.1", "hmp-furniture");
+    state.service.register({ id: "bench.1", resource: "hmp-furniture", label: "Sit", position: { x: 0, y: 0, z: 0 }, seat: { position: { x: 0, y: 0, z: -90 } } });
+    state.advance(1000);
+    assert.strictEqual(await state.service.trigger(state.second, "bench.1"), true, "a seat with no handler only seats, and unregistering freed it");
+    assert.deepStrictEqual(seatMessages(state.second).at(-1), { id: "bench.1", position: { x: 0, y: 0, z: -90 } });
+    const base = { id: "bench.bad", resource: "test", label: "Sit", position: { x: 0, y: 0, z: 0 }, radius: 200 };
+    assert.throws(() => normalizeInteraction({ ...base, seat: { position: { x: 500, y: 0, z: 0 } } }), /within its radius/);
+    assert.throws(() => normalizeInteraction({ ...base, seat: { position: { x: 0, y: 0, z: 0 }, exit: { x: 0, y: 0, z: Number.NaN } } }), /finite seat position/);
+    assert.throws(() => normalizeInteraction({ ...base, seat: { position: { x: 0, y: 0, z: 0 } }, options: [{ id: "a", label: "A", handler() {} }] }), /cannot seat/);
+});
+
 test("rejects forged distance and requirements, then applies cooldown after execution", async () => {
     const state = setup();
     let uses = 0;
@@ -288,4 +327,62 @@ test("client arbitrates one prompt, sends only its selected id and tears down", 
     assert.strictEqual(client.stop(), true);
     assert.strictEqual(client.stop(), false);
     assert.strictEqual(cleared, true);
+});
+
+test("client sits on the server's seat, stands up on F and hands back a seat it cannot take", () => {
+    const handlers = new Map<string, (...args: unknown[]) => unknown>();
+    const sent: Array<{ event: string; payload: unknown }> = [];
+    const prompts: unknown[][] = [];
+    const calls: unknown[][] = [];
+    let keyHandler: (() => void) | null = null;
+    let clock = 1000;
+    const localPlayer: {
+        getPosition(): { x: number; y: number; z: number };
+        anchor?(at: unknown): boolean;
+        releaseAnchor?(exit?: unknown): boolean;
+        playClip?(clipPath?: string, options?: unknown): boolean;
+    } = {
+        getPosition: () => ({ x: 0, y: 0, z: 0 }),
+        anchor: (at) => { calls.push(["anchor", at]); return true; },
+        releaseAnchor: (...exit) => { calls.push(["release", ...exit]); return true; },
+        playClip: (...args) => { calls.push(["clip", ...args]); return true; },
+    };
+    const client = createInteractClient({
+        events: { on: (event, handler) => handlers.set(event, handler), emitServer: (event, payload) => sent.push({ event, payload }) },
+        input: { shortcuts: { register(definition) { keyHandler = () => { if (!definition.when || definition.when()) definition.handler("f", "down"); }; return () => true; } } },
+        hud: { showPrompt: (...args) => prompts.push(args), hidePrompt() {} },
+        localPlayer,
+        game: { areControlsLocked: () => false },
+        timers: { setInterval: () => 99 as unknown as ReturnType<typeof setInterval>, clearInterval() {} },
+        now: () => clock,
+    });
+    const stands = () => sent.filter((message) => message.event === "hmp-interact:stand").map((message) => JSON.parse(String(message.payload)).id);
+    const press = () => { clock += 300; (keyHandler as unknown as () => void)(); };
+    const bench = { id: "bench", label: "Sit", position: { x: 0, y: 0, z: 0 }, promptDistance: 100, promptOffsetZ: 50, priority: 0 };
+    client.receiveSnapshot({ revision: 1, interactions: [bench, { ...bench, id: "other", label: "Other", priority: 5 }] });
+    handlers.get("hmp-interact:seat")?.(JSON.stringify({ id: "bench", position: { x: 0, y: 56, z: -90 }, yaw: 180, clip: "/Game/Sit.Sit", exit: { x: 0, y: 120, z: -90 } }));
+    assert.deepStrictEqual(calls, [["anchor", { x: 0, y: 56, z: -90, yaw: 180, camera: true }], ["clip", "/Game/Sit.Sit", { loop: false, hold: true }]]);
+    assert.strictEqual(client.status().active, "bench", "a seated player's prompt stays on their seat over a higher priority zone");
+    assert.deepStrictEqual(prompts.at(-1), ["F", "Stand up", 0, 0, 50]);
+    press();
+    assert.deepStrictEqual(calls.slice(2), [["release", { x: 0, y: 120, z: -90 }], ["clip", ""]]);
+    assert.deepStrictEqual(stands(), ["bench"]);
+    assert.ok(!sent.some((message) => message.event === "hmp-interact:trigger"), "standing up triggers nothing");
+    handlers.get("anchorReleased")?.("script", { x: 0, y: 56, z: -90 });
+    assert.deepStrictEqual(stands(), ["bench"], "the release the stand-up caused is not a second stand");
+
+    handlers.get("hmp-interact:seat")?.({ id: "bench", position: { x: 0, y: 56, z: -90 } });
+    handlers.get("anchorReleased")?.("death", { x: 0, y: 56, z: -90 });
+    assert.deepStrictEqual(stands(), ["bench", "bench"], "a host release frees the seat");
+    handlers.get("hmp-interact:seat")?.({ id: "bench", position: { x: 0, y: 56, z: -90 } });
+    client.receiveSnapshot({ revision: 2, interactions: [] });
+    assert.deepStrictEqual(calls.at(-1), ["release"], "the seat's interaction going away stands the player up in place");
+    assert.deepStrictEqual(stands(), ["bench", "bench", "bench"]);
+
+    delete localPlayer.anchor;
+    client.receiveSnapshot({ revision: 3, interactions: [bench] });
+    assert.strictEqual(handlers.get("hmp-interact:seat")?.({ id: "bench", position: { x: 0, y: 56, z: -90 } }), false);
+    assert.deepStrictEqual(stands(), ["bench", "bench", "bench", "bench"], "a host without anchor hands the seat straight back");
+    assert.strictEqual(prompts.at(-1)?.[1], "Sit");
+    client.stop();
 });

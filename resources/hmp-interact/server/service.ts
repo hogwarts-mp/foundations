@@ -35,6 +35,8 @@ function createInteractService<P extends HmpInteractPlayer>(dependencies: Intera
     const lockedInteractions = new Set<string>();
     const cooldowns = new Map<string, number>();
     const lastTriggers = new Map<number, number>();
+    /** Interaction id -> the player seated on it, until their client reports them standing. */
+    const seats = new Map<string, number>();
     let revision = 0;
     let stopped = false;
 
@@ -156,6 +158,7 @@ function createInteractService<P extends HmpInteractPlayer>(dependencies: Intera
         interactions.delete(id);
         if (owns(definition)) unpublish(definition);
         lockedInteractions.delete(id);
+        seats.delete(id);
         for (const key of [...cooldowns.keys()]) if (key.includes(`:${id}:`)) cooldowns.delete(key);
         revision++;
         broadcast();
@@ -208,6 +211,29 @@ function createInteractService<P extends HmpInteractPlayer>(dependencies: Intera
         return `${owner}:${definition.id}:${option?.id || "default"}`;
     }
 
+    function seatTaken(player: P, definition: HmpInteractionDefinition<P>): boolean {
+        const occupant = seats.get(definition.id);
+        if (occupant === undefined || occupant === playerId(player)) return false;
+        ui.notify(player, { description: "Someone is already sitting there.", tone: "warning" });
+        return true;
+    }
+
+    function sit(player: P, definition: HmpInteractionDefinition<P>): boolean {
+        const seat = definition.seat;
+        if (!seat || stopped || interactions.get(definition.id) !== definition || seatTaken(player, definition)) return false;
+        const owner = playerId(player);
+        for (const [id, occupant] of seats) if (occupant === owner) seats.delete(id);
+        seats.set(definition.id, owner);
+        if (emit(player, "hmp-interact:seat", { id: definition.id, ...seat })) return true;
+        seats.delete(definition.id);
+        return false;
+    }
+
+    function stand(player: P, rawId: string): boolean {
+        const id = String(rawId || "").trim();
+        return seats.get(id) === playerId(player) && seats.delete(id);
+    }
+
     async function execute(player: P, definition: HmpInteractionDefinition<P>, option: HmpInteractionOption<P> | null): Promise<boolean> {
         const owner = playerId(player);
         if (stopped || interactions.get(definition.id) !== definition) return false;
@@ -225,6 +251,7 @@ function createInteractService<P extends HmpInteractPlayer>(dependencies: Intera
             ui.notify(player, { description: `Try again in ${Math.max(1, Math.ceil(remaining / 1000))}s.`, tone: "warning" });
             return false;
         }
+        if (definition.seat && seatTaken(player, definition)) return false;
         if (definition.exclusive && lockedInteractions.has(definition.id)) {
             ui.notify(player, { description: "Someone else is using that right now.", tone: "warning" });
             return false;
@@ -245,8 +272,9 @@ function createInteractService<P extends HmpInteractPlayer>(dependencies: Intera
                 if (!repeatedTopGate.ok || !repeatedOptionGate.ok) return false;
             }
             const handler = option?.handler || definition.handler;
-            if (!handler || stopped || interactions.get(definition.id) !== definition) return false;
-            await handler(contextFor(player, definition, option));
+            if ((!handler && !definition.seat) || stopped || interactions.get(definition.id) !== definition) return false;
+            if (handler) await handler(contextFor(player, definition, option));
+            if (definition.seat && !sit(player, definition)) return false;
             cooldowns.set(key, now() + (option?.cooldownMs ?? definition.cooldownMs ?? 0));
             events.emit("hmp:interact:used", contextFor(player, definition, option));
             return true;
@@ -298,6 +326,7 @@ function createInteractService<P extends HmpInteractPlayer>(dependencies: Intera
         activePlayers.delete(owner);
         lastTriggers.delete(owner);
         for (const key of [...cooldowns.keys()]) if (key.startsWith(`${owner}:`)) cooldowns.delete(key);
+        for (const [id, occupant] of seats) if (occupant === owner) seats.delete(id);
         return true;
     }
 
@@ -311,6 +340,7 @@ function createInteractService<P extends HmpInteractPlayer>(dependencies: Intera
         lockedInteractions.clear();
         cooldowns.clear();
         lastTriggers.clear();
+        seats.clear();
         return count;
     }
 
@@ -324,6 +354,7 @@ function createInteractService<P extends HmpInteractPlayer>(dependencies: Intera
         status: () => ({ state: stopped ? "stopped" as const : "ready" as const, interactions: interactions.size, activePlayers: activePlayers.size, lockedInteractions: lockedInteractions.size, revision, uptimeMs: now() - startedAt }),
         unregisterResource,
         disconnect,
+        stand,
         stop,
     });
 }
