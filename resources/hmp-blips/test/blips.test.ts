@@ -144,7 +144,9 @@ async function run(): Promise<void> {
     assert.ok(broadcasts.some((event) => event.name === "hmp-blips:remove"));
 
     const nativeCalls: Array<{ name: string; args: unknown[] }> = [];
+    const reports: Array<{ name: string; payload: unknown }> = [];
     const client = createBlipsClient({
+        emitServer: (name, payload) => { reports.push({ name, payload: JSON.parse(payload) }); },
         native: {
             setMarker: (...args) => { nativeCalls.push({ name: "marker", args }); return true; },
             setCircle: (...args) => { nativeCalls.push({ name: "circle", args }); return true; },
@@ -171,9 +173,95 @@ async function run(): Promise<void> {
     assert.deepStrictEqual(nativeCalls.find((call) => call.name === "tracked")?.args, [[2]]);
     client.setPlayers({ all: true, visible: [], colors: {} });
     assert.ok(nativeCalls.some((call) => call.name === "color" && call.args.length === 1));
+    assert.strictEqual(client.reportWaypoint({ x: 1, y: 2, z: 3, target: "FT_HW_GreatHall" }), true);
+    assert.strictEqual(client.reportWaypoint(null), true);
+    assert.deepStrictEqual(reports, [
+        { name: "hmp-blips:waypoint", payload: { waypoint: { x: 1, y: 2, z: 3, target: "FT_HW_GreatHall" } } },
+        { name: "hmp-blips:waypoint", payload: { waypoint: null } },
+    ]);
     client.stop();
     assert.strictEqual(client.status().state, "stopped");
+    assert.strictEqual(client.reportWaypoint({ x: 1, y: 2, z: 3, target: null }), false);
     service.stop();
 }
 
-run().then(() => console.log("hmp-blips tests passed"));
+async function waypoints(): Promise<void> {
+    const sharer = makePlayer(1);
+    const friend = makePlayer(2);
+    const stranger = makePlayer(3);
+    const connected = [sharer, friend, stranger];
+    const emitted: Array<{ name: string; payload: unknown }> = [];
+    const broadcasts: Array<{ name: string; payload: unknown }> = [];
+    const service = createBlipsService<TestPlayer>({
+        core: { groups: { has: async () => false } },
+        config: { defaultTtl: 600, maxTtl: 0, maxMarkersPerResource: 4, showAllPlayers: true, houseTint: true, playerBlipScale: 1, hideBaseIcon: false, enableCommands: false, command: "blips" },
+        players: () => connected,
+        events: { emit: (name, payload) => emitted.push({ name, payload }), emitAllClients: (name, payload) => broadcasts.push({ name, payload }) },
+        logger: { warn() {}, error() {} },
+        now: () => 1000,
+        setTimer: () => 0 as unknown as ReturnType<typeof setTimeout>,
+        clearTimer() {},
+    });
+    const lastSet = (player: TestPlayer) => [...player.messages].reverse().find((message) => message.name === "hmp-blips:set")?.payload as Record<string, unknown> | undefined;
+
+    // Until the sharer's client reports one (never, on a host without Blips.waypoint), a share shows nothing.
+    assert.strictEqual(service.waypoints.get(sharer), null);
+    const info = await service.waypoints.share({ resource: "hmp-party", id: "lead", player: sharer, audience: [sharer, friend] });
+    assert.deepStrictEqual(info, { resource: "hmp-party", id: "lead", key: "hmp:hmp-party:lead", playerId: 1, shown: false });
+    assert.strictEqual(lastSet(friend), undefined);
+
+    assert.strictEqual(await service.reportWaypoint(sharer, "{"), false);
+    assert.strictEqual(await service.reportWaypoint(sharer, { waypoint: { x: "here", y: 0, z: 0 } }), false);
+    assert.strictEqual(await service.reportWaypoint(sharer, JSON.stringify({})), false);
+    assert.strictEqual(emitted.length, 0);
+
+    // A placed waypoint is kept with the map it is in, announced, and shown to the audience but never the sharer.
+    assert.strictEqual(await service.reportWaypoint(sharer, JSON.stringify({ waypoint: { x: 10, y: 20, z: 30, target: "FT_HW_GreatHall" } })), true);
+    const placed = { x: 10, y: 20, z: 30, target: "FT_HW_GreatHall", areaId: "Hogwarts" };
+    assert.deepStrictEqual(service.waypoints.get(1), placed);
+    assert.deepStrictEqual(emitted, [{ name: "hmp:blips:waypoint", payload: { player: sharer, waypoint: placed, previous: null } }]);
+    assert.deepStrictEqual(lastSet(friend), { key: "hmp:hmp-party:lead", kind: "marker", x: 10, y: 20, z: 30, icon: "UI_T_MiniMap_Waypoint", label: "Player1", showOnHud: true, showDistance: true });
+    assert.strictEqual(lastSet(sharer), undefined);
+    assert.strictEqual(lastSet(stranger), undefined);
+    assert.strictEqual(service.markers.get("lead", "hmp-party")?.areaId, "Hogwarts");
+    assert.strictEqual(service.waypoints.list()[0].shown, true);
+    assert.strictEqual(await service.reportWaypoint(sharer, { waypoint: { x: 10, y: 20, z: 30, target: "FT_HW_GreatHall" } }), false, "the same waypoint is no change");
+
+    // Moving it moves the marker; lifting it hides the marker and keeps the share.
+    await service.reportWaypoint(sharer, { waypoint: { x: 40, y: 50, z: 60, target: null } });
+    assert.deepStrictEqual([lastSet(friend)?.x, lastSet(friend)?.y, lastSet(friend)?.z], [40, 50, 60]);
+    await service.reportWaypoint(sharer, { waypoint: null });
+    assert.strictEqual(service.waypoints.get(sharer), null);
+    assert.deepStrictEqual((emitted.at(-1)?.payload as { previous: unknown }).previous, { x: 40, y: 50, z: 60, target: null, areaId: "Hogwarts" });
+    assert.strictEqual(service.markers.get("lead", "hmp-party"), null);
+    assert.deepStrictEqual(broadcasts.at(-1), { name: "hmp-blips:remove", payload: JSON.stringify({ key: "hmp:hmp-party:lead" }) });
+    assert.strictEqual(service.waypoints.list()[0].shown, false);
+
+    // The sharer leaving ends their shares.
+    await service.reportWaypoint(sharer, { waypoint: { x: 1, y: 2, z: 3, target: null } });
+    assert.ok(service.markers.get("lead", "hmp-party"));
+    service.disconnect(sharer);
+    assert.deepStrictEqual(service.waypoints.list(), []);
+    assert.strictEqual(service.markers.get("lead", "hmp-party"), null);
+
+    // Unsharing, and the owning resource stopping, end a share too.
+    await service.reportWaypoint(friend, { waypoint: { x: 7, y: 8, z: 9, target: null } });
+    await service.waypoints.share({ resource: "hmp-party", id: "rally", player: 2, audience: "all", label: "Rally" });
+    assert.strictEqual(lastSet(stranger)?.label, "Rally");
+    assert.strictEqual(service.waypoints.unshare("rally", "hmp-party"), true);
+    assert.strictEqual(service.waypoints.unshare("rally", "hmp-party"), false);
+    assert.strictEqual(service.markers.get("rally", "hmp-party"), null);
+    await service.waypoints.share({ resource: "hmp-party", id: "rally", player: friend, audience: [stranger] });
+    await service.cleanup("hmp-party");
+    assert.deepStrictEqual(service.waypoints.list(), []);
+    assert.strictEqual(service.markers.list("hmp-party").length, 0);
+
+    await assert.rejects(service.waypoints.share({ resource: "hmp-party", id: "gone", player: 99, audience: "all" }), /must be connected/);
+    await assert.rejects(service.waypoints.share({ resource: "hmp-party", id: "open", player: friend } as never), /audience is required/);
+    await assert.rejects(service.waypoints.share({ resource: "hmp-party", id: "long", player: friend, audience: "all", label: "x".repeat(121) }), /label/);
+    assert.deepStrictEqual([service.status().waypoints, service.status().waypointShares], [1, 0]);
+    service.stop();
+    assert.strictEqual(service.waypoints.get(friend), null);
+}
+
+run().then(waypoints).then(() => console.log("hmp-blips tests passed"));

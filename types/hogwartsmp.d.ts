@@ -411,8 +411,18 @@ declare global {
         get(): { spawned: boolean; moving: boolean; departing: boolean; t: number; speed: number; target: number | null; seconds: number | null };
     }
 
+    /** Client `Blips.waypoint()`: the local player's map waypoint in world cm; `target` is the map icon's beacon name, null on open ground. */
+    interface HogwartsMpWaypoint {
+        readonly x: number;
+        readonly y: number;
+        readonly z: number;
+        readonly target: string | null;
+    }
+
     interface HogwartsMpEvents {
         on(eventName: "chatCommand", listener: (player: HogwartsMpPlayer, message: string, command: string, args: string[]) => unknown): void;
+        /** Client: the local player placed, moved or removed their map waypoint. */
+        on(eventName: "waypointChanged", listener: (waypoint: HogwartsMpWaypoint | null, previous: HogwartsMpWaypoint | null) => unknown): void;
         on(eventName: "playerConnect" | "playerDisconnect" | "worldReady", listener: (player: HogwartsMpPlayer) => unknown): void;
         on(eventName: "playerInventoryUpdated", listener: (player: HogwartsMpPlayer, rows: unknown) => unknown): void;
         on(eventName: "playerGearChanged", listener: (player: HogwartsMpPlayer) => unknown): void;

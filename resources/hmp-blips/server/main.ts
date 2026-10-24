@@ -12,7 +12,7 @@ const logger = Hmp.logger.create("hmp-blips");
 const config = loadConfig(Hmp);
 const blips = createBlipsService({ core, config, players: () => PlayerManager.getAll(), events: Events, logger });
 
-for (const name of ["markers", "players", "status"] as const) Exports.register(name, blips[name]);
+for (const name of ["markers", "players", "waypoints", "status"] as const) Exports.register(name, blips[name]);
 
 function messageOf(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 function safe(task: Promise<unknown>, label: string): void { task.catch((error) => logger.warn(`${label}: ${messageOf(error)}`)); }
@@ -23,6 +23,7 @@ function refreshAll(): void {
 Events.emitAllClients("hmp-blips:clear", "{}");
 Events.emitAllClients("hmp-blips:players", JSON.stringify({ all: config.showAllPlayers, visible: [], colors: {}, houseTint: config.houseTint, scale: config.playerBlipScale, hideBaseIcon: config.hideBaseIcon }));
 Events.onClient("hmp-blips:ready", (player: HmpBlipPlayer) => safe(blips.syncPlayer(player), `Could not sync blips to #${player.id}`));
+Events.onClient("hmp-blips:waypoint", (player: HmpBlipPlayer, payload: unknown) => safe(blips.reportWaypoint(player, payload), `Could not take #${player.id}'s waypoint`));
 Events.on("playerConnect", (player: HmpBlipPlayer) => {
     safe(blips.syncPlayer(player), `Could not sync blips to #${player.id}`);
     safe(blips.players.refresh(), "Could not refresh player blips after connect");
@@ -30,6 +31,7 @@ Events.on("playerConnect", (player: HmpBlipPlayer) => {
 Events.on("playerDisconnect", (player: HmpBlipPlayer) => {
     blips.markers.remove(`test-marker-${player.id}`, "hmp-blips");
     blips.markers.remove(`test-circle-${player.id}`, "hmp-blips");
+    blips.disconnect(player);
     safe(blips.players.refresh(), "Could not refresh player blips after disconnect");
 });
 Events.on("playerLocationChanged", (player: HmpBlipPlayer) => {
@@ -46,7 +48,7 @@ Events.on("resourceStop", (name?: string) => {
 if (config.enableCommands) {
     const commands = Hmp.command.createRouter({ prefix: "[blips]", logger });
     commands.register(config.command, {
-        usage: `/${config.command} <status|list|marker [ttl]|circle [radius] [ttl]|pulse|remove>`,
+        usage: `/${config.command} <status|list|marker [ttl]|circle [radius] [ttl]|pulse|remove|waypoint>`,
         description: "Inspect and privately test Foundations markers.",
     }, async ({ player, args, reply, usage }) => {
         const action = String(args.shift() || "status").toLowerCase();
@@ -89,6 +91,13 @@ if (config.enableCommands) {
         if (action === "remove") {
             const removed = Number(blips.markers.remove(`test-marker-${player.id}`, "hmp-blips")) + Number(blips.markers.remove(`test-circle-${player.id}`, "hmp-blips"));
             reply(`Removed ${removed} test marker(s).`);
+            return;
+        }
+        if (action === "waypoint") {
+            const waypoint = blips.waypoints.get(player);
+            reply(waypoint
+                ? `Your waypoint: ${Math.round(waypoint.x)}, ${Math.round(waypoint.y)}, ${Math.round(waypoint.z)}${waypoint.target ? ` on ${waypoint.target}` : ""}${waypoint.areaId ? ` in ${waypoint.areaId}` : ""}.`
+                : "No waypoint reported. Place one on the map (it needs a host with Blips.waypoint).");
             return;
         }
         reply(usage);

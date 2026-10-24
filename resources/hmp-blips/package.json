@@ -26,7 +26,7 @@
     "files": [
       "dist/client.js"
     ],
-    "exports": ["markers", "players", "status"],
+    "exports": ["markers", "players", "waypoints", "status"],
     "resourceDependencies": [
       { "name": "hmp-lib", "version": "0.9.1" },
       { "name": "hmp-core", "version": "0.9.1" }

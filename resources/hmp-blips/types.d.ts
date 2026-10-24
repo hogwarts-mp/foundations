@@ -113,11 +113,62 @@ export interface HmpBlipPlayersApi<P = HmpBlipPlayer> {
     refresh(player?: P): Promise<number>;
 }
 
+/** The waypoint a player dropped on the game's own map, as their client reported it. */
+export interface HmpBlipWaypoint extends HmpBlipPosition {
+    /** The game's beacon name of the map icon it was dropped on, such as "FT_HW_GreatHall"; null on open ground. */
+    target: string | null;
+    /** The map the player was in when they placed it, as `player.location().areaId` names it; left out when unknown. */
+    areaId?: string;
+}
+
+/** The `hmp:blips:waypoint` event's payload. */
+export interface HmpBlipWaypointChange<P = HmpBlipPlayer> {
+    player: P;
+    waypoint: HmpBlipWaypoint | null;
+    previous: HmpBlipWaypoint | null;
+}
+
+export interface HmpBlipWaypointShareDefinition<P = HmpBlipPlayer> extends HmpBlipOwner {
+    /** Whose waypoint is shared. */
+    player: HmpBlipPlayerReference<P>;
+    /** Who sees it. The sharer never does: they have the game's own. */
+    audience: HmpBlipAudience<P>;
+    /** Defaults to the game's waypoint icon. */
+    icon?: string;
+    /** Defaults to the sharer's nickname. */
+    label?: string;
+    showOnHud?: boolean;
+    showDistance?: boolean;
+}
+
+export interface HmpBlipWaypointShareInfo extends HmpBlipOwner {
+    key: string;
+    playerId: number;
+    /** Whether the sharer has a waypoint out, so the audience sees a marker now. */
+    shown: boolean;
+}
+
+export interface HmpBlipWaypointsApi<P = HmpBlipPlayer> {
+    /** The player's own map waypoint as their client last reported it; null without one, or on a host without `Blips.waypoint`. */
+    get(player: HmpBlipPlayerReference<P>): HmpBlipWaypoint | null;
+    /**
+     * Shows the player's waypoint to the audience as a marker owned by resource/id, following it while it moves and
+     * hiding it while it is lifted, until unshared, the owning resource stops or the player leaves.
+     */
+    share(definition: HmpBlipWaypointShareDefinition<P>): Promise<HmpBlipWaypointShareInfo>;
+    unshare(id: string, resource: string): boolean;
+    clear(resource: string): number;
+    list(resource?: string): HmpBlipWaypointShareInfo[];
+}
+
 export interface HmpBlipsStatus {
     state: "ready" | "stopped";
     markers: number;
     playerGroups: number;
     expiringMarkers: number;
+    /** Players with a map waypoint out. */
+    waypoints: number;
+    waypointShares: number;
     showAllPlayers: boolean;
     uptimeMs: number;
 }
@@ -125,6 +176,7 @@ export interface HmpBlipsStatus {
 export interface HmpBlipsServer<P = HmpBlipPlayer> {
     markers: HmpBlipMarkersApi<P>;
     players: HmpBlipPlayersApi<P>;
+    waypoints: HmpBlipWaypointsApi<P>;
     status(): HmpBlipsStatus;
 }
 

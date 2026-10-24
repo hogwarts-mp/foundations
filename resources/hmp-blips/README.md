@@ -130,6 +130,48 @@ appear. This hides an icon, not network state; it is not a stealth or security m
 Call `players.refresh()` when a custom subject/audience predicate changes. Connect, disconnect,
 location, hmp-core group, and hmp-jobs duty changes refresh automatically.
 
+## Map waypoints
+
+The waypoint a player drops on the game's own map is theirs, not a marker. Each client reports it to the
+server as it is placed, moved or lifted, so a resource can read it and hear about it:
+
+```ts
+Blips.waypoints.get(player); // { x, y, z, target, areaId } | null
+
+Events.on("hmp:blips:waypoint", ({ player, waypoint, previous }) => {
+    // waypoint is null once it is lifted
+});
+```
+
+`x`, `y`, `z` are world centimetres. Dropped on a map icon, the waypoint sits on it and `target` is the
+icon's beacon name (`"FT_HW_GreatHall"`); on open ground `target` is null and `z` is near the terrain,
+not on it, so trace down before standing anyone there. `areaId` is the map the player was in when they
+placed it. A waypoint is forgotten when its player leaves.
+
+A resource can share a player's waypoint with chosen players. The share is a marker owned by its
+resource and id, so the usual audiences, ownership and cleanup apply:
+
+```ts
+await Blips.waypoints.share({
+    resource: "hmp-party",
+    id: `party:${partyId}:${leader.id}`,
+    player: leader,
+    audience: members,
+    label: "Leader",
+});
+Blips.waypoints.unshare(`party:${partyId}:${leader.id}`, "hmp-party");
+```
+
+The marker follows the waypoint while it moves, goes while it is lifted and comes back when the player
+drops another, scoped to the waypoint's map. It never shows to the sharer, who has the game's own. It
+defaults to the game's waypoint icon and the sharer's nickname, asks for permanence (so `maxTtl` still
+clamps it), and ends with `unshare`, `waypoints.clear(resource)`, the owning resource stopping or the
+sharer leaving. Call `markers.sync()` after the audience changes, as for any marker. Nothing is shared
+unless a resource asks.
+
+Waypoints need a HogwartsMP host with `Blips.waypoint`. On an older host clients report none, so
+`waypoints.get()` is null and a share shows nothing.
+
 ## Configuration
 
 Copy `examples/config/data/hmp-blips.json` into the server's `data` directory. It controls:
@@ -153,13 +195,17 @@ The bundled command only creates private markers at the caller's current locatio
 /blips circle [radiusMetres] [ttl]
 /blips pulse
 /blips remove
+/blips waypoint
 ```
+
+`/blips waypoint` replies with the caller's map waypoint as the server has it.
 
 Style dumps, memory probes, global recoloring, and other `blips-dev` commands are deliberately absent.
 
 ## Client ownership
 
 The client bundle is intentionally a mirror rather than a public write API. It applies full replay,
-incremental set/remove, pulse, player visibility, and color messages to the native `Blips` builtin.
+incremental set/remove, pulse, player visibility, and color messages to the native `Blips` builtin, and
+reports the player's own map waypoint back.
 On shutdown it clears script markers and restores normal all-player tracking, house tint, scale, and
 base-icon visibility so hot reload cannot strand stale UI state.

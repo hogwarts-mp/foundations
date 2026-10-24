@@ -152,6 +152,10 @@ created test transaction after its state has been inspected.
 - With `showAllPlayers: false`, register an on-duty job group and confirm presence is the union of
   matching groups, color goes to the highest priority, and same-area members disappear across travel.
 - Connect after markers already exist and confirm replay includes only live, authorized markers.
+- Drop a waypoint on the game's map and run `/blips waypoint`: it must report the spot, and the icon's
+  name when dropped on one. Lift it and confirm it reports none.
+- From a test resource, share one player's map waypoint with a second player; drop, move and lift it on
+  the game's map and confirm the second player's marker follows, and the first sees only their own.
 - Report a stale marker after audience loss, a marker visible to an unauthorized group, a missing
   late-join marker, an invalid icon crash/refusal, or player colors surviving group/resource cleanup.
 

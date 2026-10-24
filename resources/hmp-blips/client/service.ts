@@ -4,6 +4,8 @@ import type { ClientLogger, NativeClientBlips } from "./internal";
 interface ClientDependencies {
     native: NativeClientBlips;
     logger: ClientLogger;
+    /** Sends the player's own map waypoint to the server. */
+    emitServer?: (eventName: string, payload: string) => void;
     now?: () => number;
 }
 
@@ -34,6 +36,8 @@ function createBlipsClient(dependencies: ClientDependencies): HmpBlipsClient & {
     clear(): number;
     pulse(payload: unknown): boolean;
     setPlayers(payload: unknown): boolean;
+    /** A waypointChanged waypoint, or Blips.waypoint() at start: reported to the server. */
+    reportWaypoint(waypoint: unknown): boolean;
     stop(): void;
 } {
     const { native, logger } = dependencies;
@@ -133,6 +137,15 @@ function createBlipsClient(dependencies: ClientDependencies): HmpBlipsClient & {
         return true;
     }
 
+    function reportWaypoint(waypoint: unknown): boolean {
+        if (stopped || !dependencies.emitServer) return false;
+        const value = waypoint && typeof waypoint === "object" ? waypoint as Record<string, unknown> : null;
+        const x = Number(value?.x), y = Number(value?.y), z = Number(value?.z);
+        const placed = value && [x, y, z].every(Number.isFinite) ? { x, y, z, target: typeof value.target === "string" && value.target ? value.target : null } : null;
+        dependencies.emitServer("hmp-blips:waypoint", JSON.stringify({ waypoint: placed }));
+        return true;
+    }
+
     function stop(): void {
         if (stopped) return;
         clear();
@@ -154,6 +167,7 @@ function createBlipsClient(dependencies: ClientDependencies): HmpBlipsClient & {
         clear,
         pulse,
         setPlayers,
+        reportWaypoint,
         stop,
     };
 }

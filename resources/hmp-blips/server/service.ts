@@ -3,11 +3,16 @@ import type {
     HmpBlipAudience,
     HmpBlipMarkerDefinition,
     HmpBlipMarkerInfo,
+    HmpBlipOwner,
     HmpBlipPlayer,
     HmpBlipPlayerGroupDefinition,
     HmpBlipPlayerGroupInfo,
+    HmpBlipPlayerReference,
     HmpBlipSelector,
     HmpBlipsServer,
+    HmpBlipWaypoint,
+    HmpBlipWaypointShareDefinition,
+    HmpBlipWaypointShareInfo,
 } from "../types";
 import type { BlipCore, BlipEvents, BlipLogger, BlipsConfig } from "./internal";
 
@@ -39,9 +44,22 @@ interface PlayerGroupRecord<P extends HmpBlipPlayer> {
     definition: NormalizedPlayerGroup<P>;
 }
 
+interface WaypointShareRecord<P extends HmpBlipPlayer> extends HmpBlipOwner {
+    key: string;
+    /** The marker it shows, at the sharer's waypoint. */
+    marker: HmpBlipMarkerDefinition<P>;
+    playerId: number;
+}
+
+const WAYPOINT_ICON = "UI_T_MiniMap_Waypoint";
+
 function createBlipsService<P extends HmpBlipPlayer>(dependencies: ServiceDependencies<P>): HmpBlipsServer<P> & {
     cleanup(resource: string): Promise<number>;
     syncPlayer(player: P): Promise<number>;
+    /** A client's `hmp-blips:waypoint` report of its player's own map waypoint. */
+    reportWaypoint(player: P, payload: unknown): Promise<boolean>;
+    /** The player left: their waypoint and its shares go. */
+    disconnect(player: P): void;
     stop(): void;
 } {
     const { core, config, events, logger } = dependencies;
@@ -53,6 +71,8 @@ function createBlipsService<P extends HmpBlipPlayer>(dependencies: ServiceDepend
     const playerGroups = new Map<string, PlayerGroupRecord<P>>();
     const playerViewTokens = new Map<number, number>();
     const playerReplayTokens = new Map<number, number>();
+    const waypoints = new Map<number, HmpBlipWaypoint>();
+    const waypointShares = new Map<string, WaypointShareRecord<P>>();
     let stopped = false;
 
     function connectedPlayers(): P[] {
@@ -415,9 +435,129 @@ function createBlipsService<P extends HmpBlipPlayer>(dependencies: ServiceDepend
         return targets.length;
     }
 
+    // A client's report is { waypoint: { x, y, z, target } | null }; undefined for anything else.
+    function reportedWaypoint(payload: unknown): HmpBlipWaypoint | null | undefined {
+        let value = payload;
+        if (typeof payload === "string") {
+            try { value = JSON.parse(payload); }
+            catch (_) { return undefined; }
+        }
+        if (!value || typeof value !== "object" || !("waypoint" in value)) return undefined;
+        const raw = (value as { waypoint: unknown }).waypoint;
+        if (raw === null) return null;
+        if (!raw || typeof raw !== "object") return undefined;
+        const { x, y, z, target } = raw as Record<string, unknown>;
+        const point = { x: Number(x), y: Number(y), z: Number(z) };
+        if (![point.x, point.y, point.z].every(Number.isFinite)) return undefined;
+        const name = typeof target === "string" ? target.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 160) : "";
+        return { ...point, target: name || null };
+    }
+
+    function sameWaypoint(left: HmpBlipWaypoint | null, right: HmpBlipWaypoint | null): boolean {
+        if (!left || !right) return left === right;
+        return left.x === right.x && left.y === right.y && left.z === right.z && left.target === right.target && left.areaId === right.areaId;
+    }
+
+    function getWaypoint(player: HmpBlipPlayerReference<P>): HmpBlipWaypoint | null {
+        const waypoint = waypoints.get(Number(typeof player === "object" && player ? player.id : player));
+        return waypoint ? { ...waypoint } : null;
+    }
+
+    function waypointShareInfo(share: WaypointShareRecord<P>): HmpBlipWaypointShareInfo {
+        return { resource: share.resource, id: share.id, key: share.key, playerId: share.playerId, shown: waypoints.has(share.playerId) };
+    }
+
+    async function showWaypointShare(share: WaypointShareRecord<P>): Promise<void> {
+        const waypoint = waypoints.get(share.playerId);
+        if (!waypoint) { removeMarker(share.id, share.resource); return; }
+        await upsertMarker({ ...share.marker, position: { x: waypoint.x, y: waypoint.y, z: waypoint.z }, areaId: waypoint.areaId });
+    }
+
+    async function reportWaypoint(player: P, payload: unknown): Promise<boolean> {
+        const id = Number(player.id);
+        let waypoint = reportedWaypoint(payload);
+        if (stopped || waypoint === undefined || !playerById(id)) return false;
+        // Its coordinates belong to the map the player placed it in.
+        const areaId = waypoint ? location(player)?.areaId : undefined;
+        if (waypoint && areaId) waypoint = { ...waypoint, areaId };
+        const previous = getWaypoint(id);
+        if (sameWaypoint(waypoint, previous)) return false;
+        if (waypoint) waypoints.set(id, waypoint);
+        else waypoints.delete(id);
+        events.emit("hmp:blips:waypoint", { player, waypoint: getWaypoint(id), previous });
+        for (const share of [...waypointShares.values()]) {
+            if (share.playerId !== id) continue;
+            try { await showWaypointShare(share); }
+            catch (error) { logger.warn(`[hmp-blips] waypoint share '${share.key}' could not follow #${id}`, error); }
+        }
+        return true;
+    }
+
+    async function shareWaypoint(raw: HmpBlipWaypointShareDefinition<P>): Promise<HmpBlipWaypointShareInfo> {
+        if (stopped) throw new Error("hmp-blips is stopped");
+        const identity = normalizeOwner(raw);
+        const player = playerById(typeof raw.player === "object" && raw.player ? raw.player.id : raw.player);
+        if (!player) throw new TypeError("waypoint share player must be connected");
+        if (raw.audience === undefined) throw new TypeError("waypoint share audience is required");
+        const sharer = Number(player.id);
+        const audience = raw.audience;
+        const marker: HmpBlipMarkerDefinition<P> = {
+            resource: identity.resource,
+            id: identity.id,
+            kind: "marker",
+            position: { x: 0, y: 0, z: 0 },
+            icon: raw.icon ?? WAYPOINT_ICON,
+            label: raw.label ?? player.nickname,
+            showOnHud: raw.showOnHud,
+            showDistance: raw.showDistance,
+            ttl: 0,
+            // The sharer has the game's own waypoint already.
+            audience: async () => (await selectorPlayers(audience, `waypoint share '${identity.key}' audience`)).filter((viewer) => Number(viewer.id) !== sharer),
+        };
+        normalizeMarker(marker, resolveTtl);
+        const share: WaypointShareRecord<P> = { ...identity, marker, playerId: sharer };
+        waypointShares.set(identity.key, share);
+        try { await showWaypointShare(share); }
+        catch (error) {
+            unshareWaypoint(identity.id, identity.resource);
+            throw error;
+        }
+        return waypointShareInfo(share);
+    }
+
+    function unshareWaypoint(id: string, resource: string): boolean {
+        const share = waypointShares.get(normalizeOwner({ id, resource }).key);
+        if (!share) return false;
+        waypointShares.delete(share.key);
+        removeMarker(share.id, share.resource);
+        return true;
+    }
+
+    function clearWaypointShares(resource: string): number {
+        const normalized = normalizeOwner({ resource, id: "cleanup" }).resource;
+        let removed = 0;
+        for (const share of [...waypointShares.values()]) if (share.resource === normalized && unshareWaypoint(share.id, share.resource)) removed++;
+        return removed;
+    }
+
+    function listWaypointShares(resource?: string): HmpBlipWaypointShareInfo[] {
+        const normalized = resource ? normalizeOwner({ resource, id: "list" }).resource : "";
+        return [...waypointShares.values()]
+            .filter((share) => !normalized || share.resource === normalized)
+            .map(waypointShareInfo)
+            .sort((left, right) => left.key.localeCompare(right.key));
+    }
+
+    function disconnect(player: P): void {
+        const id = Number(player.id);
+        waypoints.delete(id);
+        for (const share of [...waypointShares.values()]) if (share.playerId === id) unshareWaypoint(share.id, share.resource);
+    }
+
     async function cleanup(resource: string): Promise<number> {
         const removedMarkers = clearMarkers(resource);
         const removedGroups = await clearPlayerGroups(resource);
+        clearWaypointShares(resource); // their markers went with the resource's own
         return removedMarkers + removedGroups;
     }
 
@@ -427,25 +567,33 @@ function createBlipsService<P extends HmpBlipPlayer>(dependencies: ServiceDepend
         for (const record of markers.values()) disarm(record);
         markers.clear();
         playerGroups.clear();
+        waypoints.clear();
+        waypointShares.clear();
         events.emitAllClients("hmp-blips:clear", "{}");
         events.emitAllClients("hmp-blips:players", JSON.stringify({ all: true, visible: [], colors: {}, houseTint: true, scale: 1, hideBaseIcon: false }));
     }
 
     const markerApi = Object.freeze({ upsert: upsertMarker, remove: removeMarker, clear: clearMarkers, get: getMarker, list: listMarkers, pulse: pulseMarker, sync: syncMarkers });
     const playerApi = Object.freeze({ track: trackPlayers, untrack: untrackPlayers, clear: clearPlayerGroups, get: getPlayerGroup, list: listPlayerGroups, refresh: refreshPlayers });
+    const waypointApi = Object.freeze({ get: getWaypoint, share: shareWaypoint, unshare: unshareWaypoint, clear: clearWaypointShares, list: listWaypointShares });
     return {
         markers: markerApi,
         players: playerApi,
+        waypoints: waypointApi,
         status: () => ({
             state: stopped ? "stopped" : "ready",
             markers: markers.size,
             playerGroups: playerGroups.size,
             expiringMarkers: [...markers.values()].filter((record) => record.expiresAt !== null).length,
+            waypoints: waypoints.size,
+            waypointShares: waypointShares.size,
             showAllPlayers: config.showAllPlayers,
             uptimeMs: Math.max(0, now() - startedAt),
         }),
         cleanup,
         syncPlayer,
+        reportWaypoint,
+        disconnect,
         stop: stopService,
     };
 }

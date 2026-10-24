@@ -78,6 +78,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   Other resources read and drive the train through the `train` export, and `enabled: false` leaves it to
   another script. It needs a HogwartsMP host with `World.hogwartsExpress`; on an older host it reports
   `degraded` and runs nothing, and clients keep the game's own timetable.
+- `hmp-blips` knows each player's own map waypoint. Clients report it as it is placed, moved or lifted;
+  `waypoints.get(player)` reads it, `hmp:blips:waypoint` announces each change and `/blips waypoint`
+  replies with the caller's. `waypoints.share` shows a player's waypoint to an audience as a marker that
+  follows it, never to the sharer, until unshared, its resource stops or the sharer leaves; nothing is
+  shared unless a resource asks. It needs a HogwartsMP host with `Blips.waypoint`; on an older host no
+  waypoint is reported and a share shows nothing.
 
 ### Changed
 

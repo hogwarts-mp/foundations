@@ -10,6 +10,8 @@ export interface NativeClientBlips {
     setHouseTint(enabled?: boolean): boolean;
     setBlipScale(scale: number): void;
     hideBaseIcon(hide?: boolean): void;
+    /** Missing on a host without map waypoint reads. */
+    waypoint?(): HogwartsMpWaypoint | null;
 }
 
 export interface ClientLogger {
