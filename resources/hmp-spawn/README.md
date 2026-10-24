@@ -34,6 +34,8 @@ Optional `data/hmp-spawn.json`:
   "defaultLocation": "hogwarts",
   "teleportTimeoutMs": 120000,
   "autoSaveMs": 60000,
+  "worldSpawn": null,
+  "respawnAtSpawn": false,
   "locations": [
     {
       "key": "hogwarts",
@@ -68,6 +70,27 @@ world travel, `playerLocationChanged` supplies the last valid snapshot before lo
 `areaId` is the game's world/map name: the castle grounds use `Overland`, not `Hogwarts`.
 The selector refreshes when location context arrives or changes. While context is unavailable it
 shows a waiting message; if the current area has no destinations it explains that none are configured.
+
+## Spawn points
+
+A connecting player's client loads into the world before they choose a character, so it cannot load
+them at that character's destination; the teleport above always takes them there. Two options use the
+host's spawn points around it, both off by default:
+
+- `worldSpawn` names a configured `Overland` location (or one without `areaId`). At start, hmp-spawn
+  makes it the server's spawn point with `World.setSpawn`: every connect load stands players there
+  instead of in the house dormitory, and a respawn without a position lands there when no player spawn
+  point applies. The load takes the location's coordinates and `yaw` (default 0) as they are, without
+  `snapToGround`. Stopping hmp-spawn puts back the spawn point it found.
+- `respawnAtSpawn: true` makes each character's landing their player's spawn point with
+  `player.setSpawn`, so a respawn without a position, like the automatic one after a death, stands them
+  where they came into the world rather than at the world's spawn or in the dormitory. Choosing another
+  character clears it until that one lands, and a landing outside `Overland` clears it. Leave it off
+  when another resource sets players' spawn points.
+
+Both need a HogwartsMP host with `World.setSpawn` and `player.setSpawn`. On an older host,
+`worldSpawn` logs a warning and players load into the dormitory, `respawnAtSpawn` does nothing, and
+the selector, last location and teleport work as before.
 
 ## Exports
 

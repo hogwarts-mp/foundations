@@ -35,6 +35,15 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   stopping), each player gets back the gear rules they had before it. It needs a HogwartsMP host with
   `player.setGearStatMultiplier` and `player.setGearTraits`; an older host ignores the option and worn
   gear counts as usual.
+- `hmp-spawn` can use the host's spawn points, both off by default. `worldSpawn` names a configured
+  `Overland` location that every connect load stands players on (`World.setSpawn`), instead of the
+  house dormitory, and that a respawn without a position falls back to; stopping `hmp-spawn` puts back
+  the spawn point it found. `respawnAtSpawn: true` makes each character's landing their spawn point
+  (`player.setSpawn`), so a respawn without a position, such as the automatic one after a death, stands
+  them there instead of in the dormitory; choosing another character clears it. A character is chosen
+  only after the connect load, so the selector, last location and teleport still bring them to their
+  destination. It needs a HogwartsMP host with `World.setSpawn` and `player.setSpawn`; on an older host
+  players load into the dormitory and respawn as before, and `worldSpawn` logs a warning.
 
 ### Changed
 

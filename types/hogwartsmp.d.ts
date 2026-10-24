@@ -177,6 +177,12 @@ declare global {
         groundSnapDistance?: number;
     }
 
+    /** An Overland point a world load stands a player on (World.setSpawn, player.setSpawn), facing `yaw` degrees (default 0). */
+    interface HogwartsMpSpawnPoint {
+        position: HogwartsMpVector3;
+        yaw?: number;
+    }
+
     interface HogwartsMpTeleportCompletion {
         requestId: number;
         status: number;
@@ -268,6 +274,8 @@ declare global {
         setTransmog?(transmog: string): void;
         emit(eventName: string, payload?: unknown): void;
         teleport(x: number, y: number, z: number, options?: HogwartsMpTeleportOptions): number;
+        /** Where this player's loads stand them, ahead of World.spawn: the connect load if set in playerConnect, then respawns without a position. null falls back to World.spawn. */
+        setSpawn?(spawn: HogwartsMpSpawnPoint | null): void;
         sendChat?(message: string): void;
         kick?(reason?: string): void;
         getIP?(): string;

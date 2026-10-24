@@ -1,7 +1,9 @@
 import configModule = require("./config");
 import spawnModule = require("./spawn");
 import type { HmpCoreSession } from "../../hmp-core/types";
-import type { CharacterSelectionPayload, Player } from "./internal";
+import type { CharacterSelectionPayload, NativeWorldSpawn, Player } from "./internal";
+
+declare const World: NativeWorldSpawn | undefined;
 
 const { loadConfig } = configModule;
 const { createSpawnFlow, clientNotified } = spawnModule;
@@ -14,7 +16,7 @@ const Hmp = Imports.get("hmp-lib");
 const core = Imports.get("hmp-core");
 const logger = Hmp.logger.create("hmp-spawn");
 const config = loadConfig(Hmp);
-const flow = createSpawnFlow({ core, events: Events, logger, config });
+const flow = createSpawnFlow({ core, events: Events, world: typeof World === "undefined" ? null : World, logger, config });
 const actions = Hmp.rateLimit.create<number>({ limit: 5, windowMs: 2000 });
 
 Exports.register("locations", flow.locations);
@@ -39,6 +41,7 @@ Events.on("hmp:session:ended", (session: unknown) => flow.disconnect((session as
 Events.on("resourceStop", (name: unknown) => {
     if (name && name !== "hmp-spawn") return flow.removeForResource(name as string);
     if (autoSaveTimer) clearInterval(autoSaveTimer);
+    flow.stop();
     return flow.saveAll(PlayerManager.getAll());
 });
 

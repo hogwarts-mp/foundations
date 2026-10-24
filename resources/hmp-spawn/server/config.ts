@@ -11,6 +11,8 @@ function loadConfig(Hmp: HmpLibServer<Player>, options: { env?: NodeJS.ProcessEn
         defaultLocation: "hogwarts",
         teleportTimeoutMs: 120000,
         autoSaveMs: 60000,
+        worldSpawn: null,
+        respawnAtSpawn: false,
         locations: [
             {
                 key: "hogwarts",

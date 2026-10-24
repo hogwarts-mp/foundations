@@ -6,7 +6,7 @@ import configModule = require("../server/config");
 import spawnModule = require("../server/spawn");
 import type { HmpCoreCharacter, HmpCoreSession } from "../../hmp-core/types";
 import type { HmpLibServer } from "../../hmp-lib/types";
-import type { Core, Player, SpawnConfig, TimerHandle } from "../server/internal";
+import type { Core, NativeWorldSpawn, Player, SpawnConfig, TimerHandle } from "../server/internal";
 
 const { createSpawnFlow, normalizeLocation, LAST_LOCATION_KEY } = spawnModule;
 
@@ -25,7 +25,7 @@ function teleportCompletion(requestId: number, status: number, destination: (Hog
     };
 }
 
-function setup(overrides: Partial<SpawnConfig> = {}) {
+function setup(overrides: Partial<SpawnConfig> = {}, world: NativeWorldSpawn | null = null) {
     const clientEvents: ClientEvent[] = [];
     const emitted: RecordedEvent[] = [];
     const metadata = new Map<string, unknown>();
@@ -62,13 +62,17 @@ function setup(overrides: Partial<SpawnConfig> = {}) {
         defaultLocation: "hogwarts",
         teleportTimeoutMs: 10000,
         autoSaveMs: 0,
+        worldSpawn: null,
+        respawnAtSpawn: false,
         locations: [{ key: "hogwarts", label: "Hogwarts", description: "Castle grounds", x: 366784, y: -461527, z: -82610 }],
         ...overrides,
     };
+    const warnings: string[] = [];
     const flow = createSpawnFlow({
         core,
         config,
-        logger: { warn: () => true, error: () => true },
+        world,
+        logger: { warn: (message: unknown) => warnings.push(String(message)) > 0, error: () => true },
         events: { emit: (name: string, payload: unknown) => emitted.push({ name, payload }) },
         setTimer: (callback: () => void, milliseconds: number) => {
             const timer: TestTimer = { callback, milliseconds, cleared: false, unrefed: false, unref() { timer.unrefed = true; } };
@@ -77,7 +81,7 @@ function setup(overrides: Partial<SpawnConfig> = {}) {
         },
         clearTimer: (timer: TimerHandle) => { (timer as TestTimer).cleared = true; },
     });
-    return { flow, core, config, player, character, session, metadata, timers, clientEvents, emitted };
+    return { flow, core, config, player, character, session, metadata, timers, clientEvents, emitted, warnings };
 }
 
 function overlandLocation(player: TestPlayer): HogwartsMpPlayerLocation {
@@ -364,5 +368,76 @@ test("removes dynamic locations when their owning resource stops", () => {
     flow.locations.register({ key: "jail", label: "Jail", x: 40, y: 50, z: 60, resource: "hmp-custody" });
     assert.strictEqual(flow.removeForResource("hmp-medical"), 1);
     assert.deepStrictEqual(flow.locations.list().map((location) => location.key), ["hogwarts", "jail"]);
+});
+
+test("worldSpawn stands the connect load on a configured location and puts the host's own back on stop", () => {
+    const spawns: Array<HogwartsMpSpawnPoint | null> = [];
+    const before = { position: { x: 1, y: 2, z: 3 }, yaw: 0 };
+    const world: NativeWorldSpawn = { spawn: before, setSpawn: (spawn) => spawns.push(spawn) > 0 };
+    const { flow } = setup({ worldSpawn: "Hogwarts", locations: [{ ...SCOPED_HOGWARTS[0], yaw: 90 }] }, world);
+    assert.deepStrictEqual(spawns, [{ position: { x: 366784, y: -461527, z: -82610 }, yaw: 90 }]);
+    flow.stop();
+    flow.stop();
+    assert.deepStrictEqual(spawns, [spawns[0], before]);
+    // Unset, the default, it leaves the host's own spawn alone: the house dormitory, or another resource's.
+    spawns.length = 0;
+    setup({}, world).flow.stop();
+    assert.deepStrictEqual(spawns, []);
+});
+
+test("worldSpawn on a host without World.setSpawn warns and leaves the teleport to place the player", async () => {
+    for (const world of [null, {}]) {
+        const { flow, player, warnings } = setup({ worldSpawn: "hogwarts" }, world);
+        assert.match(warnings.join("\n"), /needs a HogwartsMP host with World\.setSpawn/);
+        assert.strictEqual(await flow.select(player, "hogwarts"), 40);
+        flow.stop();
+    }
+});
+
+test("worldSpawn must name a configured Overland location", () => {
+    assert.throws(() => setup({ worldSpawn: "ministry" }), /worldSpawn 'ministry' is not registered/);
+    assert.throws(() => setup({ worldSpawn: "hogwarts", locations: [{ ...SCOPED_HOGWARTS[0], areaId: "Gringotts" }] }), /must be an Overland location/);
+});
+
+test("respawnAtSpawn makes the character's Overland landing where they respawn, until it no longer applies", async () => {
+    const { flow, player, session, character } = setup({ respawnAtSpawn: true });
+    const spawns: Array<HogwartsMpSpawnPoint | null> = [];
+    player.setSpawn = (spawn) => { spawns.push(spawn); };
+    const land = async (key: string, areaId = "Overland") => {
+        player.location = () => ({ ...overlandLocation(player), areaId });
+        const requestId = await flow.select(player, key);
+        assert.strictEqual(await flow.complete(player, requestId, 0, teleportCompletion(requestId, 0, { ...player.position, yaw: 87 })), true);
+    };
+    await land("hogwarts");
+    assert.deepStrictEqual(spawns, [{ position: { x: 400000, y: -450000, z: -82000 }, yaw: 87 }]);
+    // Another character has not landed anywhere yet.
+    await flow.onCharacterSelected({ session, character });
+    assert.deepStrictEqual(spawns.at(-1), null);
+    // A landing outside Overland is no spawn point; with none of hmp-spawn's held, the player's spawn is left alone.
+    flow.locations.register({ key: "vault", label: "Vault", areaId: "Gringotts", x: 1, y: 2, z: 3, resource: "hmp-bank" });
+    await land("vault", "Gringotts");
+    await flow.onCharacterSelected({ session, character });
+    assert.strictEqual(spawns.length, 2);
+    // After an Overland landing, it clears that one.
+    await land("hogwarts");
+    await land("vault", "Gringotts");
+    assert.deepStrictEqual(spawns.slice(2).map(Boolean), [true, false]);
+    // A disconnect drops it with the connection.
+    await land("hogwarts");
+    flow.disconnect(player);
+    await flow.onCharacterSelected({ session, character });
+    assert.strictEqual(spawns.length, 5);
+});
+
+test("respawnAtSpawn is off by default, and a host without player.setSpawn still spawns", async () => {
+    for (const respawnAtSpawn of [false, true]) {
+        const { flow, player } = setup({ respawnAtSpawn });
+        const spawns: unknown[] = [];
+        if (!respawnAtSpawn) player.setSpawn = (spawn) => { spawns.push(spawn); };
+        player.location = () => overlandLocation(player);
+        const requestId = await flow.select(player, "hogwarts");
+        assert.strictEqual(await flow.complete(player, requestId, 0, teleportCompletion(requestId, 0, { ...player.position, yaw: 0 })), true);
+        assert.deepStrictEqual(spawns, []);
+    }
 });
 // Source-level TypeScript tests.

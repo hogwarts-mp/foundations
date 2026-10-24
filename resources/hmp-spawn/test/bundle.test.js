@@ -8,6 +8,8 @@ const clientHandlers = new Map();
 const webHandlers = new Map();
 const emittedToServer = [];
 const logger = { info() {}, error() {}, warn() {}, debug() {} };
+const worldSpawns = [];
+let defaults = null;
 const core = {
     sessions: { get: () => null },
     characters: { active: () => null },
@@ -20,7 +22,7 @@ global.Imports = {
         if (name === "hmp-core") return core;
         if (name === "hmp-lib") return {
             logger: { create: () => logger },
-            config: { load: (_path, options) => ({ ...options.defaults }), env: { boolean: (value) => value === "true" } },
+            config: { load: (_path, options) => { defaults = options.defaults; return { ...options.defaults, worldSpawn: "hogwarts", respawnAtSpawn: true }; }, env: { boolean: (value) => value === "true" } },
             rateLimit: { create: () => ({ allow: () => true }) },
             input: { controls: { acquire: () => ({ release: () => true }) } },
         };
@@ -40,11 +42,38 @@ global.setInterval = (handler, milliseconds) => {
     return timer;
 };
 global.clearInterval = () => {};
+global.World = { spawn: null, setSpawn: (spawn) => worldSpawns.push(spawn) > 0 };
 
 require(path.resolve(__dirname, "..", "dist", "server.js"));
 assert.deepStrictEqual([...exportsSeen.keys()], ["locations", "ui", "spawn", "status"]);
 // An unref'd autosave would never fire in the resource's own event loop.
 assert.deepStrictEqual(intervals.map((timer) => [timer.milliseconds, timer.unrefed]), [[60000, false]]);
+// Neither spawn point is set unless configured; configured, the connect load stands on the world spawn.
+assert.strictEqual(defaults.worldSpawn, null);
+assert.strictEqual(defaults.respawnAtSpawn, false);
+assert.deepStrictEqual(worldSpawns, [{ position: { x: 366784, y: -461527, z: -82610 }, yaw: 0 }]);
+
+// respawnAtSpawn makes the landing the player's spawn point; stopping the resource puts the host's world spawn back.
+async function spawnPointsFollowConfig() {
+    const spawns = [];
+    const player = {
+        id: 5,
+        emit() {},
+        location: () => ({ areaId: "Overland", regionId: "Hogwarts", destinationId: null, x: 0, y: 0, z: 0, yaw: 0, revision: 1 }),
+        teleport: () => 41,
+        setSpawn: (spawn) => spawns.push(spawn),
+    };
+    const character = { id: 9, name: "Poppy" };
+    core.sessions.get = (candidate) => (candidate === player || candidate === 5 ? { player, character } : null);
+    core.characters.active = () => character;
+    serverHandlers.get("client:hmp-spawn:select")(player, { key: "hogwarts" });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const destination = { x: 366790, y: -461520, z: -82600, yaw: 45 };
+    await serverHandlers.get("playerTeleportComplete")(player, 41, 0, { requestId: 41, status: 0, destination, groundSnapped: true });
+    assert.deepStrictEqual(spawns, [{ position: { x: 366790, y: -461520, z: -82600 }, yaw: 45 }]);
+    await serverHandlers.get("resourceStop")("hmp-spawn");
+    assert.deepStrictEqual(worldSpawns.at(-1), null);
+}
 
 // A selection whose teleport the host rejects, by throwing or with no request id, reaches the client as one failure.
 async function rejectedSelectionReportsOnce() {
@@ -94,7 +123,7 @@ assert.ok(clientHandlers.has("hmp-spawn:open"));
 assert.ok(clientHandlers.has("hmp-spawn:complete"));
 assert.ok(webHandlers.has("select"));
 assert.ok(fs.existsSync(path.resolve(__dirname, "..", "dist", "index.html")));
-rejectedSelectionReportsOnce().then(() => console.log("hmp-spawn bundle contract passed"), (error) => {
+rejectedSelectionReportsOnce().then(spawnPointsFollowConfig).then(() => console.log("hmp-spawn bundle contract passed"), (error) => {
     console.error(error);
     process.exitCode = 1;
 });

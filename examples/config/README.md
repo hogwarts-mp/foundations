@@ -44,7 +44,8 @@ Foundations does not automatically read `environment.example` or a `.env` file.
 Review at minimum:
 
 - the database host, user, password, database, TLS policy, and connection limits;
-- every spawn coordinate against the supported game build;
+- every spawn coordinate against the supported game build, and whether players should load and respawn
+  at an `hmp-spawn` spawn point (`worldSpawn`, `respawnAtSpawn`);
 - whether deleting characters is appropriate for the test;
 - custom item names, weights, stack sizes, and resource-hosted icon URLs;
 - the inventory UI URL if the server replaces the bundled Arcanum renderer;

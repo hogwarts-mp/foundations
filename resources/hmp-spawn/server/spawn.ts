@@ -22,6 +22,10 @@ function clientNotified(error: unknown): boolean {
     return error instanceof Error && notifiedFailures.has(error);
 }
 
+// A host spawn point is always an Overland position: a load or respawn opens Overland and stands the player on it.
+const inOverland = (location: NormalizedLocation): boolean => String(location.areaId || "").toLowerCase() === "overland";
+const spawnPoint = (location: NormalizedLocation): HogwartsMpSpawnPoint => ({ position: { x: location.x, y: location.y, z: location.z }, yaw: location.yaw ?? 0 });
+
 function normalizeLocation(value: unknown, options: { key?: string; resource?: string } = {}): NormalizedLocation {
     if (!value || typeof value !== "object") throw spawnError("HMP_SPAWN_INVALID_LOCATION", "Spawn location must be an object");
     const record = value as Record<string, unknown>;
@@ -99,10 +103,25 @@ function createSpawnFlow(options: SpawnFlowOptions) {
     const loadingDone = new Set<number>();
     const queuedSelection = new Map<number, CharacterSelectionPayload>();
     const selectorRequests = new Map<number, symbol>();
+    // Players whose spawn point hmp-spawn set, so clearing one never touches another resource's.
+    const respawnPoints = new Set<number>();
 
     for (const location of config.locations || []) register({ ...location, resource: "hmp-spawn" });
     if (!locations.has(String(config.defaultLocation || "").toLowerCase())) {
         throw new TypeError(`hmp-spawn default location '${config.defaultLocation}' is not registered`);
+    }
+    const worldSpawn = config.worldSpawn ? locations.get(String(config.worldSpawn).trim().toLowerCase()) : undefined;
+    if (config.worldSpawn && !worldSpawn) throw new TypeError(`hmp-spawn worldSpawn '${config.worldSpawn}' is not registered`);
+    if (worldSpawn?.areaId && !inOverland(worldSpawn)) throw new TypeError(`hmp-spawn worldSpawn '${worldSpawn.key}' must be an Overland location`);
+
+    // The connect load stands every player on worldSpawn instead of in the house dormitory. The character, and
+    // with it the destination, is chosen only after that load, so the teleport still takes them the rest of the way.
+    const world = options.world || null;
+    let worldSpawnBefore: HogwartsMpSpawnPoint | null | undefined;
+    if (worldSpawn) {
+        const before = world?.spawn ?? null;
+        if (typeof world?.setSpawn === "function" && world.setSpawn(spawnPoint(worldSpawn))) worldSpawnBefore = before;
+        else if (logger && typeof logger.warn === "function") logger.warn(`worldSpawn '${worldSpawn.key}' needs a HogwartsMP host with World.setSpawn; players load into the house dormitory`);
     }
 
     function idOf(player: Player): number {
@@ -290,6 +309,20 @@ function createSpawnFlow(options: SpawnFlowOptions) {
         if (core.sessions.get(context.player)) await open(context.player);
     }
 
+    // A respawn without a position, like the automatic one after a death, stands the player on their spawn point
+    // ahead of World.spawn. respawnAtSpawn makes that the character's Overland landing; null clears it again.
+    function holdRespawn(player: Player, at: NormalizedLocation | null): void {
+        const id = idOf(player);
+        if (typeof player.setSpawn !== "function" || (!at && !respawnPoints.has(id))) return;
+        try {
+            player.setSpawn(at ? spawnPoint(at) : null);
+            if (at) respawnPoints.add(id);
+            else respawnPoints.delete(id);
+        } catch (error) {
+            if (logger && typeof logger.warn === "function") logger.warn(`Could not set #${id}'s spawn point: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
     async function spawn(player: Player, destination: unknown): Promise<number> {
         const playerId = idOf(player);
         if (pendingByPlayer.has(playerId)) throw spawnError("HMP_SPAWN_IN_PROGRESS", "A spawn is already in progress");
@@ -361,6 +394,7 @@ function createSpawnFlow(options: SpawnFlowOptions) {
             arrival.destinationId = observedLocation.destinationId;
         }
         spawnedCharacter.set(context.playerId, context.character.id);
+        if (config.respawnAtSpawn === true) holdRespawn(player, inOverland(arrival) ? arrival : null);
         if (config.saveLastLocation) {
             await saveSnapshot(player, arrival, context.character, true);
         }
@@ -397,6 +431,8 @@ function createSpawnFlow(options: SpawnFlowOptions) {
         const id = idOf(player);
         spawnedCharacter.delete(id);
         selectorRequests.delete(id);
+        // The previous character's landing is no longer where this one respawns.
+        holdRespawn(player, null);
         if (!loadingDone.has(id)) {
             queuedSelection.set(id, payload);
             return false;
@@ -434,6 +470,13 @@ function createSpawnFlow(options: SpawnFlowOptions) {
         queuedSelection.delete(id);
         spawnedCharacter.delete(id);
         selectorRequests.delete(id);
+        respawnPoints.delete(id);
+    }
+
+    // World.spawn is server-wide, so the one found at start is put back.
+    function stop(): void {
+        if (worldSpawnBefore !== undefined) world?.setSpawn?.(worldSpawnBefore);
+        worldSpawnBefore = undefined;
     }
 
     const locationApi = Object.freeze({
@@ -456,6 +499,7 @@ function createSpawnFlow(options: SpawnFlowOptions) {
         locationChanged,
         removeForResource,
         disconnect,
+        stop,
         status: () => ({ locations: locations.size, pending: pendingByRequest.size, spawned: spawnedCharacter.size }),
     });
 }
