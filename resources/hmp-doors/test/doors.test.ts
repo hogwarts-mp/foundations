@@ -5,7 +5,7 @@ import serviceModule = require("../server/service");
 import clientModule = require("../client/doors");
 import type { HmpDoorRule } from "../types";
 
-const { evaluateRules } = policyModule;
+const { evaluateRules, lockLevels } = policyModule;
 const { normalizeRule } = configModule;
 const { createDoorService, METADATA_KEY } = serviceModule;
 const { createDoorClient, doorAnchor, normalizeLabelOptions, levelSegment } = clientModule;
@@ -59,6 +59,26 @@ async function run(): Promise<void> {
     assert.throws(() => normalizeRule({ priority: 1, action: "lock", doors: "*" }, 0), /not '\*'/);
     assert.throws(() => normalizeRule({ priority: 1, action: "seal", doors: ["x"] }, 0), /allow, deny or lock/);
 
+    // A lock level is held by the server for every player, by selector, so it rides only a deny or lock naming doors.
+    assert.strictEqual(normalizeRule({ priority: 1, action: "lock", doors: ["Vault"], lockLevel: 3 }, 0).lockLevel, 3);
+    assert.strictEqual(normalizeRule({ priority: 1, action: "deny", doors: ["Vault"], lockLevel: 1 }, 0).lockLevel, 1);
+    assert.throws(() => normalizeRule({ priority: 1, action: "lock", doors: ["Vault"], lockLevel: 4 }, 0), /1, 2 or 3/);
+    assert.throws(() => normalizeRule({ priority: 1, action: "lock", doors: ["Vault"], lockLevel: "2" }, 0), /1, 2 or 3/);
+    assert.throws(() => normalizeRule({ priority: 1, action: "allow", doors: ["Vault"], lockLevel: 2 }, 0), /deny or lock rule naming doors/);
+    assert.throws(() => normalizeRule({ priority: 1, action: "deny", doors: "*", lockLevel: 2 }, 0), /deny or lock rule naming doors/);
+    assert.throws(() => normalizeRule({ priority: 1, action: "deny", locks: ["GateLock"], lockLevel: 2 }, 0), /deny or lock rule naming doors/);
+    assert.throws(() => normalizeRule({ priority: 1, action: "lock", doors: ["Vault"], lockLevel: 2, match: { groups: [{ key: "staff" }] } }, 0), /cannot carry match/);
+
+    // The strongest rule carrying a level wins a selector; at equal priority the higher level does.
+    const leveled = [
+        normalizeRule({ priority: 500, action: "lock", doors: ["Vault", "Cellar"], lockLevel: 1 }, 0),
+        normalizeRule({ priority: 100, action: "deny", doors: ["Vault"], lockLevel: 2 }, 1),
+        normalizeRule({ priority: 500, action: "deny", doors: ["Cellar"], lockLevel: 3 }, 2),
+        normalizeRule({ priority: 1, action: "lock", doors: ["Cellar"] }, 3),
+    ];
+    assert.deepStrictEqual([...lockLevels(leveled)], [["Vault", 2], ["Cellar", 3]]);
+    assert.strictEqual(lockLevels(rules).size, 0);
+
     const player = { id: 7, nickname: "Test", emitted: [] as Array<{ name: string; payload: unknown }>, emit(name: string, payload?: unknown) { this.emitted.push({ name, payload }); } };
     const metadata = new Map<string, unknown>();
     let sessionReady = true;
@@ -92,6 +112,48 @@ async function run(): Promise<void> {
     assert.strictEqual(await service.grants.revoke(player, "SecretPassage"), true);
     assert.deepStrictEqual(await service.grants.list(player), []);
     assert.ok(player.emitted.some((event) => event.name === "hmp-doors:policy"));
+
+    // Each level is held when the service starts, and stopping releases that axis alone.
+    const warnings: string[] = [];
+    const logger = { warn: (message: unknown) => { warnings.push(String(message)); return true; } };
+    const config = { command: "doors", enableCommands: true, adminGroups: [], rules: leveled };
+    const levelCalls: Array<[string, unknown]> = [];
+    const heldLevels = new Map<string, 1 | 2 | 3>();
+    const leveledService = createDoorService({
+        core: core as never, config, players: () => [], logger,
+        doors: {
+            set: (selector, state) => {
+                if (selector === "Vault" && state.lockLevel) throw new TypeError("selector refused");
+                levelCalls.push([selector, state.lockLevel]);
+                if (state.lockLevel) heldLevels.set(selector, state.lockLevel);
+                else heldLevels.delete(selector);
+                return true;
+            },
+            get: (selector) => heldLevels.has(selector) ? { lockLevel: heldLevels.get(selector) } : null,
+        },
+    });
+    // A selector the host refuses is skipped with a warning; the others are still held.
+    assert.deepStrictEqual(levelCalls, [["Cellar", 3]]);
+    assert.deepStrictEqual(warnings, ["Could not hold lock level 2 on 'Vault': selector refused"]);
+    leveledService.stop();
+    assert.deepStrictEqual(levelCalls, [["Cellar", 3], ["Cellar", null]]);
+    leveledService.stop();
+    assert.strictEqual(levelCalls.length, 2, "a second stop has nothing left to release");
+
+    // A host older than lockLevel ignores the axis and holds nothing: one warning, and nothing to release.
+    warnings.length = 0;
+    const olderCalls: unknown[] = [];
+    const olderHost = createDoorService({
+        core: core as never, config, players: () => [], logger,
+        doors: { set: (selector, state) => { olderCalls.push([selector, state]); return true; }, get: () => null },
+    });
+    assert.strictEqual(warnings.length, 1);
+    assert.match(warnings[0], /need a HogwartsMP host with Doors lockLevel/);
+    olderHost.stop();
+    assert.deepStrictEqual(olderCalls, [["Vault", { lockLevel: 2 }]]);
+    // No server Doors builtin at all degrades the same way rather than throwing.
+    createDoorService({ core: core as never, config, players: () => [], logger }).stop();
+    assert.strictEqual(warnings.length, 2);
 
     const lockCalls: Array<[string, boolean | undefined]> = [];
     const lockedCalls: Array<[string, boolean | undefined]> = [];
@@ -140,6 +202,22 @@ async function run(): Promise<void> {
     assert.strictEqual(chat[2], "/Game/Maps/HM/Sub.Sub:PersistentLevel.BP_Door_0");
     assert.strictEqual(chat.length, 11);
     listed.stop();
+
+    // A host that reports padlock levels gets them printed; a level-less door (above) stays as it was.
+    const padlocks: string[] = [];
+    createDoorClient({
+        events: { emitServer: () => { /* ready ping */ } },
+        notify: (message) => { padlocks.push(message); },
+        doors: {
+            setLock: () => true, superAlohomora: () => true, setPolicy: () => { /* unused */ },
+            openNearby: () => 0, unlockNearby: () => 0, setOpen: () => true, setLocked: () => 0,
+            list: () => [
+                { name: "BP_Padlock_Door", cls: "PadlockDoor", dist: 100, bearing: 0, lockLevel: 2 },
+                { name: "BP_Key_Door", cls: "PadlockDoor", dist: 200, bearing: 0, lockLevel: "key" },
+            ],
+        },
+    }).list(800);
+    assert.deepStrictEqual(padlocks.slice(1), ["100cm BP_Padlock_Door [PadlockDoor] Lv.2", "200cm BP_Key_Door [PadlockDoor] key-only"]);
 
     // Label mode is inert without the Hud and LocalPlayer natives rather than throwing.
     assert.strictEqual(client.diagnostic({ action: "label" }), false);

@@ -59,4 +59,22 @@ function evaluateRules(rules: ReadonlyArray<HmpDoorRule>, groups: EffectiveGroup
     };
 }
 
-export = { applies, verdict, evaluateRules };
+/**
+ * The level each selector's padlocks are held at. The server holds one for every player, so match plays no part:
+ * the strongest rule carrying a level for a selector wins it, and at equal priority the higher level does.
+ */
+function lockLevels(rules: ReadonlyArray<HmpDoorRule>): Map<string, 1 | 2 | 3> {
+    const chosen = new Map<string, { priority: number; level: 1 | 2 | 3 }>();
+    for (const rule of rules) {
+        if (!rule.lockLevel || !Array.isArray(rule.doors)) continue;
+        for (const selector of rule.doors) {
+            const current = chosen.get(selector);
+            if (!current || rule.priority < current.priority || (rule.priority === current.priority && rule.lockLevel > current.level)) {
+                chosen.set(selector, { priority: rule.priority, level: rule.lockLevel });
+            }
+        }
+    }
+    return new Map([...chosen].map(([selector, held]) => [selector, held.level]));
+}
+
+export = { applies, verdict, evaluateRules, lockLevels };

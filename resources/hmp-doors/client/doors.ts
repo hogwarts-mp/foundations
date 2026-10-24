@@ -3,9 +3,10 @@ import type { HmpResolvedDoorPolicy } from "../types";
 /**
  * `path` and `x`/`y`/`z` arrive only from client builds carrying the door-position change; older ones
  * omit them. `name` is an actor `FName`, unique only within its Outer, so streamed sublevels can repeat
- * it — `path` carries the outer chain and is what separates two placements sharing a name.
+ * it — `path` carries the outer chain and is what separates two placements sharing a name. `lockLevel`,
+ * the Alohomora level a padlocked door asks for or `"key"`, comes only from a host that reports it.
  */
-interface NativeDoor { name: string; cls: string; dist: number; bearing: number; path?: string; x?: number; y?: number; z?: number }
+interface NativeDoor { name: string; cls: string; dist: number; bearing: number; path?: string; x?: number; y?: number; z?: number; lockLevel?: 1 | 2 | 3 | "key" }
 
 interface NativeDoors {
     setLock(lockId: string, unlocked?: boolean): boolean;
@@ -102,6 +103,12 @@ function levelSegment(path: string | undefined): string {
     return pkg.slice(pkg.lastIndexOf("/") + 1);
 }
 
+/** A padlocked door's lock level as `list` prints it; empty for any other door or a host that omits it. */
+function lockLabel(door: NativeDoor): string {
+    if (door.lockLevel === undefined) return "";
+    return door.lockLevel === "key" ? " key-only" : ` Lv.${door.lockLevel}`;
+}
+
 /** A door the native located, so its own world position can be used instead of a reconstruction. */
 function isLocated(door: NativeDoor): door is NativeDoor & { x: number; y: number; z: number } {
     return Number.isFinite(door.x) && Number.isFinite(door.y) && Number.isFinite(door.z);
@@ -156,7 +163,7 @@ function createDoorClient(dependencies: ClientDependencies) {
         const bounded = Math.max(100, Math.min(20000, Number(radius) || 3000));
         const found = doors.list(bounded);
         dependencies.log?.(`[hmp-doors] ${found.length} door(s) within ${bounded}cm (distance | bearing | name):`);
-        for (const door of found) dependencies.log?.(`  ${door.dist.toFixed(0)}cm | ${door.bearing.toFixed(0)}deg | ${door.name} [${door.cls}]${door.path ? `\n      ${door.path}` : ""}`);
+        for (const door of found) dependencies.log?.(`  ${door.dist.toFixed(0)}cm | ${door.bearing.toFixed(0)}deg | ${door.name} [${door.cls}]${lockLabel(door)}${door.path ? `\n      ${door.path}` : ""}`);
         // The console cannot be copied from, and a path is the one thing worth copying, so the nearest
         // few also go to chat with each path on its own line to keep a selection clean. The native
         // returns up to 60 sorted by distance; sending them all would bury the chat.
@@ -164,7 +171,7 @@ function createDoorClient(dependencies: ClientDependencies) {
         const overflow = found.length - shown.length;
         dependencies.notify?.(`[doors] ${found.length} door(s) within ${bounded}cm${overflow > 0 ? `; nearest ${shown.length} below, ${overflow} more in the console` : ""}`);
         for (const door of shown) {
-            dependencies.notify?.(`${door.dist.toFixed(0)}cm ${door.name} [${door.cls}]`);
+            dependencies.notify?.(`${door.dist.toFixed(0)}cm ${door.name} [${door.cls}]${lockLabel(door)}`);
             if (door.path) dependencies.notify?.(door.path);
         }
         return found;

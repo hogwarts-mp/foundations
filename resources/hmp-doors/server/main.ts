@@ -3,6 +3,9 @@ import serviceModule = require("./service");
 import type { HmpCore } from "../../hmp-core/types";
 import type { HmpLibServer } from "../../hmp-lib/types";
 import type { HmpDoorPlayer } from "../types";
+import type { NativeServerDoors } from "./internal";
+
+declare const Doors: NativeServerDoors | undefined;
 
 const { loadConfig } = configModule;
 const { createDoorService } = serviceModule;
@@ -11,7 +14,13 @@ const Hmp = Imports.get<HmpLibServer<HmpDoorPlayer>>("hmp-lib");
 const core = Imports.get<HmpCore<HmpDoorPlayer>>("hmp-core");
 const logger = Hmp.logger.create("hmp-doors");
 const config = loadConfig(Hmp);
-const doors = createDoorService<HmpDoorPlayer>({ core, config, players: () => PlayerManager.getAll() });
+const doors = createDoorService<HmpDoorPlayer>({
+    core,
+    config,
+    players: () => PlayerManager.getAll(),
+    doors: typeof Doors === "undefined" ? undefined : Doors,
+    logger,
+});
 
 Exports.register("policy", doors.policy);
 Exports.register("grants", doors.grants);

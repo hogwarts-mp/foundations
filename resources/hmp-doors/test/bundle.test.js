@@ -3,7 +3,9 @@ const path = require("node:path");
 
 const serverExports = new Map();
 const serverHandlers = new Map();
-const logger = { info() {}, warn() {}, error() {}, debug() {} };
+const warnings = [];
+const logger = { info() {}, warn: (message) => warnings.push(message), error() {}, debug() {} };
+const lockRule = { priority: 100, action: "lock", doors: ["BP_Smoke_Door"], lockLevel: 2 };
 const player = { id: 1, nickname: "Smoke", emit() {}, sendChat() {} };
 const core = {
     sessions: { isReady: () => true },
@@ -15,7 +17,7 @@ global.Exports = { register: (name, value) => serverExports.set(name, value) };
 global.Imports = { get: (name) => {
     if (name === "hmp-lib") return {
         logger: { create: () => logger },
-        config: { load: (_path, options) => options.defaults, env: { boolean: (_value, fallback) => fallback } },
+        config: { load: (_path, options) => ({ ...options.defaults, rules: [...options.defaults.rules, lockRule] }), env: { boolean: (_value, fallback) => fallback } },
         player: { find: () => player },
     };
     if (name === "hmp-core") return core;
@@ -26,10 +28,27 @@ global.Events = {
     on: (name, handler) => serverHandlers.set(name, handler),
     onClient: (name, handler) => serverHandlers.set(`client:${name}`, handler),
 };
-require(path.resolve(__dirname, "..", "dist", "server.js"));
+const serverBundle = path.resolve(__dirname, "..", "dist", "server.js");
+// A host without the server Doors builtin still starts, lock-level rule and all.
+require(serverBundle);
 assert.deepStrictEqual([...serverExports.keys()], ["policy", "grants", "status"]);
 assert.ok(serverHandlers.has("client:hmp-doors:ready"));
 assert.ok(serverHandlers.has("hmp:groups:changed"));
+assert.strictEqual(warnings.length, 1);
+
+// A host holding lock levels gets the rule's level at start, released alone at stop.
+const held = [];
+const levels = new Map();
+global.Doors = {
+    set: (selector, state) => { held.push([selector, state]); if (state.lockLevel) levels.set(selector, state.lockLevel); else levels.delete(selector); return true; },
+    get: (selector) => levels.has(selector) ? { selector, kind: "name", locked: null, open: null, lockLevel: levels.get(selector) } : null,
+};
+delete require.cache[serverBundle];
+require(serverBundle);
+assert.deepStrictEqual(held, [["BP_Smoke_Door", { lockLevel: 2 }]]);
+serverHandlers.get("resourceStop")("hmp-doors");
+assert.deepStrictEqual(held.at(-1), ["BP_Smoke_Door", { lockLevel: null }]);
+assert.strictEqual(warnings.length, 1);
 
 const clientExports = new Map();
 const clientHandlers = new Map();
@@ -41,10 +60,11 @@ global.Events = {
 };
 global.Doors = {
     setLock: () => true, superAlohomora: () => true, openNearby: () => 0,
-    list: () => [{ name: "BP_Smoke_Door", cls: "Door", dist: 250, bearing: 0 }],
+    list: () => [{ name: "BP_Smoke_Door", cls: "Door", dist: 250, bearing: 0, lockLevel: 2 }],
     unlockNearby: () => 0, setOpen: () => true, setPolicy() {}, setLocked: () => 1,
 };
-global.Game = { notify() {} };
+const notices = [];
+global.Game = { notify: (message) => notices.push(message) };
 const prompts = [];
 global.Hud = { showPrompt: (...args) => prompts.push(args), hidePrompt() {} };
 global.LocalPlayer = {
@@ -56,6 +76,8 @@ assert.deepStrictEqual([...clientExports.keys()], ["status", "list", "labels"]);
 assert.ok(clientHandlers.has("hmp-doors:policy"));
 assert.deepStrictEqual(clientEmits.map((event) => event.name), ["hmp-doors:ready"]);
 clientHandlers.get("hmp-doors:policy")({ unlockAll: true });
+clientHandlers.get("hmp-doors:diagnostic")(JSON.stringify({ action: "list" }));
+assert.ok(notices.includes("250cm BP_Smoke_Door [Door] Lv.2"));
 clientHandlers.get("hmp-doors:diagnostic")(JSON.stringify({ action: "label" }));
 assert.deepStrictEqual(prompts, [["2.5m", "BP_Smoke_Door", 250, 0, 120]]);
 assert.strictEqual(clientHandlers.get("hmp-doors:diagnostic")(JSON.stringify({ action: "label-off" })), true);

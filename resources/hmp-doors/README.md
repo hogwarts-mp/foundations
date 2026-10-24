@@ -71,6 +71,24 @@ rather than unlocking it under a wildcard allow.
 `/doors lock <selector>` and `/doors unlock <selector>` apply the same thing live for testing. They are
 diagnostics — nothing re-applies them as cells stream, so persist a rule once you know the selector works.
 
+## Lock levels
+
+A `deny` or `lock` rule naming doors can also set the Alohomora level their padlocks ask for, from 1 to 3:
+
+```json
+{ "priority": 100, "action": "lock", "doors": ["BP_Door_Headmaster"], "lockLevel": 3 }
+```
+
+The server holds the level for every player through `Doors.set(selector, { lockLevel })`, so the padlock's
+callout shows it and the game lets only a player whose Alohomora reaches it cast on the door. Only padlocked
+doors carry a level; `/doors list` prints each one's current level, or `key-only` for a padlock only a key
+opens. Being the same for everyone, a level cannot follow `match`, so a rule carrying one has none; a player
+whose rules unlock the door never meets it. Where several rules give a door a level, the strongest wins, and at
+equal priority the higher level. Levels are held when the resource starts and released when it stops.
+
+Lock levels need a HogwartsMP host with `Doors.set` `lockLevel`. On an older host `hmp-doors` logs a warning at
+startup and every padlock keeps the level it shipped with.
+
 ## API
 
 Server exports:
@@ -105,9 +123,9 @@ Members of one configured `adminGroups` entry may use:
 /doors clear <me|nick|#id>
 ```
 
-`list` prints loaded physical actor names to the client console. The nearby/open actions are diagnostics,
-not durable policy. Set `enableCommands` to false outside testing if script APIs are the only desired
-management surface.
+`list` prints loaded physical actor names to the client console, with a padlocked door's lock level where
+the host reports it. The nearby/open actions are diagnostics, not durable policy. Set `enableCommands` to
+false outside testing if script APIs are the only desired management surface.
 
 `label` floats the nearest door's actor name in the world, rendered as `[2.4m] BP_Door_Name`, so names can
 be read while walking rather than matched up against a console dump. It labels one door at a time because

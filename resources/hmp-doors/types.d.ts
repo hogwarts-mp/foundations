@@ -29,6 +29,11 @@ export interface HmpDoorRule {
     doors?: "*" | ReadonlyArray<string>;
     locks?: ReadonlyArray<string>;
     alohomora?: true;
+    /**
+     * On a `deny` or `lock` rule naming doors: the Alohomora level their padlocks ask for. The server holds it
+     * for every player, so a rule carrying it has no `match`. Needs a HogwartsMP host with `Doors.set` `lockLevel`.
+     */
+    lockLevel?: 1 | 2 | 3;
     match?: HmpDoorMatch;
 }
 

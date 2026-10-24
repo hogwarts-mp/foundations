@@ -84,6 +84,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   follows it, never to the sharer, until unshared, its resource stops or the sharer leaves; nothing is
   shared unless a resource asks. It needs a HogwartsMP host with `Blips.waypoint`; on an older host no
   waypoint is reported and a share shows nothing.
+- `hmp-doors` rules can hold a padlocked door's Alohomora lock level. A `deny` or `lock` rule naming
+  doors takes `lockLevel` (`1` to `3`), which the server holds for every player, so the padlock's callout
+  shows it and only a player whose Alohomora reaches it can cast on the door. Being the same for
+  everyone, a rule carrying it cannot have `match`. `/doors list` prints each padlocked door's level. It
+  needs a HogwartsMP host with `Doors.set` `lockLevel`; on an older host every padlock keeps the level it
+  shipped with.
 
 ### Changed
 

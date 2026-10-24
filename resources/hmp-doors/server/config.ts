@@ -31,6 +31,14 @@ function normalizeRule(raw: unknown, index: number): HmpDoorRule {
         rule.locks = [...new Set(value.locks.map((entry) => cleanId(entry, `rule ${index} lock`)))];
     }
     if (value.alohomora === true) rule.alohomora = true;
+    if (value.lockLevel !== undefined) {
+        if (value.lockLevel !== 1 && value.lockLevel !== 2 && value.lockLevel !== 3) throw new TypeError(`hmp-doors rule ${index} lockLevel must be 1, 2 or 3`);
+        // The server holds one level per selector for every player, so it can follow neither an unlock, the
+        // wildcard, nor a per-player match.
+        if (value.action === "allow" || !Array.isArray(value.doors)) throw new TypeError(`hmp-doors rule ${index} lockLevel applies only to a deny or lock rule naming doors`);
+        if (value.match !== undefined) throw new TypeError(`hmp-doors rule ${index} lockLevel is held for every player, so it cannot carry match`);
+        rule.lockLevel = value.lockLevel;
+    }
     if (value.match !== undefined) {
         if (!value.match || typeof value.match !== "object" || Array.isArray(value.match)) throw new TypeError(`hmp-doors rule ${index} match must be an object`);
         const match = value.match as Record<string, unknown>;

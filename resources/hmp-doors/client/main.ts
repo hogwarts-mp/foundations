@@ -3,7 +3,7 @@ import clientModule = require("./doors");
 declare const Doors: {
     setLock(lockId: string, unlocked?: boolean): boolean;
     superAlohomora(enable?: boolean): boolean;
-    list(radius?: number): Array<{ name: string; cls: string; dist: number; bearing: number; path?: string; x?: number; y?: number; z?: number }>;
+    list(radius?: number): Array<{ name: string; cls: string; dist: number; bearing: number; path?: string; x?: number; y?: number; z?: number; lockLevel?: 1 | 2 | 3 | "key" }>;
     openNearby(radius?: number): number;
     unlockNearby(radius?: number): number;
     setOpen(name: string, open?: boolean): boolean;
