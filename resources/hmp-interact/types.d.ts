@@ -68,6 +68,16 @@ export interface HmpInteractionWorldObject {
     roll?: number;
     scale?: number;
     collision?: boolean;
+    /** Interest radius in cm, raised to at least `radius`, up to 200000; the host's 50000 (500 m) when omitted. */
+    streamRange?: number;
+    /** Client cull distance in cm: 0 never culls, any other value is raised to at least `radius`. Omitted, a mesh never culls. */
+    drawDistance?: number;
+    /** A looped animation for a skeletal mesh, made for the mesh's own skeleton. */
+    animation?: string;
+    /** A material put on every slot of the mesh. */
+    material?: string;
+    /** An effect each client plays where the prop appears, when it streams in within half a second of creation. */
+    startFx?: string;
 }
 
 export interface HmpInteractionCharacter {

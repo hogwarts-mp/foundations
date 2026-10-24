@@ -20,6 +20,13 @@ function finite(value: unknown, fallback: number, minimum: number, maximum: numb
     return Math.min(maximum, Math.max(minimum, Number.isFinite(number) ? number : fallback));
 }
 
+/** 0 never culls and any other distance keeps at least `minimum`; a negative or missing one keeps the host's default. */
+function cullDistance(value: unknown, minimum: number): number | undefined {
+    const number = Number(value);
+    if (value === undefined || !Number.isFinite(number) || number < 0) return undefined;
+    return number === 0 ? 0 : Math.min(200000, Math.max(minimum, number));
+}
+
 function point(value: HmpInteractVector3 | undefined): HmpInteractVector3 | undefined {
     if (!value || ![value.x, value.y, value.z].every((entry) => Number.isFinite(Number(entry)))) return undefined;
     return Object.freeze({ x: Number(value.x), y: Number(value.y), z: Number(value.z) });
@@ -98,9 +105,19 @@ function normalizeInteraction<P>(raw: HmpInteractionDefinition<P>): HmpInteracti
         roll: finite(raw.object.roll, 0, -360000, 360000),
         scale: finite(raw.object.scale, 1, 0.01, 100),
         collision: raw.object.collision !== false,
+        // Like promptDistance, kept at least the radius: the prop reaches and draws for a player before its prompt can.
+        streamRange: raw.object.streamRange === undefined ? undefined : finite(raw.object.streamRange, 50000, Math.max(100, radius), 200000),
+        drawDistance: cullDistance(raw.object.drawDistance, radius),
+        animation: clean(raw.object.animation, 500) || undefined,
+        material: clean(raw.object.material, 500) || undefined,
+        startFx: clean(raw.object.startFx, 500) || undefined,
     } : undefined;
     if (object && !((typeof object.model === "string" && clean(object.model, 500)) || Number.isFinite(Number(object.model)))) {
         throw new TypeError(`interaction '${interactionId}' has an invalid world-object model`);
+    }
+    // A prop that moves leaves its zone, and one with a lifetime is gone before its registration.
+    for (const field of ["motion", "ttl", "endFx", "shrinkOut"]) {
+        if (raw.object && field in raw.object) throw new TypeError(`interaction '${interactionId}' world object cannot take ${field}; it lasts as long as the interaction`);
     }
     const character = raw.character ? {
         characterId: clean(raw.character.characterId, 64),

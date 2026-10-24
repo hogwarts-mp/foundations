@@ -100,6 +100,11 @@ function createInteractService<P extends HmpInteractPlayer>(dependencies: Intera
                 roll: object.roll,
                 scale: object.scale,
                 collision: object.collision,
+                streamRange: object.streamRange,
+                drawDistance: object.drawDistance,
+                animation: object.animation,
+                material: object.material,
+                startFx: object.startFx,
             });
             // A server that warns-and-returns instead of throwing would otherwise leave a registered zone
             // whose prompt works and whose mesh never appears.

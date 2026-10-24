@@ -112,6 +112,23 @@ To find a path, press **F6** in-game for the World builder and search; hovering 
 full path. A well-formed path to an asset that does not exist is accepted by the server and simply
 never renders, so check the client log if a prop's prompt appears without its mesh.
 
+`object` also takes the host's reach and look options:
+
+- `streamRange` — how close, in cm, a player must be to receive the prop (host default 50000, 500 m;
+  up to 200000). Lower it when a place has many props, raise it for a landmark.
+- `drawDistance` — the client cull distance in cm; `0` never culls, and omitted, a mesh never culls.
+- `animation` — a looped animation for a skeletal mesh, made for the mesh's own skeleton.
+- `material` — a material put on every slot of the mesh.
+- `startFx` — an effect each client plays where the prop appears, when it streams in within half a
+  second of creation (a registration made while players are nearby).
+
+`streamRange` and a non-zero `drawDistance` are raised to at least the interaction's `radius`, as
+`promptDistance` is held under it, so a player always has the prop before its prompt can show. The
+host's `motion`, `ttl`, `endFx` and `shrinkOut` are refused: a prop that moves leaves its fixed zone,
+and one with a lifetime is gone while its interaction still stands. `streamRange` and `drawDistance`
+need HogwartsMP 1.9.2 or newer, and `animation`, `material` and `startFx` a host whose
+`WorldObject.create` takes them; an older host ignores them and draws the mesh as it is.
+
 ## Optional characters
 
 An interaction can instead own a replicated Framework `Character`: a dressed, stationary human built

@@ -16,7 +16,8 @@ global.Imports = { get: (name) => {
     throw new Error(`Unexpected import ${name}`);
 } };
 global.PlayerManager = { getAll: () => [] };
-global.WorldObject = { create: () => ({}), destroy: () => true };
+const worldObjects = [];
+global.WorldObject = { create: (key, model, options) => { worldObjects.push({ key, model, options }); return {}; }, destroy: () => true };
 global.Events = {
     on: (name, handler) => serverHandlers.set(name, handler),
     onClient: (name, handler) => serverHandlers.set(`client:${name}`, handler),
@@ -28,6 +29,11 @@ assert.deepStrictEqual([...serverExports.keys()], ["register", "unregister", "ge
 assert.ok(serverHandlers.has("client:hmp-interact:ready"));
 assert.ok(serverHandlers.has("client:hmp-interact:trigger"));
 assert.ok(serverHandlers.has("client:hmp-interact:stand"));
+serverExports.get("register")({
+    id: "smoke.prop", resource: "smoke", label: "Prop", position: { x: 0, y: 0, z: 0 }, handler() {},
+    object: { model: "/Game/Smoke.Smoke", streamRange: 20000, drawDistance: 0, material: "/Game/M_Smoke.M_Smoke" },
+});
+assert.deepStrictEqual([worldObjects[0].options.streamRange, worldObjects[0].options.drawDistance, worldObjects[0].options.material], [20000, 0, "/Game/M_Smoke.M_Smoke"]);
 
 const clientExports = new Map();
 const clientHandlers = new Map();

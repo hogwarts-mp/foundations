@@ -23,6 +23,11 @@ export interface InteractWorldObjects {
         roll?: number;
         scale?: number;
         collision?: boolean;
+        streamRange?: number;
+        drawDistance?: number;
+        animation?: string;
+        material?: string;
+        startFx?: string;
     }): unknown;
     destroy(key: string): boolean;
 }

@@ -128,6 +128,36 @@ test("registers owned zones, publishes optional props and cleans up safely", () 
     assert.deepStrictEqual(state.destroyed, ["hmp-interact:wardrobe", "hmp-interact:wardrobe"]);
 });
 
+test("passes a prop's look and reach to the host, never below its radius, and refuses a lifetime or motion", () => {
+    const state = setup();
+    const look = {
+        model: "/Game/Cauldron.Cauldron",
+        streamRange: 50,
+        drawDistance: 120,
+        animation: "/Game/Bubble_anm.Bubble_anm",
+        material: " /Game/M_Copper.M_Copper ",
+        startFx: "/Game/VFX/NS_Puff.NS_Puff",
+    };
+    state.service.register({ id: "cauldron.look", resource: "hmp-potions", label: "Brew", position: { x: 0, y: 0, z: 0 }, radius: 300, object: look, handler() {} });
+    assert.deepStrictEqual(state.created[0].options, {
+        x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0, scale: 1, collision: true,
+        streamRange: 300, drawDistance: 300,
+        animation: "/Game/Bubble_anm.Bubble_anm", material: "/Game/M_Copper.M_Copper", startFx: "/Game/VFX/NS_Puff.NS_Puff",
+    });
+    state.service.register({ id: "cauldron.far", resource: "hmp-potions", label: "Brew", position: { x: 0, y: 0, z: 0 }, object: { model: "/Game/Cauldron.Cauldron", streamRange: 90000, drawDistance: 0 }, handler() {} });
+    assert.strictEqual((state.created[1].options as { streamRange: number }).streamRange, 90000);
+    assert.strictEqual((state.created[1].options as { drawDistance: number }).drawDistance, 0, "0 never culls");
+    state.service.register({ id: "cauldron.plain", resource: "hmp-potions", label: "Brew", position: { x: 0, y: 0, z: 0 }, object: { model: "/Game/Cauldron.Cauldron" }, handler() {} });
+    const plain = state.created[2].options as Record<string, unknown>;
+    assert.deepStrictEqual(["streamRange", "drawDistance", "animation", "material", "startFx"].map((field) => plain[field]), [undefined, undefined, undefined, undefined, undefined], "an unset option keeps the host's own default, as on an older host");
+    for (const extra of [{ ttl: 30 }, { motion: { speed: 100 } }, { endFx: "/Game/VFX/NS_Puff.NS_Puff" }, { shrinkOut: 1 }]) {
+        assert.throws(() => normalizeInteraction({
+            id: "cauldron.timed", resource: "hmp-potions", label: "Brew", position: { x: 0, y: 0, z: 0 },
+            object: { model: "/Game/Cauldron.Cauldron", ...extra } as never, handler() {},
+        }), /lasts as long as the interaction/);
+    }
+});
+
 test("publishes an optional character at the zone position and destroys it with the zone", () => {
     const state = setup();
     const dispose = state.service.register({

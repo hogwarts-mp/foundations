@@ -696,6 +696,16 @@ declare global {
             promptText?: string;
             promptHeight?: number;
             promptRange?: number;
+            /** Interest radius in cm, 100-200000: only players this close receive the object. Default 50000. */
+            streamRange?: number;
+            /** Client cull distance in cm; 0 never culls. Omitted, a mesh never culls. */
+            drawDistance?: number;
+            /** A looped animation for a skeletal mesh, on the mesh's own skeleton. */
+            animation?: string;
+            /** A material on every slot of the mesh. */
+            material?: string;
+            /** An effect each client plays where the object appears, when it streams in within half a second of creation. */
+            startFx?: string;
         }): unknown;
         destroy(key: string): boolean;
     };

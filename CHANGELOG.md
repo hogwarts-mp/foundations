@@ -132,6 +132,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   player leaving its world or area, and the host's own releases (death, a kneel, mounting, a server hold
   or teleport, a fast travel, a map load) free the seat. It needs a HogwartsMP host with
   `LocalPlayer.anchor`; on an older host the interaction runs and the player stays standing.
+- `hmp-interact` world objects take the host's `streamRange`, `drawDistance`, `animation`, `material`
+  and `startFx`. `streamRange` and a non-zero `drawDistance` are raised to at least the interaction's
+  `radius`, so a player always has the prop before its prompt can show. `motion`, `ttl`, `endFx` and
+  `shrinkOut` are refused: a moving prop leaves its fixed zone, and a timed one is gone while its
+  interaction still stands. `streamRange` and `drawDistance` need HogwartsMP 1.9.2 or newer, and the
+  look options a host whose `WorldObject.create` takes them; an older host ignores them.
 
 ### Changed
 
