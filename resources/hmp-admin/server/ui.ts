@@ -17,6 +17,18 @@ const TRAVEL_DESTINATIONS: HmpUiSelectOption[] = [
     { label: "Cliffside (intro)", value: "place:intro.cliffside", description: "The intro's cliffside ruins, at the bridge." },
     { label: "Another map", value: "map", description: "The package path below: a dungeon, or a mod's map." },
 ];
+const MOVE_ENDS: Record<HogwartsMpPlayerMoveEnd, string> = {
+    arrived: "arrived beside you",
+    blocked: "got stuck on the way",
+    targetLost: "lost track of you",
+    interrupted: "was interrupted: mounted, swimming, knocked down or in a scene",
+    travel: "was teleported away",
+    died: "died",
+    released: "was stopped by another resource",
+    replaced: "was given another walk by another resource",
+    expired: "ran out of time",
+    disconnect: "disconnected",
+};
 
 const WEATHER_PROFILES = Object.freeze([
     "Clear", "Default_PHY", "Announce", "Astronomy", "Intro_01", "MKT_Nov11",
@@ -169,6 +181,15 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
             { label: "Yaw", value: target.location ? `${target.location.yaw.toFixed(1)}°` : "—" },
             { label: "Groups", value: target.groups.length ? target.groups.map((group) => `${group.key}:${group.grade}`).join(", ") : "None" },
         ];
+    }
+
+    function moveEnded(actor: Player, target: Player, mode: "to" | "follow", reason: HogwartsMpPlayerMoveEnd): void {
+        ui.notify(actor, {
+            title: mode === "to" ? "Walk ended" : "Follow ended",
+            description: `${target.nickname || `Player ${target.id}`} ${MOVE_ENDS[reason] || `stopped walking (${reason})`}.`,
+            tone: reason === "arrived" ? "success" : "warning",
+            duration: 7000,
+        });
     }
 
     async function travelMenu(player: Player, target: HmpAdminPlayerSummary): Promise<void> {
@@ -400,6 +421,8 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
             catch (error) { notifyError(player, error); return; }
             const actions: HmpUiContextOption[] = [{ id: "details", title: `${target.nickname} · #${target.playerId}`, description: target.frozen ? "Currently frozen by hmp-admin" : "Connected", disabled: true, metadata: playerMetadata(target) }];
             if (allowed(capabilities, "admin.teleport")) actions.push({ id: "goto", title: "Go to player", description: "Stream your character near this player." }, { id: "bring", title: "Bring player", description: "Stream this player near your character." }, { id: "travel", title: "Send to a map", description: "Load another map or an intro place on this player's client; pick yourself to go there." });
+            if (allowed(capabilities, "admin.teleport") && target.playerId !== player.id) actions.push({ id: "walk", title: "Walk to you", description: "Walk this player to where you stand; their controls are locked until they arrive." }, { id: "follow", title: "Follow you", description: "Have this player walk after you, controls locked, until you stop it." });
+            if (allowed(capabilities, "admin.teleport") && target.moving) actions.push({ id: "stop-moving", title: target.moving === "to" ? "Stop walking" : "Stop following", description: "End the walk hmp-admin started; the player stops where they are." });
             if (allowed(capabilities, "admin.freeze")) actions.push({ id: target.frozen ? "release" : "freeze", title: target.frozen ? "Release player" : "Freeze player", description: "Uses the Framework's authoritative movement hold." });
             if (allowed(capabilities, "admin.freeze") && target.dead) actions.push({ id: "revive", title: "Revive player", description: "Stand this player up where they lie, at full health, with no reload." });
             if (allowed(capabilities, "admin.warn")) actions.push({ id: "warn", title: "Issue warning", description: "Record and deliver a staff warning." }, { id: "warnings", title: "Warning history", description: "Review prior warnings." });
@@ -415,6 +438,9 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
             if (!choice || choice === "details") return;
             if (choice === "goto" || choice === "bring" || choice === "freeze" || choice === "release") await run(player, () => admin.actions[choice](player, target.playerId), `${choice[0].toUpperCase()}${choice.slice(1)} completed.`);
             else if (choice === "revive") await run(player, () => admin.actions.revive(player, target.playerId), "Revive sent. The player gets up where they lie.");
+            else if (choice === "walk") await run(player, () => admin.actions.walkTo(player, target.playerId), `${target.nickname} is walking to you.`);
+            else if (choice === "follow") await run(player, () => admin.actions.follow(player, target.playerId), `${target.nickname} is following you. Reopen this player to stop it.`);
+            else if (choice === "stop-moving") await run(player, () => admin.actions.stopMoving(player, target.playerId), `${target.nickname} stopped where they are.`);
             else if (choice === "warn" || choice === "kick") {
                 const why = await reason(player, `${choice === "warn" ? "Warn" : "Kick"} · ${target.nickname}`, choice === "warn" ? "Staff warning" : "Removed by an administrator");
                 if (why) await run(player, () => choice === "warn" ? admin.moderation.warn(player, target.playerId, why) : admin.actions.kick(player, target.playerId, why), choice === "warn" ? "Warning recorded and delivered." : "Player kicked.");
@@ -648,7 +674,7 @@ function createAdminUi(options: { admin: AdminService; ui: Ui; banking: Banking;
         } finally { openMenus.delete(player.id); }
     }
 
-    return Object.freeze({ open, close: (player: Player) => { openMenus.delete(player.id); return ui.close(player, "Admin menu closed"); }, status: () => ({ openMenus: openMenus.size }) });
+    return Object.freeze({ open, close: (player: Player) => { openMenus.delete(player.id); return ui.close(player, "Admin menu closed"); }, moveEnded, status: () => ({ openMenus: openMenus.size }) });
 }
 
 export = { createAdminUi, inventoryOptions, inventoryItemField, spellOptions, transmogOptions, weatherOptions, WEATHER_PROFILES };

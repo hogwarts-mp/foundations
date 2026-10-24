@@ -48,6 +48,10 @@ Events.on("hmp:groups:changed", () => { admin.revalidateNoclip().catch((error: u
 Events.on("playerTeleportComplete", (player: Player, requestId: number, status: number, completion: HogwartsMpTeleportCompletion) => admin.onTeleportComplete(player, requestId, status, completion));
 Events.on("playerMapTravelComplete", (player: Player, requestId: number, status: number, completion: HogwartsMpMapTravelCompletion) => admin.onMapTravelComplete(player, requestId, status, completion));
 Events.on("playerHoldEnded", (player: Player, owner: string, reason: string) => admin.onHoldEnded(player, owner, reason));
+Events.on("playerMoveEnded", (player: Player, owner: string, reason: HogwartsMpPlayerMoveEnd) => {
+    const ended = admin.onMoveEnded(owner);
+    if (ended) adminUi.moveEnded(ended.actor, player, ended.mode, reason);
+});
 
 if (config.command) {
     const commands = Hmp.command.createRouter({ logger, prefix: "[admin]" });

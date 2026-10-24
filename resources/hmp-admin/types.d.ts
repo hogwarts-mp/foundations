@@ -61,6 +61,8 @@ export interface HmpAdminPlayerSummary {
     frozen: boolean;
     /** Whether the host reports the player dead (player.isDead). */
     dead: boolean;
+    /** The walk hmp-admin runs on this player: "to" an admin, "follow" one, or null. */
+    moving: "to" | "follow" | null;
 }
 
 export interface HmpAdminAuditEntry {
@@ -122,6 +124,12 @@ export interface HmpAdminActionsApi<P = HmpAdminPlayer> {
     bring(actor: P, target: P | number, reason?: string): Promise<number>;
     /** Sends a player, the actor included, to another map or intro place; resolves once they are playable there. */
     travel(actor: P, target: P | number, destination: HmpAdminTravelDestination, reason?: string): Promise<HogwartsMpMapTravelCompletion>;
+    /** Walks a player to where the actor stands (player.moveTo); the actor is told how it ended. */
+    walkTo(actor: P, target: P | number, reason?: string): Promise<boolean>;
+    /** Has a player walk after the actor (player.follow) until stopMoving. */
+    follow(actor: P, target: P | number, reason?: string): Promise<boolean>;
+    /** Ends the walk or follow hmp-admin started on a player. */
+    stopMoving(actor: P, target: P | number, reason?: string): Promise<boolean>;
     freeze(actor: P, target: P | number, reason?: string): Promise<boolean>;
     release(actor: P, target: P | number, reason?: string): Promise<boolean>;
     /** Stands a dead player up where they lie (player.revive). Refused unless the target is dead. */

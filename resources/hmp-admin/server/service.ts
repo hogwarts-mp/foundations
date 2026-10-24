@@ -25,6 +25,9 @@ interface TeleportWaiter<T = number> {
 }
 
 const ADMIN_HOLD = "hmp-admin";
+// Each walk gets its own owner tag, so playerMoveEnded names exactly which one ended, even one that a newer
+// hmp-admin walk replaced.
+const ADMIN_MOVE = `${ADMIN_HOLD}#`;
 const TRAVEL_PLACES = ["intro.gringotts", "intro.vault", "intro.cliffside"] as const;
 // The host answers every map travel within 180 s, timed out or not; this only covers an answer that never comes.
 const MAP_TRAVEL_GUARD_MS = 190000;
@@ -59,6 +62,8 @@ function createAdminService(options: {
     const { repository, permissions, core, inventory, banking, characters, jobs, spells, world, config, logger, migrations, listPlayers, getPlayer } = options;
     const pendingTeleports = new Map<string, TeleportWaiter>();
     const pendingMapTravels = new Map<string, TeleportWaiter<HogwartsMpMapTravelCompletion>>();
+    const activeMoves = new Map<string, { actorId: number; targetId: number; mode: "to" | "follow" }>();
+    let moveSequence = 0;
     const activeNoclip = new Set<number>();
     let groupChanges: Promise<unknown> = Promise.resolve();
     const startedAt = Date.now();
@@ -124,6 +129,13 @@ function createAdminService(options: {
         catch (_) { return false; }
     }
 
+    function adminMove(player: Player): HogwartsMpPlayerMoving | null {
+        try {
+            const moving = typeof player.moving === "function" ? player.moving() : null;
+            return moving && String(moving.owner).startsWith(ADMIN_MOVE) ? moving : null;
+        } catch (_) { return null; }
+    }
+
     function requireSameArea(left: Player, right: Player): void {
         const leftLocation = locationOf(left);
         const rightLocation = locationOf(right);
@@ -150,6 +162,7 @@ function createAdminService(options: {
             virtualWorld: Number(target.virtualWorld) || 0,
             frozen: Boolean(target.holds?.().some((hold) => hold.owner === ADMIN_HOLD)),
             dead: isDead(target),
+            moving: adminMove(target)?.mode ?? null,
         };
     }
 
@@ -252,6 +265,33 @@ function createAdminService(options: {
         if ((Number(status) === 0 || Number(status) === 6) && completion) pending.resolve(completion);
         else pending.reject(adminError("HMP_ADMIN_TRAVEL_FAILED", `The map travel did not arrive: ${MAP_TRAVEL_FAILURES[Number(status)] || `status ${status}`}.`));
         return true;
+    }
+
+    // Walks `player` to where `actor` stands, or after them, with the game's own walk and the player's own
+    // controls locked until it ends.
+    function startMove(actor: Player, player: Player, mode: "to" | "follow"): boolean {
+        const method = mode === "to" ? "moveTo" : "follow";
+        if (typeof player[method] !== "function") throw adminError("HMP_ADMIN_ACTION_UNAVAILABLE", `Walking a player needs a HogwartsMP host with player.${method}.`);
+        // The admin asked for the replacement, so the walk it ends is not reported back as ended.
+        const previous = adminMove(player);
+        if (previous) activeMoves.delete(previous.owner);
+        const owner = `${ADMIN_MOVE}${++moveSequence}`;
+        activeMoves.set(owner, { actorId: actor.id, targetId: player.id, mode });
+        const started = mode === "to"
+            ? player.moveTo!(actor.position.x, actor.position.y, actor.position.z, { owner, acceptRadius: 150 })
+            : player.follow!(actor, { owner });
+        if (started) return true;
+        activeMoves.delete(owner);
+        throw adminError("HMP_ADMIN_MOVE_REJECTED", "That player has no live character to walk.");
+    }
+
+    // The admin who started the walk that ended, to tell; null for another resource's walk or one already handled.
+    function onMoveEnded(owner: string): { actor: Player; mode: "to" | "follow" } | null {
+        const move = activeMoves.get(owner);
+        if (!move) return null;
+        activeMoves.delete(owner);
+        const actor = getPlayer(move.actorId);
+        return actor ? { actor, mode: move.mode } : null;
     }
 
     const players = Object.freeze({
@@ -395,6 +435,31 @@ function createAdminService(options: {
                 const method = place ? "travelToPlace" : "travelToMap";
                 if (typeof player[method] !== "function") throw adminError("HMP_ADMIN_ACTION_UNAVAILABLE", `Sending a player to a map needs a HogwartsMP host with player.${method}.`);
                 return waitForMapTravel(player, () => place ? player.travelToPlace!(place) : player.travelToMap!(map, playerStart ? { playerStart } : undefined));
+            });
+        },
+        async walkTo(actor: Player, target: Player | number, reason = "Walk player to you") {
+            const player = targetPlayer(target);
+            if (player === actor) throw adminError("HMP_ADMIN_SELF_TARGET", "You cannot walk to yourself.");
+            if (Number(actor.virtualWorld) !== Number(player.virtualWorld)) throw adminError("HMP_ADMIN_WORLD_MISMATCH", "Both players must be in the same virtual world.");
+            requireSameArea(actor, player);
+            return audited(actor, "admin.teleport", "player.walk-to", player, reason, {}, () => startMove(actor, player, "to"));
+        },
+        async follow(actor: Player, target: Player | number, reason = "Make player follow you") {
+            const player = targetPlayer(target);
+            if (player === actor) throw adminError("HMP_ADMIN_SELF_TARGET", "You cannot follow yourself.");
+            if (Number(actor.virtualWorld) !== Number(player.virtualWorld)) throw adminError("HMP_ADMIN_WORLD_MISMATCH", "Both players must be in the same virtual world.");
+            requireSameArea(actor, player);
+            return audited(actor, "admin.teleport", "player.follow", player, reason, {}, () => startMove(actor, player, "follow"));
+        },
+        async stopMoving(actor: Player, target: Player | number, reason = "Stop player walking") {
+            const player = targetPlayer(target);
+            return audited(actor, "admin.teleport", "player.stop-moving", player, reason, {}, () => {
+                if (typeof player.stopMoving !== "function") throw adminError("HMP_ADMIN_ACTION_UNAVAILABLE", "Walking a player needs a HogwartsMP host with player.stopMoving.");
+                const move = adminMove(player);
+                if (!move) throw adminError("HMP_ADMIN_NOT_MOVING", "hmp-admin is not walking that player.");
+                // Reported to the admin by this action, not again when the host says it ended.
+                activeMoves.delete(move.owner);
+                return player.stopMoving(move.owner);
             });
         },
         async freeze(actor: Player, target: Player | number, reason = "Freeze player") {
@@ -622,6 +687,13 @@ function createAdminService(options: {
             try { player.release?.(ADMIN_HOLD); }
             catch (error) { logger.warn(`Could not release player #${player.id} on shutdown: ${error instanceof Error ? error.message : String(error)}`); }
         }
+        // A walk keeps the player's controls locked until it ends, and a follow never ends on its own.
+        const moves = [...activeMoves];
+        activeMoves.clear();
+        for (const [owner, move] of moves) {
+            try { getPlayer(move.targetId)?.stopMoving?.(owner); }
+            catch (error) { logger.warn(`Could not stop walking player #${move.targetId} on shutdown: ${error instanceof Error ? error.message : String(error)}`); }
+        }
         for (const waiters of [pendingTeleports, pendingMapTravels]) for (const [key, pending] of waiters) {
             clearTimeout(pending.timer);
             waiters.delete(key);
@@ -640,6 +712,7 @@ function createAdminService(options: {
         onSessionReady,
         onTeleportComplete,
         onMapTravelComplete,
+        onMoveEnded,
         onHoldEnded,
         revalidateNoclip,
         disconnect,

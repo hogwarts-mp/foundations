@@ -62,6 +62,8 @@ assert.ok(handlers.has("playerDisconnect"));
 assert.ok(handlers.has("playerTeleportComplete"));
 assert.ok(handlers.has("playerMapTravelComplete"));
 assert.ok(handlers.has("playerHoldEnded"));
+assert.ok(handlers.has("playerMoveEnded"));
+handlers.get("playerMoveEnded")({ id: 9, nickname: "Elsewhere" }, "rp-escort#1", "arrived");
 assert.ok(handlers.has("chatCommand"));
 assert.ok(handlers.has("resourceStart"));
 assert.ok(handlers.has("resourceStop"));

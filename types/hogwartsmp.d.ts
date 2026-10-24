@@ -199,6 +199,35 @@ declare global {
         levels?: string[];
     }
 
+    /** How player.moveTo and player.follow walk a player. One drive per player: a new one ends the running one as "replaced". */
+    interface HogwartsMpPlayerMoveOptions {
+        owner: string;
+        gait?: "walk" | "jog";
+        speed?: number;
+        ttlMs?: number;
+        path?: "nav" | "direct";
+        lockInput?: boolean;
+        acceptRadius?: number;
+        distanceCm?: number;
+    }
+
+    /** The drive a player is walking, as player.moving() reads it. */
+    interface HogwartsMpPlayerMoving {
+        readonly owner: string;
+        readonly mode: "to" | "follow";
+        readonly x?: number;
+        readonly y?: number;
+        readonly z?: number;
+        readonly targetId?: number;
+        readonly gait: "walk" | "jog";
+        readonly speed: number | null;
+        readonly radius: number;
+        readonly expiresAt: number;
+    }
+
+    /** Why a drive ended. The player's client reports arrived, blocked, targetLost, interrupted, travel and died. */
+    type HogwartsMpPlayerMoveEnd = "arrived" | "blocked" | "targetLost" | "interrupted" | "travel" | "died" | "released" | "replaced" | "expired" | "disconnect";
+
     /** How a travelToMap or travelToPlace request ended. status: 0 arrived, 1 superseded, 2 unavailable, 3 declined, 4 timed out, 5 failed, 6 level failed. */
     interface HogwartsMpMapTravelCompletion {
         requestId: number;
@@ -304,6 +333,13 @@ declare global {
         hold?(options: { owner: string; x?: number; y?: number; z?: number; radius?: number; radiusZ?: number; mode?: "clamp" | "reject"; ttlMs?: number }): boolean;
         release?(owner: string): boolean;
         holds?(): Array<{ owner: string }>;
+        /** Walks this player to a point with the game's own walk; false without a live character. Ends with playerMoveEnded. */
+        moveTo?(x: number, y: number, z: number, options: HogwartsMpPlayerMoveOptions): boolean;
+        /** Walks this player after another, distanceCm behind, until stopped; a follow never arrives. */
+        follow?(target: HogwartsMpPlayer | number, options: HogwartsMpPlayerMoveOptions): boolean;
+        /** Ends the drive as "released", only this owner's when given; false when none matched. */
+        stopMoving?(owner?: string): boolean;
+        moving?(): HogwartsMpPlayerMoving | null;
         location?(): HogwartsMpPlayerLocation | null;
         setHealthRecovery?(on: boolean): void;
         /** Allows or stops this player's own fast travel from their map, for this connection. On by default. */
@@ -360,6 +396,7 @@ declare global {
         on(eventName: "playerTeleportComplete", listener: (player: HogwartsMpPlayer, requestId: number, status: number, completion: HogwartsMpTeleportCompletion) => unknown): void;
         on(eventName: "playerMapTravelComplete", listener: (player: HogwartsMpPlayer, requestId: number, status: number, completion: HogwartsMpMapTravelCompletion) => unknown): void;
         on(eventName: "playerHoldEnded", listener: (player: HogwartsMpPlayer, owner: string, reason: string) => unknown): void;
+        on(eventName: "playerMoveEnded", listener: (player: HogwartsMpPlayer, owner: string, reason: HogwartsMpPlayerMoveEnd) => unknown): void;
         on(eventName: "playerLocationChanged", listener: (player: HogwartsMpPlayer, current: HogwartsMpPlayerLocation | null, previous: HogwartsMpPlayerLocation | null) => unknown): void;
         /** A player's own map pick, held until every handler has run; one returning `false` refuses it. */
         on(eventName: "playerFastTravelRequest", listener: (player: HogwartsMpPlayer, request: { destinationId: string; from: "map" }) => boolean | void): void;

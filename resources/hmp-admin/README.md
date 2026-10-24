@@ -31,7 +31,7 @@ The default `admin` group grants capabilities cumulatively:
 
 | Grade | Capabilities |
 |---:|---|
-| 1 | View players, kick, go to/bring, send to a map, freeze/release, revive, warn, announce, no-clip |
+| 1 | View players, kick, go to/bring, send to a map, walk to you/follow you, freeze/release, revive, warn, announce, no-clip |
 | 2 | Groups, employment, inventory, player transmog, personal spell grants, banking, treasury inspection, audit history, environment controls |
 | 3 | Verified-identity bans and pending bank reconciliation |
 
@@ -70,9 +70,9 @@ as shown above, to appoint the highest grade.
   and administrative freeze state.
 - Moderation: durable warnings, kick, verified-identity timed or permanent bans, ban review/revoke.
 - Intervention: acknowledged streamed go-to/bring, acknowledged travel to another map or intro place,
-  and Framework-authoritative freeze/release. A frozen player's own input is stopped too, so they stay
-  put on their screen; camera look still works. A dead player can be revived where they lie, at full
-  health and with no reload.
+  walking a player to the admin or after them with the game's own walk, and Framework-authoritative
+  freeze/release. A frozen player's own input is stopped too, so they stay put on their screen; camera
+  look still works. A dead player can be revived where they lie, at full health and with no reload.
 - Staff movement: audited, server-authorized no-clip from the main menu, with camera-relative WASD,
   Space/Ctrl vertical movement, Shift boost, Alt slow movement for precise positioning, collision
   bypass, and protected landing: leaving no-clip on the ground or in mid-air costs no health. While
@@ -146,6 +146,18 @@ reports the area they arrived in, or why they did not: their client lacks the ma
 replaced it, or it timed out. Players only see others in the same map. It needs a HogwartsMP host
 with `player.travelToMap`, and `player.travelToPlace` for the intro places; on an older host it
 reports that the host cannot travel.
+
+Walk to you and Follow you walk the target with the game's own on-foot walk, so everyone sees an
+ordinary walk, granted with `admin.teleport` and only within one virtual world and game area. Walk to
+you heads for where the admin stood when they chose it and ends within about 1.5 m of it; Follow you
+keeps about 2 m behind the admin until it is stopped. The player's own movement, casting and other
+controls are locked while they walk; camera look stays. Stop walking (Stop following) on the same
+player ends it where they are, and stopping `hmp-admin` ends every walk it started. When a walk ends
+any other way, the admin who started it is told why: arrived, stuck on the way, interrupted (mounted,
+swimming, knocked down or in a scene), teleported away, died, disconnected, or lost track of the
+admin. The walk runs on the player's own client, which a modified client can ignore. It needs a
+HogwartsMP host with `player.moveTo`, `player.follow` and `player.stopMoving`; on an older host each
+action reports that the host cannot walk players.
 
 ## Suggested closed-test feedback
 

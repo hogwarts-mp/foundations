@@ -489,6 +489,61 @@ test("sends a player to a map or intro place and reports how the travel ended", 
     assert.ok(state.audit.every((entry) => entry.action === "player.travel"));
 });
 
+test("walks a player to the admin or after them, stops it, and routes each end to the admin who started it", async () => {
+    const state = setup();
+    const { verifiedAdmin: admin, verifiedTarget: target } = state;
+    await assert.rejects(state.service.actions.walkTo(admin, target), { code: "HMP_ADMIN_ACTION_UNAVAILABLE" }, "a host without player.moveTo");
+    await assert.rejects(state.service.actions.follow(admin, target), { code: "HMP_ADMIN_ACTION_UNAVAILABLE" }, "a host without player.follow");
+    await assert.rejects(state.service.actions.stopMoving(admin, target), { code: "HMP_ADMIN_ACTION_UNAVAILABLE" }, "a host without player.stopMoving");
+
+    let drive: { owner: string; mode: "to" | "follow" } | null = null;
+    let live = true;
+    const calls: unknown[][] = [];
+    target.moveTo = (x, y, z, options) => { calls.push(["moveTo", x, y, z, options]); if (live) drive = { owner: options.owner, mode: "to" }; return live; };
+    target.follow = (leader, options) => { calls.push(["follow", leader, options]); if (live) drive = { owner: options.owner, mode: "follow" }; return live; };
+    target.stopMoving = (owner) => { calls.push(["stopMoving", owner]); const stopped = Boolean(drive && (!owner || drive.owner === owner)); if (stopped) drive = null; return stopped; };
+    target.moving = () => drive && { ...drive, gait: "walk", speed: null, radius: 150, expiresAt: 0 };
+
+    await assert.rejects(state.service.actions.walkTo(admin, admin), { code: "HMP_ADMIN_SELF_TARGET" });
+    await assert.rejects(state.service.actions.follow(state.assertedAdmin, target), { code: "HMP_ADMIN_FORBIDDEN" });
+    assert.strictEqual(await state.service.actions.walkTo(admin, target), true);
+    assert.deepStrictEqual(calls.at(-1), ["moveTo", 100, 200, 300, { owner: "hmp-admin#1", acceptRadius: 150 }], "to where the admin stands");
+    assert.strictEqual((await state.service.players.get(admin, target)).moving, "to");
+    assert.strictEqual(state.service.onMoveEnded("rp-escort#1"), null, "another resource's walk");
+    assert.deepStrictEqual(state.service.onMoveEnded("hmp-admin#1"), { actor: admin, mode: "to" });
+    assert.strictEqual(state.service.onMoveEnded("hmp-admin#1"), null, "each end is reported once");
+
+    assert.strictEqual(await state.service.actions.follow(admin, target), true);
+    assert.deepStrictEqual(calls.at(-1), ["follow", admin, { owner: "hmp-admin#2" }]);
+    assert.strictEqual((await state.service.players.get(admin, target)).moving, "follow");
+    assert.strictEqual(await state.service.actions.walkTo(admin, target), true);
+    assert.strictEqual(state.service.onMoveEnded("hmp-admin#2"), null, "a follow the admin replaced is not reported as ended");
+    assert.strictEqual(await state.service.actions.stopMoving(admin, target), true);
+    assert.deepStrictEqual(calls.at(-1), ["stopMoving", "hmp-admin#3"]);
+    assert.strictEqual(state.service.onMoveEnded("hmp-admin#3"), null, "a walk the admin stopped is not reported again");
+    assert.strictEqual((await state.service.players.get(admin, target)).moving, null);
+    await assert.rejects(state.service.actions.stopMoving(admin, target), { code: "HMP_ADMIN_NOT_MOVING" });
+
+    drive = { owner: "rp-escort#7", mode: "to" };
+    await assert.rejects(state.service.actions.stopMoving(admin, target), { code: "HMP_ADMIN_NOT_MOVING" }, "another resource's walk is left alone");
+    assert.strictEqual((await state.service.players.get(admin, target)).moving, null);
+    live = false;
+    drive = null;
+    await assert.rejects(state.service.actions.follow(admin, target), { code: "HMP_ADMIN_MOVE_REJECTED" });
+    assert.strictEqual(state.service.onMoveEnded("hmp-admin#4"), null);
+
+    live = true;
+    await state.service.actions.follow(admin, target);
+    await state.service.stop();
+    assert.deepStrictEqual(calls.at(-1), ["stopMoving", "hmp-admin#5"], "stopping hmp-admin ends its walks");
+    assert.strictEqual(state.service.onMoveEnded("hmp-admin#5"), null);
+    assert.deepStrictEqual(state.audit.map((entry) => [entry.action, entry.status]), [
+        ["player.walk-to", "failed"], ["player.follow", "failed"], ["player.stop-moving", "failed"],
+        ["player.walk-to", "completed"], ["player.follow", "completed"], ["player.walk-to", "completed"], ["player.stop-moving", "completed"],
+        ["player.stop-moving", "failed"], ["player.stop-moving", "failed"], ["player.follow", "failed"], ["player.follow", "completed"],
+    ]);
+});
+
 test("rejects administrative teleports across coordinate spaces", async () => {
     const state = setup();
     state.verifiedTarget.location = () => ({ areaId: "Overland", regionId: "Hogsmeade", destinationId: null, x: 0, y: 0, z: 0, yaw: 0, revision: 2 });

@@ -57,6 +57,13 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   as a map their client does not have installed. It needs a HogwartsMP host with `player.travelToMap`,
   and `player.travelToPlace` for the intro places; on an older host the action reports that the host
   cannot travel.
+- `hmp-admin` Walk to you and Follow you walk a player to the admin, or after them, with the game's own
+  walk and their controls locked until it ends; Stop walking ends it where they are. They are granted
+  with `admin.teleport`, need both players in the same world and area, and are audited. When a walk
+  ends on its own, the admin who started it is told why, such as arrived, stuck on the way or
+  interrupted. Stopping `hmp-admin` ends its walks. It needs a HogwartsMP host with `player.moveTo`,
+  `player.follow` and `player.stopMoving`; on an older host each action reports that the host cannot
+  walk players.
 
 ### Changed
 
