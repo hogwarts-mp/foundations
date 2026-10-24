@@ -144,6 +144,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   `data/hmp-interact.json` (`enableCommands`, off unless configured; the example turns it on), and a
   client receives the radius only while its outlines are on. It needs a HogwartsMP host with `Shapes`;
   an older host draws nothing and shows a notice.
+- `hmp-npcs` walks the NPCs a resource spawned. The new `movement` export (`along`, `to`, `stop`,
+  `pause`, `resume`, `setIdle` and `get`) drives the host's NPC paths, with waits, gaits, loops and the
+  idle after a path, for the owning resource only, and validates them before the host sees them.
+  `hmp:npcs:waypoint` and `hmp:npcs:moveEnded` forward the host's `npcWaypoint` and `npcMoveEnded` for
+  managed NPCs, with the NPC's snapshot and so its owning `resource`. It needs a HogwartsMP host with
+  `NPC.moveAlong`; on an older host every call is false and `get` is null.
 
 ### Changed
 

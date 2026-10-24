@@ -1,4 +1,4 @@
-import type { HmpNpcDisposition } from "../types";
+import type { HmpNpcDisposition, HmpNpcIdle, HmpNpcMoveOptions, HmpNpcMovementState, HmpNpcVector3, HmpNpcWaypoint } from "../types";
 
 export interface NpcsConfig {
     maximumManagedNpcs: number;
@@ -18,6 +18,16 @@ export interface NativeNpc {
     setMaxHealth(health: number): void;
     setHealth(health: number): void;
     destroy(): void;
+    // Movement: absent on a host before NPC paths.
+    moveAlong?(waypoints: HmpNpcWaypoint[], options?: HmpNpcMoveOptions): boolean;
+    moveTo?(x: number, y: number, z: number, options?: HmpNpcMoveOptions): boolean;
+    stop?(): void;
+    pause?(): void;
+    resume?(): void;
+    readonly movement?: HmpNpcMovementState;
+    readonly waypoints?: HmpNpcWaypoint[];
+    idle?: HmpNpcIdle;
+    home?: HmpNpcVector3 | null;
 }
 
 export interface NativeNpcs {
@@ -34,5 +44,7 @@ export interface NativeNpcs {
 export interface NpcsServiceOptions {
     config: NpcsConfig;
     native: NativeNpcs;
+    /** Raises the `hmp:npcs:*` events other resources listen for. */
+    emit?(eventName: string, payload: unknown): void;
     now?: () => number;
 }

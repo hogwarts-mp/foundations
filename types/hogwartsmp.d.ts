@@ -360,6 +360,32 @@ declare global {
         revive?(options?: { health?: number | "max" }): boolean;
     }
 
+    /** One point of a movement path, at a player's origin height (as `player.position`). */
+    interface HogwartsMpMoveWaypoint extends HogwartsMpVector3 {
+        /** Seconds to stand here on arrival, 0-3600. */
+        wait?: number;
+        /** The speed of the leg that arrives here. */
+        gait?: "walk" | "jog" | "sprint";
+    }
+    interface HogwartsMpNpcMoveOptions {
+        gait?: "walk" | "jog" | "sprint";
+        loop?: "once" | "loop" | "pingpong";
+        /** How near a point counts as reached, 0-5000 cm; the game's own (about 50) when omitted. */
+        radius?: number;
+        /** The game's speed scale for every leg, 0.25-3; jog and sprint follow it. */
+        speedScale?: number;
+        /** The idle a "once" path ends in at its last point, which becomes `home`. Default "stand". */
+        then?: "native" | "stand" | "wander";
+    }
+    /** Where an entity's path stands; `waypoints` counts the path's points. */
+    interface HogwartsMpMovementState {
+        mode: "idle" | "path" | "follow";
+        waypoint: number;
+        waypoints: number;
+        lap: number;
+        paused: boolean;
+    }
+
     interface HogwartsMpNpc {
         readonly id: number;
         readonly enemyId: string;
@@ -376,6 +402,22 @@ declare global {
         kill(): void;
         setDisposition(disposition: "hostile" | "friendly"): void;
         forceTarget(playerId: number, holdSeconds?: number, applyTicks?: number): void;
+        /** Walks 1-64 waypoints with the game's own pathfinding, replacing a running path; false when gone or dead, throws on bad input. */
+        moveAlong(waypoints: HogwartsMpMoveWaypoint[], options?: HogwartsMpNpcMoveOptions): boolean;
+        /** `moveAlong` with one point. */
+        moveTo(x: number, y: number, z: number, options?: HogwartsMpNpcMoveOptions): boolean;
+        /** Ends the running path as "stopped", leaving the NPC to its idle. */
+        stop(): void;
+        /** Holds the running path where it is until `resume`. */
+        pause(): void;
+        resume(): void;
+        readonly movement: HogwartsMpMovementState;
+        /** The running path's points as given, gait resolved; empty when idle. */
+        readonly waypoints: HogwartsMpMoveWaypoint[];
+        /** While no path runs: the game's own wander, hold at `home`, or roam around it. */
+        idle: "native" | "stand" | "wander";
+        /** Where the stand and wander idles keep it; null until set. */
+        home: HogwartsMpVector3 | null;
     }
 
     const NPC: {
@@ -431,6 +473,10 @@ declare global {
         on(eventName: "playerMapTravelComplete", listener: (player: HogwartsMpPlayer, requestId: number, status: number, completion: HogwartsMpMapTravelCompletion) => unknown): void;
         on(eventName: "playerHoldEnded", listener: (player: HogwartsMpPlayer, owner: string, reason: string) => unknown): void;
         on(eventName: "playerMoveEnded", listener: (player: HogwartsMpPlayer, owner: string, reason: HogwartsMpPlayerMoveEnd) => unknown): void;
+        /** An NPC's path reached `waypoints[index]`, before its wait; `lap` counts completed laps. */
+        on(eventName: "npcWaypoint", listener: (npc: HogwartsMpNpc, index: number, lap: number) => unknown): void;
+        /** An NPC's path ended; "replaced" is raised before the new path's events. */
+        on(eventName: "npcMoveEnded", listener: (npc: HogwartsMpNpc, reason: "arrived" | "stopped" | "replaced" | "unreachable") => unknown): void;
         /** Client: the local player's anchor ended, the frame after; `reason` is "script" for a `releaseAnchor`. */
         on(eventName: "anchorReleased", listener: (reason: string, at: HogwartsMpVector3) => unknown): void;
         on(eventName: "playerLocationChanged", listener: (player: HogwartsMpPlayer, current: HogwartsMpPlayerLocation | null, previous: HogwartsMpPlayerLocation | null) => unknown): void;
