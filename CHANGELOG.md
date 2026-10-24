@@ -70,6 +70,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   (`World.setPlayerCollision`) is on. The change is server-owned and lasts until it is turned back or
   the player disconnects. It needs a HogwartsMP host with `player.setCollidable` and
   `player.isCollidable`; on an older host the player menu does not offer it.
+- New `hmp-express` resource: the Hogwarts Express run from the server through `World.hogwartsExpress`,
+  so every player, late joiners included, sees the same train at the same spot. A host with it turns the
+  game's own timetable off on every client; `hmp-express` puts one back from `data/hmp-express.json`:
+  departures in in-game time on chosen weekdays, stops with real-second dwell times, and the cruise,
+  pulling-away and braking speeds. The defaults are the game's own timetable, driven straight through.
+  Other resources read and drive the train through the `train` export, and `enabled: false` leaves it to
+  another script. It needs a HogwartsMP host with `World.hogwartsExpress`; on an older host it reports
+  `degraded` and runs nothing, and clients keep the game's own timetable.
 
 ### Changed
 

@@ -391,6 +391,26 @@ declare global {
     };
     const NPCManager: { getAll(): HogwartsMpNpc[] };
 
+    /** Server `World.hogwartsExpress`: the train every client draws at one spot; positions are a t from 0 to 1 or a stop id. */
+    interface HogwartsMpHogwartsExpress {
+        /** Metres of track from t = 0 to t = 1. */
+        readonly length: number;
+        /** Named spots along the track, such as `hogsmeade`. */
+        readonly stops: Array<{ id: string; t: number }>;
+        /** Stands the train there (default 0), replacing one already out; trainSpawned follows. */
+        spawn(at?: number | string): boolean;
+        /** Runs it from where it is and brakes onto the spot; trainStopped follows. */
+        moveTo(at: number | string, options?: { speed?: number; accel?: number; decel?: number }): boolean;
+        /** Runs it off the far end of the track, where it despawns; trainEnded "end" follows. */
+        depart(options?: { speed?: number; accel?: number; decel?: number }): boolean;
+        /** Brakes a moving train to a stop, never past a moveTo's spot; `decel: Infinity` stops it dead. */
+        halt(options?: { decel?: number }): boolean;
+        /** Removes it at once; trainEnded "despawned" follows. */
+        despawn(): boolean;
+        /** Where it is now; `target` and `seconds` only while it moves. */
+        get(): { spawned: boolean; moving: boolean; departing: boolean; t: number; speed: number; target: number | null; seconds: number | null };
+    }
+
     interface HogwartsMpEvents {
         on(eventName: "chatCommand", listener: (player: HogwartsMpPlayer, message: string, command: string, args: string[]) => unknown): void;
         on(eventName: "playerConnect" | "playerDisconnect" | "worldReady", listener: (player: HogwartsMpPlayer) => unknown): void;
@@ -551,6 +571,7 @@ declare global {
         get(name: "hmp-blips"): import("../resources/hmp-blips/types").HmpBlipsServer<HogwartsMpPlayer>;
         get(name: "hmp-spells"): import("../resources/hmp-spells/types").HmpSpellsServer<HogwartsMpPlayer>;
         get(name: "hmp-world"): import("../resources/hmp-world/types").HmpWorld<HogwartsMpPlayer>;
+        get(name: "hmp-express"): import("../resources/hmp-express/types").HmpExpressServer;
         get(name: "hmp-activities"): import("../resources/hmp-activities/types").HmpActivities<HogwartsMpPlayer>;
         get(name: "hmp-pvp"): import("../resources/hmp-pvp/types").HmpPvp<HogwartsMpPlayer>;
         get(name: "hmp-duels"): import("../resources/hmp-duels/types").HmpDuels<HogwartsMpPlayer>;

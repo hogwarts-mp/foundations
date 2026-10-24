@@ -1,7 +1,7 @@
 # Install HMP Foundations
 
 This guide is for a server owner installing the complete Foundations pack. Foundations is one versioned
-unit: install all twenty-nine `hmp-*` resources from the same release and upgrade them together.
+unit: install all thirty `hmp-*` resources from the same release and upgrade them together.
 
 ## Before you begin
 
@@ -57,7 +57,7 @@ The result must look like this:
 ```
 
 Do not leave an extra nesting level such as
-`<server-root>/resources/hmp-foundations/resources/hmp-core`. There should be exactly twenty-nine
+`<server-root>/resources/hmp-foundations/resources/hmp-core`. There should be exactly thirty
 top-level `hmp-*` directories from the core pack, plus any [gamemodes](#6-optional-gamemodes) you add.
 
 On Linux, resource and configuration names are case-sensitive. Preserve names such as `hmp-core`
@@ -215,21 +215,22 @@ the supported order:
 14. `hmp-activities`
 15. `hmp-doors`
 16. `hmp-world`
-17. `hmp-worldstate`
-18. `hmp-loot`
-19. `hmp-beasts`
-20. `hmp-npcs`
-21. `hmp-emotes`
-22. `hmp-shops`
-23. `hmp-progression`
-24. `hmp-spells`
-25. `hmp-duels`
-26. `hmp-jobs`
-27. `hmp-business`
-28. `hmp-admin`
-29. `hmp-webhooks`
+17. `hmp-express`
+18. `hmp-worldstate`
+19. `hmp-loot`
+20. `hmp-beasts`
+21. `hmp-npcs`
+22. `hmp-emotes`
+23. `hmp-shops`
+24. `hmp-progression`
+25. `hmp-spells`
+26. `hmp-duels`
+27. `hmp-jobs`
+28. `hmp-business`
+29. `hmp-admin`
+30. `hmp-webhooks`
 
-If a server wrapper has a manual resource allowlist, include all twenty-nine names and preserve this
+If a server wrapper has a manual resource allowlist, include all thirty names and preserve this
 order. `hmp-banking` and `hmp-interact` are independent peers at the same priority; their relative
 order is not significant.
 
@@ -313,7 +314,7 @@ Never post passwords, connection URLs, bootstrap secrets, player IPs, or identit
 1. Stop the server and prevent player connections.
 2. Back up the Foundations database and `<server-root>/data/hmp-*.json`.
 3. Read [CHANGELOG.md](CHANGELOG.md) and compare the new `examples/config` files with local settings.
-4. Replace all twenty-nine `hmp-*` directories together, plus any gamemodes from the same release; do
+4. Replace all thirty `hmp-*` directories together, plus any gamemodes from the same release; do
    not merge old and new `dist` directories.
 5. Start the server and let every migration and resource reach ready state before admitting players.
 6. Restart clients after changing client-bearing resources.

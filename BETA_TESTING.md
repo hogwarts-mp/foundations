@@ -42,6 +42,14 @@ created test transaction after its state has been inspected.
 - Report environment changes that affect only one client, disappear on world travel, or survive a
   server restart despite differing from the JSON baseline.
 
+### Hogwarts Express
+
+- Add a departure a few in-game minutes ahead of the server clock, restart, and wait at Hogsmeade station
+  with a second player: the train must arrive, stand and leave at the same spot on both screens.
+- Join while the train is out and confirm it is where the other player sees it.
+- Report a train that only one client sees, one that stops short of or past the platform, or a departure
+  that runs twice or replaces a train still out.
+
 ### Houses and House Cup
 
 - Assign each of the four houses in turn and confirm robes/crests rebuild to match without reconnecting.

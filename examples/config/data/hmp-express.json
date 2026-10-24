@@ -1,0 +1,29 @@
+{
+  "enabled": true,
+  "departures": [
+    {
+      "time": "10:00",
+      "days": [
+        "monday",
+        "wednesday",
+        "friday"
+      ]
+    },
+    {
+      "time": "21:00",
+      "days": [
+        "saturday"
+      ]
+    }
+  ],
+  "stops": [
+    {
+      "at": "hogsmeade",
+      "dwellSeconds": 120
+    }
+  ],
+  "speed": 20,
+  "accel": 0.5,
+  "decel": 0.7,
+  "year": 1891
+}

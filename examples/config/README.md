@@ -16,6 +16,7 @@ data-declared Pippin's business that comes alive once a gameplay resource regist
 `hmp-world` includes the baseline weather, clock, date, season, mount-boundary, ambient-population,
 native-encounter, player-collision, fast-travel, travel-health, and jump/sprint policy applied to every
 client.
+`hmp-express` includes the game's own Hogwarts Express timetable with a two-minute stop at Hogsmeade station.
 `hmp-worldstate` includes the `/worldstate` admin groups and the repairable-object report limit.
 `hmp-loot` includes two example lootables in a Hogwarts courtyard and switches the game's own chests,
 moonstones and foragables off.
@@ -51,6 +52,7 @@ Review at minimum:
 - the inventory UI URL if the server replaces the bundled Arcanum renderer;
 - the physical-door default, group exceptions, and whether closed-test door commands remain enabled;
 - the starting environment and whether native mount boundaries, ambient population, and encounters are enabled;
+- the Hogwarts Express timetable and stops, or `enabled: false` when another script runs the train;
 - which emotes players may browse, which groups may curate aliases, and the emote UI URL;
 - audio aliases, positional delivery range, handle limits, and whether `/audio` testing is enabled;
 - marker TTL/limits, whether every remote player is shown, and the player-blip tint/scale settings;

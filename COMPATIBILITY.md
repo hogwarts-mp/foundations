@@ -5,7 +5,7 @@ target.
 
 | Component | Supported baseline | Status | Notes |
 |---|---|---|---|
-| HMP Foundations | `0.9.1` pack and resources | Supported | All twenty-nine resources must use the same version. |
+| HMP Foundations | `0.9.1` pack and resources | Supported | All thirty resources must use the same version. |
 | HMP Gamemodes | `0.9.1` | Supported | Optional; each gamemode must match the core pack's version. |
 | HogwartsMP scripting host | `1.9` or newer | Supported | Provides the scripting capabilities listed below. |
 | MafiaHub Framework | `16.2.0` or newer | Supported | Required for the `fw://` local resource scheme. On `16.1.x` and older every resource-served page, font, and icon fails to load. |
