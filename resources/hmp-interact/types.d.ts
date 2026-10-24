@@ -141,6 +141,8 @@ export interface HmpInteractionClientZone {
     promptDistance: number;
     promptOffsetZ: number;
     priority: number;
+    /** Activation radius, sent only to a player with the closed-test zone outlines on. */
+    radius?: number;
 }
 
 export interface HmpInteractStatus {
@@ -164,5 +166,5 @@ export interface HmpInteractServer<P = HmpInteractPlayer> {
 
 export interface HmpInteractClient {
     setEnabled(enabled: boolean): boolean;
-    status(): { enabled: boolean; ready: boolean; revision: number; interactions: number; active: string | null };
+    status(): { enabled: boolean; ready: boolean; revision: number; interactions: number; active: string | null; outlines: boolean };
 }

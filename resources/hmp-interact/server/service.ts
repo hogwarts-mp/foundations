@@ -37,6 +37,8 @@ function createInteractService<P extends HmpInteractPlayer>(dependencies: Intera
     const lastTriggers = new Map<number, number>();
     /** Interaction id -> the player seated on it, until their client reports them standing. */
     const seats = new Map<string, number>();
+    /** Players whose snapshots carry each zone's radius, for the closed-test outlines. */
+    const outlined = new Set<number>();
     let revision = 0;
     let stopped = false;
 
@@ -68,18 +70,29 @@ function createInteractService<P extends HmpInteractPlayer>(dependencies: Intera
 
     function snapshot(player: P) {
         const virtualWorld = Number(player.virtualWorld || 0);
+        const outlines = outlined.has(player.id);
         return {
             revision,
+            ...(outlines ? { outlines } : {}),
             interactions: [...interactions.values()]
                 .filter((definition) => definition.virtualWorld === undefined || definition.virtualWorld === virtualWorld)
                 .filter((definition) => matchesContext(player, definition))
-                .map(publicZone),
+                .map((definition) => outlines ? { ...publicZone(definition), radius: definition.radius } : publicZone(definition)),
         };
     }
 
     function sync(player: P): boolean {
         playerId(player);
         return emit(player, "hmp-interact:snapshot", snapshot(player));
+    }
+
+    function setOutlines(player: P, enabled?: boolean): boolean {
+        const owner = playerId(player);
+        const next = enabled ?? !outlined.has(owner);
+        if (next) outlined.add(owner);
+        else outlined.delete(owner);
+        sync(player);
+        return next;
     }
 
     function broadcast(): void {
@@ -332,6 +345,7 @@ function createInteractService<P extends HmpInteractPlayer>(dependencies: Intera
         lastTriggers.delete(owner);
         for (const key of [...cooldowns.keys()]) if (key.startsWith(`${owner}:`)) cooldowns.delete(key);
         for (const [id, occupant] of seats) if (occupant === owner) seats.delete(id);
+        outlined.delete(owner);
         return true;
     }
 
@@ -346,6 +360,7 @@ function createInteractService<P extends HmpInteractPlayer>(dependencies: Intera
         cooldowns.clear();
         lastTriggers.clear();
         seats.clear();
+        outlined.clear();
         return count;
     }
 
@@ -360,6 +375,7 @@ function createInteractService<P extends HmpInteractPlayer>(dependencies: Intera
         unregisterResource,
         disconnect,
         stand,
+        setOutlines,
         stop,
     });
 }

@@ -1,12 +1,15 @@
+import configModule = require("./config");
 import serviceModule = require("./service");
 import type { HmpInteractPlayer } from "../types";
 
+const { loadConfig } = configModule;
 const { createInteractService } = serviceModule;
 const Hmp = Imports.get("hmp-lib");
 const core = Imports.get("hmp-core");
 const inventory = Imports.get("hmp-inventory");
 const ui = Imports.get("hmp-ui");
 const logger = Hmp.logger.create("hmp-interact");
+const config = loadConfig(Hmp);
 const interact = createInteractService<HmpInteractPlayer>({
     core,
     inventory,
@@ -37,5 +40,19 @@ Events.on("resourceStop", (name?: string) => {
     if (!name || name === "hmp-interact") interact.stop();
     else interact.unregisterResource(name);
 });
+
+if (config.enableCommands) {
+    const commands = Hmp.command.createRouter({ prefix: "[interact]", logger });
+    commands.register(config.command, {
+        usage: `/${config.command} outlines [on|off]`,
+        description: "Outline the interaction zones around you, on your screen only.",
+    }, ({ player, args, reply, usage }) => {
+        if (String(args[0] || "").toLowerCase() !== "outlines") { reply(usage); return; }
+        const choice = String(args[1] || "").toLowerCase();
+        const enabled = interact.setOutlines(player, choice === "on" ? true : choice === "off" ? false : undefined);
+        reply(enabled ? "Outlining interaction zones: amber where F works, blue where its prompt shows." : "Zone outlines off.");
+    });
+    Events.on("chatCommand", commands.handle);
+}
 
 logger.info("interaction registry ready");

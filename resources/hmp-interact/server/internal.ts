@@ -3,6 +3,12 @@ import type { HmpInventory } from "../../hmp-inventory/types";
 import type { HmpUiServer } from "../../hmp-ui/types";
 import type { HmpInteractPlayer, HmpInteractServer, HmpInteractionDefinition } from "../types";
 
+export interface InteractConfig {
+    /** Registers the closed-test command that toggles a player's zone outlines. */
+    enableCommands: boolean;
+    command: string;
+}
+
 export interface InteractLogger {
     info(...args: unknown[]): unknown;
     warn(...args: unknown[]): unknown;
@@ -62,6 +68,8 @@ export interface InteractService<P extends HmpInteractPlayer> extends HmpInterac
     disconnect(player: P): boolean;
     /** The player's client reports them standing up from the interaction's seat, or never seated. */
     stand(player: P, id: string): boolean;
+    /** Outlines each zone in the player's snapshot on their screen, or stops; toggles when `enabled` is omitted. */
+    setOutlines(player: P, enabled?: boolean): boolean;
     stop(): number;
 }
 

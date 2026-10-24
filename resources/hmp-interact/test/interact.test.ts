@@ -1,11 +1,13 @@
 import assert = require("node:assert");
 import { test } from "node:test";
 import normalizeModule = require("../shared/normalize");
+import configModule = require("../server/config");
 import serviceModule = require("../server/service");
 import clientModule = require("../client/interact");
 import type { HmpInteractPlayer, HmpInteractionDefinition } from "../types";
 
 const { normalizeInteraction } = normalizeModule;
+const { loadConfig } = configModule;
 const { createInteractService } = serviceModule;
 const { createInteractClient } = clientModule;
 
@@ -357,6 +359,78 @@ test("client arbitrates one prompt, sends only its selected id and tears down", 
     assert.strictEqual(client.stop(), true);
     assert.strictEqual(client.stop(), false);
     assert.strictEqual(cleared, true);
+});
+
+test("the outline command is off unless configured, and outlines reach only the player who asked", () => {
+    const Hmp = (file: Record<string, unknown>) => ({
+        config: {
+            load: <T>(_path: string | string[], options?: { defaults?: Partial<T> }) => ({ ...options?.defaults, ...file }) as T,
+            merge: () => ({}) as never,
+            env: { boolean: (value: unknown, fallback = false) => value === "true" ? true : value === "false" ? false : fallback, number: () => undefined, json: () => undefined as never },
+        },
+        text: { clean: (value: unknown, maximum = 120) => String(value ?? "").trim().slice(0, maximum) },
+    }) as unknown as Parameters<typeof loadConfig>[0];
+    assert.deepStrictEqual(loadConfig(Hmp({}), { env: {} }), { enableCommands: false, command: "interact" });
+    assert.deepStrictEqual(loadConfig(Hmp({ enableCommands: true, command: "Zones" }), { env: {} }), { enableCommands: true, command: "zones" });
+    assert.strictEqual(loadConfig(Hmp({ enableCommands: true }), { env: { HMP_INTERACT_COMMANDS: "false" } }).enableCommands, false);
+    assert.throws(() => loadConfig(Hmp({ command: "zones!" }), { env: {} }), /unsupported characters/);
+
+    const state = setup();
+    state.service.register({ id: "counter", resource: "hmp-shops", label: "Shop", position: { x: 0, y: 0, z: 0 }, radius: 300, promptDistance: 120, handler() {} });
+    const last = (player: TestPlayer) => JSON.parse(String(player.messages.filter((message) => message.event === "hmp-interact:snapshot").at(-1)?.payload));
+    assert.strictEqual(last(state.first).outlines, undefined);
+    assert.strictEqual(last(state.first).interactions[0].radius, undefined, "radius stays on the server by default");
+    assert.strictEqual(state.service.setOutlines(state.first), true);
+    assert.strictEqual(last(state.first).outlines, true);
+    assert.deepStrictEqual([last(state.first).interactions[0].radius, last(state.first).interactions[0].promptDistance], [300, 120]);
+    state.service.register({ id: "counter.2", resource: "hmp-shops", label: "Shop", position: { x: 0, y: 0, z: 0 }, handler() {} });
+    assert.strictEqual(last(state.first).interactions.length, 2);
+    assert.ok(last(state.first).interactions.every((zone: { radius?: number }) => zone.radius !== undefined), "a broadcast keeps the outlines on");
+    assert.strictEqual(last(state.second).outlines, undefined, "another player's snapshot is unchanged");
+    assert.strictEqual(state.service.setOutlines(state.first), false);
+    assert.strictEqual(last(state.first).outlines, undefined);
+    state.service.setOutlines(state.first, true);
+    state.service.disconnect(state.first);
+    state.service.sync(state.first);
+    assert.strictEqual(last(state.first).outlines, undefined, "a reconnect starts with outlines off");
+});
+
+test("client rings each zone while outlines are on and warns once on a host without Shapes", () => {
+    const shapeCalls: unknown[][] = [];
+    const notices: string[] = [];
+    const make = (shapes?: { create(key: string, shape: unknown): boolean; destroy(key: string): boolean; destroyAll(): number }) => createInteractClient({
+        events: { on() {}, emitServer() {} },
+        input: { shortcuts: { register: () => () => true } },
+        hud: { showPrompt() {}, hidePrompt() {} },
+        localPlayer: { getPosition: () => ({ x: 5000, y: 0, z: 0 }) },
+        game: { areControlsLocked: () => false, notify: (message) => notices.push(message) },
+        shapes: shapes as never,
+        timers: { setInterval: () => 99 as unknown as ReturnType<typeof setInterval>, clearInterval() {} },
+    });
+    const client = make({
+        create: (key, shape) => { shapeCalls.push(["create", key, shape]); return true; },
+        destroy: (key) => { shapeCalls.push(["destroy", key]); return true; },
+        destroyAll: () => { shapeCalls.push(["destroyAll"]); return 0; },
+    });
+    const counter = { id: "counter", label: "Shop", position: { x: 0, y: 0, z: 90 }, promptDistance: 120, promptOffsetZ: 100, priority: 0, radius: 300 };
+    const door = { ...counter, id: "door", promptDistance: 250, radius: 250 };
+    client.receiveSnapshot({ revision: 1, interactions: [counter, door] });
+    assert.deepStrictEqual(shapeCalls, [], "outlines are off until the server says otherwise");
+    client.receiveSnapshot({ revision: 1, outlines: true, interactions: [counter, door] });
+    assert.deepStrictEqual(shapeCalls.map((call) => call[1]), ["radius:counter", "prompt:counter", "radius:door"], "a prompt ring only where the prompt is nearer than the radius");
+    assert.deepStrictEqual(shapeCalls[0][2], { type: "ring", center: { x: 0, y: 0, z: 90 }, radius: 300, thickness: 6, color: { r: 1, g: 0.72, b: 0.18, a: 0.9 } });
+    assert.strictEqual(client.status().outlines, true);
+    client.receiveSnapshot({ revision: 2, outlines: true, interactions: [counter] });
+    assert.deepStrictEqual(shapeCalls.slice(3), [["destroy", "radius:door"]], "an unchanged ring is not redrawn");
+    client.receiveSnapshot({ revision: 3, interactions: [counter] });
+    assert.deepStrictEqual(shapeCalls.slice(4), [["destroyAll"]]);
+    client.stop();
+
+    const older = make();
+    older.receiveSnapshot({ revision: 1, outlines: true, interactions: [counter] });
+    older.receiveSnapshot({ revision: 2, outlines: true, interactions: [counter] });
+    assert.deepStrictEqual(notices, ["[interact] zone outlines need a HogwartsMP host with Shapes"]);
+    older.stop();
 });
 
 test("client sits on the server's seat, stands up on F and hands back a seat it cannot take", () => {

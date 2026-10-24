@@ -34,7 +34,20 @@ interface Seat {
 
 interface ClientGame {
     areControlsLocked(): boolean;
+    notify?(message: string): void;
 }
+
+interface ShapeColor { r: number; g: number; b: number; a?: number }
+
+interface ClientShapes {
+    create(key: string, shape: { type: "ring"; center: { x: number; y: number; z: number }; radius: number; thickness?: number; color?: ShapeColor }): boolean;
+    destroy(key: string): boolean;
+    destroyAll(): number;
+}
+
+/** Closed-test outline colours: where F works, and where its prompt shows when that is nearer. */
+const RADIUS_COLOR: ShapeColor = Object.freeze({ r: 1, g: 0.72, b: 0.18, a: 0.9 });
+const PROMPT_COLOR: ShapeColor = Object.freeze({ r: 0.3, g: 0.75, b: 1, a: 0.9 });
 
 interface TimerApi {
     setInterval(handler: () => void, milliseconds: number): ReturnType<typeof setInterval>;
@@ -63,6 +76,7 @@ function zone(raw: unknown): HmpInteractionClientZone | null {
     const label = String(value.label || "").slice(0, 80);
     const coordinates = [position?.x, position?.y, position?.z].map(Number);
     const promptDistance = Number(value.promptDistance);
+    const radius = Number(value.radius);
     if (!id || !label || !coordinates.every(Number.isFinite) || !Number.isFinite(promptDistance) || promptDistance <= 0) return null;
     return {
         id,
@@ -71,6 +85,7 @@ function zone(raw: unknown): HmpInteractionClientZone | null {
         promptDistance,
         promptOffsetZ: Number.isFinite(Number(value.promptOffsetZ)) ? Number(value.promptOffsetZ) : 100,
         priority: Number.isFinite(Number(value.priority)) ? Number(value.priority) : 0,
+        ...(Number.isFinite(radius) && radius > 0 ? { radius } : {}),
     };
 }
 
@@ -80,6 +95,8 @@ function createInteractClient(options: {
     hud: ClientHud;
     localPlayer: ClientPlayer;
     game: ClientGame;
+    /** The host's Shapes; absent on a host without it, where outlines only warn. */
+    shapes?: ClientShapes;
     timers?: TimerApi;
     now?: () => number;
 }): HmpInteractClient & { receiveSnapshot(payload: unknown): boolean; scan(): HmpInteractionClientZone | null; stop(): boolean } {
@@ -94,6 +111,10 @@ function createInteractClient(options: {
     let lastPressAt = 0;
     let stopped = false;
     let seat: Seat | null = null;
+    let outlines = false;
+    let warnedShapes = false;
+    /** Shape key -> what it was drawn as, so a resent snapshot redraws only what changed. */
+    const drawn = new Map<string, string>();
 
     function hide(): void {
         const ownedPrompt = promptSignature !== "";
@@ -180,6 +201,44 @@ function createInteractClient(options: {
         seatEnded();
     }
 
+    /** Rings each streamed zone's radius, and its prompt distance when nearer, while the server says outlines are on. */
+    function outline(): void {
+        const shapes = options.shapes;
+        if (!outlines || stopped) {
+            if (drawn.size && shapes) {
+                try { shapes.destroyAll(); }
+                catch (_) { /* the host drops a stopped resource's shapes itself */ }
+            }
+            drawn.clear();
+            warnedShapes = false;
+            return;
+        }
+        if (!shapes) {
+            if (!warnedShapes) options.game.notify?.("[interact] zone outlines need a HogwartsMP host with Shapes");
+            warnedShapes = true;
+            return;
+        }
+        const wanted = new Map<string, { center: HmpInteractionClientZone["position"]; radius: number; color: ShapeColor }>();
+        for (const candidate of zones.values()) {
+            const radius = candidate.radius ?? candidate.promptDistance;
+            wanted.set(`radius:${candidate.id}`, { center: candidate.position, radius, color: RADIUS_COLOR });
+            if (candidate.promptDistance < radius) wanted.set(`prompt:${candidate.id}`, { center: candidate.position, radius: candidate.promptDistance, color: PROMPT_COLOR });
+        }
+        for (const key of [...drawn.keys()]) {
+            if (wanted.has(key)) continue;
+            try { shapes.destroy(key); }
+            catch (_) { /* already gone */ }
+            drawn.delete(key);
+        }
+        for (const [key, ring] of wanted) {
+            const signature = `${ring.center.x}\0${ring.center.y}\0${ring.center.z}\0${ring.radius}`;
+            if (drawn.get(key) === signature) continue;
+            try { shapes.create(key, { type: "ring", center: ring.center, radius: ring.radius, thickness: 6, color: ring.color }); }
+            catch (_) { break; /* the host's per-client shape cap: the rest stay undrawn */ }
+            drawn.set(key, signature);
+        }
+    }
+
     function receiveSnapshot(payload: unknown): boolean {
         const value = parse(payload);
         const nextRevision = Number(value.revision);
@@ -195,6 +254,8 @@ function createInteractClient(options: {
         ready = true;
         // The seat's interaction went away, or the player left its world or area.
         if (seat && !zones.has(seat.id)) standUp();
+        outlines = value.outlines === true;
+        outline();
         scan();
         return true;
     }
@@ -220,6 +281,7 @@ function createInteractClient(options: {
         if (stopped) return false;
         stopped = true;
         standUp();
+        outline();
         timers.clearInterval(timer);
         removeShortcut();
         hide();
@@ -241,7 +303,7 @@ function createInteractClient(options: {
 
     return Object.freeze({
         setEnabled,
-        status: () => ({ enabled, ready, revision, interactions: zones.size, active: active?.id || null }),
+        status: () => ({ enabled, ready, revision, interactions: zones.size, active: active?.id || null, outlines }),
         receiveSnapshot,
         scan,
         stop,

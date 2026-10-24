@@ -6,8 +6,10 @@ these are safe starting values, not production secrets. See the top-level `INSTA
 `DATABASE.md` for the complete setup procedure.
 
 Configuration files are provided for resources with file-backed settings. `hmp-lib`, `hmp-ui`,
-`hmp-banking`, `hmp-interact`, and `hmp-jobs` use built-in defaults and registration APIs;
-server-specific banks, jobs, and interactions belong in a separate gameplay resource.
+`hmp-banking`, and `hmp-jobs` use built-in defaults and registration APIs; server-specific banks,
+jobs, and interactions belong in a separate gameplay resource.
+`hmp-interact` includes only its opt-in `/interact outlines` closed-test command, which rings the
+interaction zones around the caller on their own screen; interactions themselves register from code.
 `hmp-shops` includes a data-declared shop list (an example potion vendor with a stationary character
 body and limited stock); shops needing handlers or predicates still register from a gameplay resource.
 `hmp-business` includes price bounds, the house-cut policy, the `/business` admin groups, and a
@@ -66,6 +68,7 @@ Review at minimum:
 - maximum XP/talent-point bounds and who may use progression administration commands;
 - the house group prefix, whether standings may go negative, and who may assign houses or points;
 - activity lobby limits and expiry, and whether the non-gameplay closed-test definition remains enabled;
+- whether the `/interact outlines` zone overlay remains available;
 - the global PvP fallback decision, lethal-mode default/staff groups, duel countdown/expiry, and the
   non-lethal health floor;
 - the admin role-to-capability rules and verified-identity policy.

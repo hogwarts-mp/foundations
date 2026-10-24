@@ -751,6 +751,30 @@ declare global {
         freeze(frozen?: boolean): void;
         playIdle(abilityClassPath: string, channel?: "FullBody" | "PartialBody"): boolean;
     };
+    /** A shape colour, linear 0-1 (above 1 glows); `a` defaults to 1. */
+    interface HogwartsMpShapeColor { r: number; g: number; b: number; a?: number }
+    interface HogwartsMpShapeOptions {
+        type: "ring" | "sphere" | "box" | "cylinder" | "polygon" | "line";
+        /** World cm; with `attachTo`, an offset from it. A ring's or sphere's centre, a cylinder's base. */
+        center?: HogwartsMpVector3;
+        radius?: number;
+        /** Outline width, 0-1000. Default 8. */
+        thickness?: number;
+        /** Outline colour, default opaque white; `null` draws none. */
+        color?: HogwartsMpShapeColor | null;
+        /** Colour of what the outline encloses; default none. */
+        fill?: HogwartsMpShapeColor | null;
+        /** Drop the shape onto the ground below it. */
+        ground?: boolean;
+    }
+    /** Client-only world-space shapes; keys belong to the calling resource, and its shapes go when it stops. */
+    const Shapes: {
+        /** Creates or replaces a shape. Throws a TypeError on a bad shape, and an Error at 1024 shapes on this client. */
+        create(key: string, shape: HogwartsMpShapeOptions): boolean;
+        destroy(key: string): boolean;
+        /** Destroys every shape this resource made, returning how many. */
+        destroyAll(): number;
+    };
     const Camera: {
         capture(): {
             position: HogwartsMpVector3;

@@ -242,6 +242,22 @@ Interactions with `virtualWorld` are sent only to players currently in that worl
 again on activation. Call `Interact.sync(player)` after changing a player's virtual world so their
 prompt snapshot updates immediately.
 
+## Closed-test zone outlines
+
+`/interact outlines` rings every interaction zone in the caller's snapshot, on their own screen only:
+amber at the activation `radius`, where F works, and blue at `promptDistance` when the prompt shows
+nearer than that. A ring is drawn at the zone's `position`, so it marks the boundary for a player
+standing at that height. `/interact outlines on` and `off` set it; with neither it toggles. The rings
+follow registrations and world or area changes, and are off again after a reconnect or a restart.
+
+The command is opt-in. Copy `examples/config/data/hmp-interact.json` to the server's `data` directory,
+which turns `enableCommands` on, or set `HMP_INTERACT_COMMANDS=true`; `command` renames it, and
+`HMP_INTERACT_CONFIG` and `HMP_INTERACT_COMMAND` override the file. A client receives the activation
+radius only while its outlines are on. Turn `enableCommands` off after testing.
+
+Outlines need a HogwartsMP host with `Shapes`. On an older host the client shows a notice and draws
+nothing. A host draws at most 1024 shapes per client, so a crowded area can leave some zones unringed.
+
 ## Migrating the mod's `interactables` resource
 
 The original mod resource proved the Framework substrate used here: `Key.bind`, `Hud.showPrompt`,

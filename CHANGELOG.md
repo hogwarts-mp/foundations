@@ -138,6 +138,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   `shrinkOut` are refused: a moving prop leaves its fixed zone, and a timed one is gone while its
   interaction still stands. `streamRange` and `drawDistance` need HogwartsMP 1.9.2 or newer, and the
   look options a host whose `WorldObject.create` takes them; an older host ignores them.
+- `hmp-interact` can outline its zones for closed testing. `/interact outlines` rings every interaction
+  zone around the caller, on their screen only: amber at the activation radius, where F works, and blue
+  at the prompt distance where that is nearer. The command is opt-in through a new
+  `data/hmp-interact.json` (`enableCommands`, off unless configured; the example turns it on), and a
+  client receives the radius only while its outlines are on. It needs a HogwartsMP host with `Shapes`;
+  an older host draws nothing and shows a notice.
 
 ### Changed
 
