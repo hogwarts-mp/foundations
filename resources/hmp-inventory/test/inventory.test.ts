@@ -362,6 +362,54 @@ test("a worn item's appearance override survives a save and restore, and a non-G
     assert.deepStrictEqual(saved.at(-1), [{ ...cloak, appearanceOverride: "Back_010_Rare" }, robe]);
 });
 
+test("gear stats survive a save and restore, and a roll the host would refuse is dropped alone", async () => {
+    const replaced: HmpNativeInventoryRow[][] = [];
+    const saved: HmpNativeInventoryRow[][] = [];
+    interface TestInventory extends HogwartsMpNativeInventory { rows: HmpNativeInventoryRow[] }
+    const inventory = {
+        rows: [],
+        revision: 1,
+        replace(rows: HmpNativeInventoryRow[], callback?: (error: null, result: { revision: number; rows: number }) => void) {
+            replaced.push(clone(rows));
+            inventory.rows = clone(rows);
+            Object.defineProperty(inventory, "revision", { value: 2, writable: true });
+            callback?.(null, { revision: 2, rows: rows.length });
+        },
+        list: () => clone(inventory.rows),
+        native: () => ({ items: clone(inventory.rows), sequence: 1, appliedRevision: inventory.revision, applyErrors: [] }),
+        waitForRevision: async (revision: number) => ({ items: clone(inventory.rows), sequence: 1, appliedRevision: revision, applyErrors: [] }),
+    } as unknown as TestInventory;
+    const player = { id: 5, nickname: "Ominis", position: { x: 0, y: 0, z: 0 }, emit() {}, teleport: () => 0, inventory } as unknown as Player;
+    const cloak = { itemId: "Back_002_Rare", holder: "ActorBackpack", count: 1, variation: "v1", kind: "gear" as const, identified: true };
+    const robe = { itemId: "Outfit_002_Basic", holder: "ActorBackpack", count: 1, variation: "v2", kind: "gear" as const, identified: true };
+    const hat = { itemId: "Head_034_Basic", holder: "ActorBackpack", count: 1, variation: "v3", kind: "gear" as const, identified: true };
+    const roll = { level: 18, offense: 120, defense: 95, cooldown: 0, upgrades: 2, traits: ["Trait_Offense_Fire_02", "Mod.Trait-1"] };
+    const repository = {
+        loadNative: async () => [
+            { ...cloak, stats: roll },
+            { ...robe, stats: { ...roll, offense: 1.5 } },
+            { ...hat, stats: { level: 7 } },
+            { itemId: "Potion_Edurus", holder: "ActorBackpack", count: 2, kind: "item", stats: null },
+        ],
+        saveNative: async (_characterId: number, rows: HmpNativeInventoryRow[]) => { saved.push(clone(rows)); return rows; },
+    } as unknown as Repository;
+    const core = { characters: { active: () => ({ id: 9 }) } } as unknown as Core;
+    const bridge = createNativeBridge({ repository, core, logger: { info: () => true, warn: () => true, error: () => true } });
+
+    assert.strictEqual(await bridge.attach(player, { id: 9 }), true);
+    assert.deepStrictEqual(replaced.at(-1), [
+        { ...cloak, stats: roll },
+        robe,
+        { ...hat, stats: { level: 7, offense: 0, defense: 0, cooldown: 0, upgrades: 0, traits: [] } },
+        { itemId: "Potion_Edurus", holder: "ActorBackpack", count: 2, kind: "item" },
+    ]);
+
+    // A Loom upgrade reported by the host, and a roll it doesn't know yet.
+    inventory.rows = [{ ...cloak, stats: { ...roll, upgrades: 3 } }, { ...robe, stats: null }, { ...hat, stats: { ...roll, traits: ["Trait' OR '1'='1"] } }];
+    assert.strictEqual(await bridge.save(player), true);
+    assert.deepStrictEqual(saved.at(-1), [{ ...cloak, stats: { ...roll, upgrades: 3 } }, robe, hat]);
+});
+
 function changedReportHarness(options: { saveNative?: (characterId: number, rows: HmpNativeInventoryRow[]) => Promise<HmpNativeInventoryRow[]> } = {}) {
     const saved: Array<{ characterId: number; rows: HmpNativeInventoryRow[] }> = [];
     const warnings: string[] = [];

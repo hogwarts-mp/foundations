@@ -5,6 +5,14 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
 
 ## [Unreleased]
 
+### Fixed
+
+- `hmp-inventory` keeps each gear item's roll (`stats`: level, Offense, Defense, Cooldown, Loom
+  upgrades and traits) when it saves and restores native rows, so gear the client has to recreate after
+  a reconnect no longer comes back blank. It needs a HogwartsMP host that reports the roll (`1.10` or
+  newer); an older host leaves it out, as before. A roll the host would refuse is dropped on its own
+  instead of failing the whole restore.
+
 ## [0.10.0] - 2026-10-24
 
 ### Added

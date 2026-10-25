@@ -1,10 +1,32 @@
-import type { HmpInventoryItemOptions, HmpItemDefinition, HmpNativeInventoryRow } from "../types";
+import type { HmpGearStats, HmpInventoryItemOptions, HmpItemDefinition, HmpNativeInventoryRow } from "../types";
 import type { Character, Core, Logger, NativeBridge, Player, Repository } from "./internal";
 
 interface NativeRowInternal extends HmpNativeInventoryRow { unique?: boolean }
 type NativeMethod = "replace" | "give" | "remove" | "use";
 // The game splices a transmog source GearID into its own SQL, so the host accepts only these.
 const GEAR_ID = /^[A-Za-z0-9_]{1,96}$/;
+// The host's limits for a gear roll; like a bad GearID, one roll outside them fails the whole restore.
+const GEAR_STAT_MAX = 1_000_000;
+const GEAR_TRAIT_SLOTS = 3;
+const GEAR_TRAIT = /^[A-Za-z0-9_.-]{1,96}$/;
+
+function sanitizeStats(raw: unknown): HmpGearStats | undefined {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+    const value = raw as Record<string, unknown>;
+    const stats: HmpGearStats = { level: 0, offense: 0, defense: 0, cooldown: 0, upgrades: 0, traits: [] };
+    for (const key of ["level", "offense", "defense", "cooldown", "upgrades"] as const) {
+        const stat = value[key] ?? 0;
+        if (typeof stat !== "number" || !Number.isInteger(stat) || stat < 0 || stat > GEAR_STAT_MAX) return undefined;
+        stats[key] = stat;
+    }
+    const traits = value.traits ?? [];
+    if (!Array.isArray(traits) || traits.length > GEAR_TRAIT_SLOTS) return undefined;
+    for (const trait of traits) {
+        if (typeof trait !== "string" || !GEAR_TRAIT.test(trait)) return undefined;
+        stats.traits.push(trait);
+    }
+    return stats;
+}
 
 function sanitizeRows(raw: unknown): NativeRowInternal[] {
     const rows: NativeRowInternal[] = [];
@@ -25,6 +47,8 @@ function sanitizeRows(raw: unknown): NativeRowInternal[] {
         if (["item", "gear", "tool", "mount"].includes(String(value.kind))) normalized.kind = value.kind as NativeRowInternal["kind"];
         if (value.itemType) normalized.itemType = String(value.itemType).slice(0, 64);
         if (value.unique === true) normalized.unique = true;
+        const stats = sanitizeStats(value.stats);
+        if (stats) normalized.stats = stats;
         rows.push(normalized);
     }
     return rows;

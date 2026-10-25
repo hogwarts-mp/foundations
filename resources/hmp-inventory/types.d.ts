@@ -91,6 +91,17 @@ export interface HmpNativeItemOptions {
     keepOnReset?: boolean;
 }
 
+/** A gear item's roll: rolled at loot time and changed only by the Loom. */
+export interface HmpGearStats {
+    level: number;
+    offense: number;
+    defense: number;
+    cooldown: number;
+    upgrades: number;
+    /** Trait ids in slot order, at most 3. */
+    traits: string[];
+}
+
 export interface HmpNativeInventoryRow {
     itemId: string;
     holder: string;
@@ -104,6 +115,8 @@ export interface HmpNativeInventoryRow {
     stolen?: boolean;
     unique?: boolean;
     keepOnReset?: boolean;
+    /** Gear only: its roll, written back onto gear the client has to recreate. `null` when the host doesn't know it. */
+    stats?: HmpGearStats | null;
     kind?: "item" | "gear" | "tool" | "mount";
     itemType?: string;
 }
