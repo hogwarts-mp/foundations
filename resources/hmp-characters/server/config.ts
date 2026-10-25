@@ -20,7 +20,7 @@ function normalizeStartingGear(raw: unknown): StartingGearEntry[] {
         const count = Math.trunc(Number(value.count));
         if (value.count !== undefined && Number.isSafeInteger(count) && count > 0) entry.count = count;
         if (value.variation !== undefined && value.variation !== null && String(value.variation)) entry.variation = String(value.variation).slice(0, 96);
-        for (const key of ["identified", "equipped", "hoodUp", "stolen", "unique", "keepOnReset"] as const) {
+        for (const key of ["identified", "equipped", "hoodUp", "unique"] as const) {
             if (typeof value[key] === "boolean") entry[key] = value[key];
         }
         entries.push(entry);

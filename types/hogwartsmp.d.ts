@@ -23,9 +23,7 @@ declare global {
         identified?: boolean;
         equipped?: boolean;
         hoodUp?: boolean;
-        stolen?: boolean;
         unique?: boolean;
-        keepOnReset?: boolean;
         kind?: "item" | "gear" | "tool" | "mount";
         itemType?: string;
     }
@@ -35,9 +33,7 @@ declare global {
         identified?: boolean;
         equipped?: boolean;
         hoodUp?: boolean;
-        stolen?: boolean;
         unique?: boolean;
-        keepOnReset?: boolean;
     }
 
     interface HogwartsMpNativeInventoryResult {

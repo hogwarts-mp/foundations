@@ -13,6 +13,12 @@ pre-`1.0.0` policy documented in [COMPATIBILITY.md](COMPATIBILITY.md#version-pol
   newer); an older host leaves it out, as before. A roll the host would refuse is dropped on its own
   instead of failing the whole restore.
 
+### Removed
+
+- The `stolen` and `keepOnReset` native item options are gone from the shared inventory typings and
+  `hmp-inventory`'s `HmpNativeItemOptions` and `HmpNativeInventoryRow`, and `hmp-characters` no longer
+  copies them from `startingGear`. The host never reported or applied either flag.
+
 ## [0.10.0] - 2026-10-24
 
 ### Added

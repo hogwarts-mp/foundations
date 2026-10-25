@@ -86,9 +86,7 @@ export interface HmpNativeItemOptions {
     hoodUp?: boolean;
     /** Worn gear only: show the look of this GearID (an Equipment-menu transmog) instead of its own. */
     appearanceOverride?: string;
-    stolen?: boolean;
     unique?: boolean;
-    keepOnReset?: boolean;
 }
 
 /** A gear item's roll: rolled at loot time and changed only by the Loom. */
@@ -112,9 +110,7 @@ export interface HmpNativeInventoryRow {
     hoodUp?: boolean;
     /** Worn gear only: the GearID whose look it shows (an Equipment-menu transmog). */
     appearanceOverride?: string;
-    stolen?: boolean;
     unique?: boolean;
-    keepOnReset?: boolean;
     /** Gear only: its roll, written back onto gear the client has to recreate. `null` when the host doesn't know it. */
     stats?: HmpGearStats | null;
     kind?: "item" | "gear" | "tool" | "mount";
